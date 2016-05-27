@@ -8,12 +8,12 @@ public:
     Window(const unsigned int w, const unsigned int h) : width(w), height(h) { init(); }
     ~Window();
 
-    bool available() { return alive; }
+    bool available() { return !glfwWindowShouldClose(window); }
 
 private:
     void init();
 
     GLFWwindow *window;
-    bool alive = false;
+    //bool alive = false;
     unsigned int width, height;
 };

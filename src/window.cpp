@@ -1,22 +1,24 @@
 #include "window.hpp"
 
-Window::~Window() {
-    // window destroyed in closeCallback
+Window::~Window() {}
+
+void keyPressCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    {
+        glfwSetWindowShouldClose(window, GL_TRUE);
+    }
 }
 
-void errorCallback(int error, const char *desc) {
+void errorCallback(int error, const char *desc)
+{
     std::cerr << desc << " (error " << error << ")" << std::endl;
 }
 
-void windowCloseCallback(GLFWwindow *win) {
-    std::cout << "Terminating..." << std::endl;
-    
-    // Set close flag to false if further processing needs to be done...
-
-    bool *alive = reinterpret_cast<bool*>(glfwGetWindowUserPointer(win));
-    *alive = false;
-
-    glfwDestroyWindow(win);
+void windowCloseCallback(GLFWwindow *window)
+{
+    // Can be delayed by setting value to false temporarily
+    // glfwSetWindowShouldClose(window, GL_FALSE);
 }
 
 void Window::init() {
@@ -26,9 +28,8 @@ void Window::init() {
         exit(EXIT_FAILURE);
     }
 
-    alive = true;
-    glfwSetWindowUserPointer(window, &alive); // for glfw-callbacks
     glfwMakeContextCurrent(window);
+    glfwSetKeyCallback(window, keyPressCallback);
     glfwSetErrorCallback(errorCallback);
     glfwSetWindowCloseCallback(window, windowCloseCallback);
 }
