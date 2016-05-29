@@ -1,6 +1,7 @@
+#include <cmath>
 #include "clcontext.hpp"
 
-CLContext::CLContext(bool gpu, GLuint gl_tex)
+CLContext::CLContext(int gpu, GLuint gl_tex)
 {
     // Connect to a compute device
     std::cout << "Compute device: " << (gpu ? "GPU" : "CPU") << std::endl;
@@ -109,6 +110,7 @@ void CLContext::createCLTexture(GLuint gl_tex) {
 void CLContext::executeKernel()
 {
     // Take hold of texture
+    std::cout << "Acquiring GL object" << std::endl;
     glFinish();
     clEnqueueAcquireGLObjects(commands, 1, &pixels, 0, 0, NULL);
 
@@ -130,8 +132,11 @@ void CLContext::executeKernel()
         exit(1);
     }
 
-    unsigned int count = DATA_SIZE;
-    global = count;
+    unsigned int count = 800 * 600;
+    size_t numLocalGroups = std::ceil(count/local);
+    size_t global = local * numLocalGroups;
+
+    std::cout << "Executing kernel..." << std::endl;
     err = clEnqueueNDRangeKernel(commands, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
     if (err)
     {
@@ -140,11 +145,12 @@ void CLContext::executeKernel()
         exit(1);
     }
 
-    // Release texture for OpenGL to draw it
     clFinish(commands);
-    clEnqueueReleaseGLObjects(commands, 1, &pixels, 0, 0, NULL);
-    
     std::cout << "Kernel execution finished" << std::endl;
+
+    // Release texture for OpenGL to draw it
+    std::cout << "Releasing GL object" << std::endl;
+    clEnqueueReleaseGLObjects(commands, 1, &pixels, 0, 0, NULL);
 }
 
 // Return info about error

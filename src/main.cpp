@@ -38,28 +38,33 @@ void draw(GLFWwindow *window) {
 
 int main(int argc, char* argv[])
 {
-    const int USE_GPU = (argc > 1) ? atoi(argv[1]) : 1;
+    int w = (argc > 1) ? atoi(argv[1]) : 800;
+    int h = (argc > 2) ? atoi(argv[2]) : 600;
+    int USE_GPU = (argc > 3) ? atoi(argv[3]) : 1;
 
     if (!glfwInit())
     {
         exit(EXIT_FAILURE);
     }
 
-    Window window(800, 600);
-    GLFWwindow *wptr = window.glfwWindowPtr();
+    std::cout << "Window dimensions: [" << w << ", " << h << "]" << std::endl;
+    Window window(w, h);
 
     CLContext ctx(USE_GPU, window.getTexture());
     ctx.executeKernel();
 
-    // Vsync, 4xMSAA
-    glfwSwapInterval(1);
-    glfwWindowHint(GLFW_SAMPLES, 4);
+    window.repaint();
+
+    //glfwSwapInterval(1);
+    //glfwWindowHint(GLFW_SAMPLES, 4);
+    //GLFWwindow *wptr = window.glfwWindowPtr();
 
     // Main loop
     while(window.available())
     {
         // Do stuff
-        draw(wptr);
+        // window.repaint();
+        // draw(wptr);
     }
 
     glfwTerminate();

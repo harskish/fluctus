@@ -6,8 +6,10 @@
 class Window
 {
 public:
-    Window(const unsigned int w, const unsigned int h) : width(w), height(h) { init(); }
+    Window(int w, int h) : width(w), height(h) { init(); }
     ~Window();
+
+    void repaint();
 
     bool available()
     { 
@@ -22,7 +24,7 @@ private:
     void init();
     void createTexture();
 
+    int width, height;
     GLFWwindow *window;
-    GLuint gl_texture;
-    unsigned int width, height;
+    GLuint gl_texture = 0;
 };

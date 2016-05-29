@@ -38,6 +38,28 @@ void Window::init() {
     createTexture();
 }
 
+void Window::repaint() {
+    int w, h;
+    glfwGetFramebufferSize(window, &w, &h);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0.0, w, 0.0, h, -1.0, 1.0);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    // Draw a single quad
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, gl_texture);
+
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0); glVertex2f(0, 0);
+    glTexCoord2f(0, 1); glVertex2f(0, h);
+    glTexCoord2f(1, 1); glVertex2f(w, h);
+    glTexCoord2f(1, 0); glVertex2f(w, 0);
+    glEnd();
+}
+
 /* https://software.intel.com/sites/default/files/managed/da/ab/OpenGLInterop.pdf */
 void Window::createTexture() {
     // Remove old texture, useful e.g. when resizing window

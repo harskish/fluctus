@@ -18,7 +18,7 @@
 class CLContext
 {
 public:
-    CLContext(bool gpu, GLuint gl_tex);
+    CLContext(int gpu, GLuint gl_tex);
     ~CLContext();
 
     void executeKernel();
@@ -28,7 +28,6 @@ private:
 
     int err;                            // error code returned from api calls
 
-    size_t global;                      // global domain size for our calculation
     size_t local;                       // local domain size for our calculation
 
     cl_device_id device_id;             // compute device id 
@@ -37,7 +36,5 @@ private:
     cl_program program;                 // compute program
     cl_kernel kernel;                   // compute kernel
     
-    //cl_mem input;                       // device memory used for the input array
-    //cl_mem output;                      // device memory used for the output array
-    cl_mem pixels;                      // device memory used for pixel data
+    cl_mem pixels = 0;                  // device memory used for pixel data
 };
