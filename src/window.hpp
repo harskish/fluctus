@@ -8,7 +8,13 @@ public:
     Window(const unsigned int w, const unsigned int h) : width(w), height(h) { init(); }
     ~Window();
 
-    bool available() { return !glfwWindowShouldClose(window); }
+    bool available()
+    { 
+        glfwPollEvents();
+        return !glfwWindowShouldClose(window);
+    }
+
+    GLFWwindow *glfwWindowPtr() { return window; }
 
 private:
     void init();

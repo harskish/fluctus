@@ -1,5 +1,6 @@
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
 #define CL_HPP_TARGET_OPENCL_VERSION 120
+
 #include <GLFW/glfw3.h>
 #include "cl2.hpp"
 #include "window.hpp"
@@ -15,13 +16,15 @@ int main(int argc, char* argv[])
     }
 
     Window window(600, 400);
+
     CLContext ctx(USE_GPU);
     ctx.executeKernel();
 
     // Main loop
     while(window.available())
     {
-        glfwPollEvents();
+        // Do stuff
+
     }
 
     glfwTerminate();

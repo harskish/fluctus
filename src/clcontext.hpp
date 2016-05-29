@@ -1,21 +1,30 @@
 #pragma once
-#define CL_HPP_MINIMUM_OPENCL_VERSION 120
-#define CL_HPP_TARGET_OPENCL_VERSION 120
-#include <iostream>
-#include "cl2.hpp"
-#include "kernelreader.hpp"
 
 #define DATA_SIZE (2048)
+#define CL_HPP_MINIMUM_OPENCL_VERSION 120
+#define CL_HPP_TARGET_OPENCL_VERSION 120
+
+#ifdef __APPLE__
+#include <OpenCL/cl_gl_ext.h>
+#include <OpenGL/OpenGL.h>
+#endif
+
+#include <iostream>
+#include <string>
+#include "cl2.hpp"
+#include "kernelreader.hpp"
 
 class CLContext
 {
 public:
-	CLContext(bool gpu);
-	~CLContext();
+    CLContext(bool gpu);
+    ~CLContext();
 
     void executeKernel();
 private:
-	int err;                            // error code returned from api calls
+    std::string errorString();
+
+    int err;                            // error code returned from api calls
       
     float data[DATA_SIZE];              // original data set given to device
     float results[DATA_SIZE];           // results returned from device
