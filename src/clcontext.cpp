@@ -1,12 +1,7 @@
 #include "clcontext.hpp"
 
-CLContext::CLContext(bool gpu)
+CLContext::CLContext(bool gpu, GLuint gl_tex)
 {
-    // Fill data set with random floats
-    unsigned int count = DATA_SIZE;
-    for(int i = 0; i < count; i++)
-        data[i] = rand() / (float)RAND_MAX;
-    
     // Connect to a compute device
     std::cout << "Compute device: " << (gpu ? "GPU" : "CPU") << std::endl;
     err = clGetDeviceIDs(NULL, gpu ? CL_DEVICE_TYPE_GPU : CL_DEVICE_TYPE_CPU, 1, &device_id, NULL);
@@ -70,7 +65,7 @@ CLContext::CLContext(bool gpu)
     }
 
     // Create the compute kernel in the program we wish to run
-    kernel = clCreateKernel(program, "square", &err);
+    kernel = clCreateKernel(program, "trace", &err);
     if (!kernel || err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to create compute kernel!" << std::endl;
@@ -78,30 +73,47 @@ CLContext::CLContext(bool gpu)
         exit(1);
     }
 
-    // Create the input and output arrays in device memory for our calculation
-    input = clCreateBuffer(context,  CL_MEM_READ_ONLY,  sizeof(float) * count, NULL, NULL);
-    output = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) * count, NULL, NULL);
-    if (!input || !output)
-    {
-        std::cout << "Error: Failed to allocate device memory!" << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }    
-    
-    // Write our data set into the input array in device memory 
-    err = clEnqueueWriteBuffer(commands, input, CL_TRUE, 0, sizeof(float) * count, data, 0, NULL, NULL);
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: Failed to write to source array!" << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
+    // Create OpenCL texture from OpenGL texture
+    createCLTexture(gl_tex);
+}
+
+CLContext::~CLContext()
+{
+    std::cout << "Calling CLContext destructor!" << std::endl;
+
+    // Shutdown and cleanup
+    clReleaseMemObject(pixels);
+    clReleaseProgram(program);
+    clReleaseKernel(kernel);
+    clReleaseCommandQueue(commands);
+    clReleaseContext(context);
+}
+
+void CLContext::createCLTexture(GLuint gl_tex) {
+    if(pixels) {
+        std::cout << "Removing old CL-texture" << std::endl;
+        clReleaseMemObject(pixels);
     }
 
+    // CL_MEM_WRITE_ONLY is faster, but we need accumulation...
+    pixels = clCreateFromGLTexture(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, gl_tex, NULL);
+
+    if(!pixels)
+        std::cout << "Error: CL-texture creation failed!" << std::endl;
+    else
+        std::cout << "Created CL-texture at " << pixels << std::endl;
+}
+
+// Execute the kernel over the entire range of our 1d input data set
+// using the maximum number of work group items for this device
+void CLContext::executeKernel()
+{
+    // Take hold of texture
+    glFinish();
+    clEnqueueAcquireGLObjects(commands, 1, &pixels, 0, 0, NULL);
+
     // Set the arguments to our compute kernel
-    err = 0;
-    err  = clSetKernelArg(kernel, 0, sizeof(cl_mem), &input);
-    err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &output);
-    err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &count);
+    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &pixels);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
@@ -117,25 +129,7 @@ CLContext::CLContext(bool gpu)
         std::cout << errorString() << std::endl;
         exit(1);
     }
-}
 
-CLContext::~CLContext()
-{
-    std::cout << "Calling CLContext destructor!" << std::endl;
-
-    // Shutdown and cleanup
-    clReleaseMemObject(input);
-    clReleaseMemObject(output);
-    clReleaseProgram(program);
-    clReleaseKernel(kernel);
-    clReleaseCommandQueue(commands);
-    clReleaseContext(context);
-}
-
-// Execute the kernel over the entire range of our 1d input data set
-// using the maximum number of work group items for this device
-void CLContext::executeKernel()
-{
     unsigned int count = DATA_SIZE;
     global = count;
     err = clEnqueueNDRangeKernel(commands, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
@@ -146,28 +140,11 @@ void CLContext::executeKernel()
         exit(1);
     }
 
-    // Wait for the command commands to get serviced before reading back results
+    // Release texture for OpenGL to draw it
     clFinish(commands);
-
-    // Read back the results from the device to verify the output
-    err = clEnqueueReadBuffer( commands, output, CL_TRUE, 0, sizeof(float) * count, results, 0, NULL, NULL );  
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: Failed to read output array! " << err << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+    clEnqueueReleaseGLObjects(commands, 1, &pixels, 0, 0, NULL);
     
-    // Validate our results
-    correct = 0;
-    for(int i = 0; i < count; i++)
-    {
-        if(results[i] == data[i] * data[i])
-            correct++;
-    }
-    
-    // Print a brief summary detailing the results
-    std::cout << "Computed '" << correct << "/" << count << "' correct values!" << std::endl;
+    std::cout << "Kernel execution finished" << std::endl;
 }
 
 // Return info about error

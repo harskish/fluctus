@@ -1,4 +1,5 @@
 #pragma once
+
 #include <GLFW/glfw3.h>
 #include <iostream>
 
@@ -15,11 +16,13 @@ public:
     }
 
     GLFWwindow *glfwWindowPtr() { return window; }
+    GLuint getTexture() { return gl_texture; }
 
 private:
     void init();
+    void createTexture();
 
     GLFWwindow *window;
-    //bool alive = false;
+    GLuint gl_texture;
     unsigned int width, height;
 };
