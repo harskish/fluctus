@@ -30,11 +30,13 @@ private:
 
     size_t local;                       // local domain size for our calculation
 
-    cl_device_id device_id;             // compute device id 
+    cl_device_id device_id;             // compute device id
     cl_context context;                 // compute context
     cl_command_queue commands;          // compute command queue
     cl_program program;                 // compute program
     cl_kernel kernel;                   // compute kernel
+
+    cl_platform_id platform;
     
     cl_mem pixels = 0;                  // device memory used for pixel data
 };

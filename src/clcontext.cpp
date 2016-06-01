@@ -3,15 +3,36 @@
 
 CLContext::CLContext(int gpu, GLuint gl_tex)
 {
-    // Connect to a compute device
-    std::cout << "Compute device: " << (gpu ? "GPU" : "CPU") << std::endl;
-    err = clGetDeviceIDs(NULL, gpu ? CL_DEVICE_TYPE_GPU : CL_DEVICE_TYPE_CPU, 1, &device_id, NULL);
-    if (err != CL_SUCCESS)
+    // Get first available platform
+    err = clGetPlatformIDs(1, &platform, NULL);
+    if(err != CL_SUCCESS)
     {
-        std::cout << "Error: Failed to create a device group!" << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
+        std::cout << "A valid platform could not be found on this machine" << std::endl;
     }
+
+    // Get device count for the platform
+    cl_uint deviceCount;
+    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, NULL, &deviceCount);
+    if(err != CL_SUCCESS)
+    {
+        std::cout << "Could not determine the number of devices available on this platform" << std::endl;
+    }
+    else
+    {
+        std::cout << "Available devices: " << deviceCount << std::endl;
+    }
+
+
+    // Get device ids
+    cl_device_id devices[deviceCount]; //new?
+    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, deviceCount, devices, NULL);
+    if(err != CL_SUCCESS)
+    {
+        std::cout << "Error: Failed to get all devices!" << std::endl;
+    }
+
+    // Choose device to run on
+    device_id = devices[2];
 
     // Init shared context
     #ifdef __APPLE__
@@ -22,7 +43,7 @@ CLContext::CLContext(int gpu, GLuint gl_tex)
             CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
             (cl_context_properties)kCGLShareGroup, 0
         };
-        context = clCreateContext(props, 1, &device_id, NULL, NULL, &err); // 1 = number of devices
+        context = clCreateContext(props, 1, &(device_id), NULL, NULL, &err); // 1 = number of devices
         if(!context)
         {
             std::cout << "Error: Failed to create shared context" << std::endl;
