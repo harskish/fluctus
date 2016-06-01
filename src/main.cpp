@@ -54,17 +54,13 @@ int main(int argc, char* argv[])
     ctx.executeKernel();
 
     window.repaint();
-
-    //glfwSwapInterval(1);
-    //glfwWindowHint(GLFW_SAMPLES, 4);
-    //GLFWwindow *wptr = window.glfwWindowPtr();
+    glfwSwapBuffers(window.glfwWindowPtr());
+    window.repaint();
 
     // Main loop
     while(window.available())
     {
         // Do stuff
-        // window.repaint();
-        // draw(wptr);
     }
 
     glfwTerminate();
