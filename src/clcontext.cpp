@@ -1,8 +1,50 @@
 #include <cmath>
+#include <vector>
 #include "clcontext.hpp"
+
+
+// Print the devices, C++ style
+void CLContext::printDevices()
+{
+    std::vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
+    const std::string DECORATOR = "================";
+
+    int platform_id = 0;
+    int device_id = 0;
+
+    std::cout << "Number of Platforms: " << platforms.size() << std::endl;
+
+    for(cl::Platform &platform : platforms)
+    {
+        std::cout << DECORATOR << " Platform " << platform_id++ << " (" << platform.getInfo<CL_PLATFORM_NAME>() << ") " << DECORATOR << std::endl;
+
+        std::vector<cl::Device> devices;
+        platform.getDevices(CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_CPU, &devices);
+
+        for(cl::Device &device : devices)
+        {
+            bool GPU = (device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_GPU);
+
+            std::cout << "Device " << device_id++ << ": " << std::endl;
+            std::cout << "\tName: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;  
+            std::cout << "\tType: " << (GPU ? "(GPU)" : "(CPU)") << std::endl;
+            std::cout << "\tVendor: " << device.getInfo<CL_DEVICE_VENDOR>() << std::endl;
+            std::cout << "\tCompute Units: " << device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl;
+            std::cout << "\tGlobal Memory: " << device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl;
+            std::cout << "\tMax Clock Frequency: " << device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>() << std::endl;
+            std::cout << "\tMax Allocateable Memory: " << device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>() << std::endl;
+            std::cout << "\tLocal Memory: " << device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
+            std::cout << "\tAvailable: " << device.getInfo< CL_DEVICE_AVAILABLE>() << std::endl;
+        }  
+        std::cout << std::endl;
+    }
+}
 
 CLContext::CLContext(int gpu, GLuint gl_tex)
 {
+    printDevices();
+
     // Get first available platform
     err = clGetPlatformIDs(1, &platform, NULL);
     if(err != CL_SUCCESS)
@@ -32,7 +74,9 @@ CLContext::CLContext(int gpu, GLuint gl_tex)
     }
 
     // Choose device to run on
-    device_id = devices[2];
+    const int chosen = 1;
+    device_id = devices[chosen];
+    std::cout << "Using device " << chosen << " of platform 0" << std::endl;
 
     // Init shared context
     #ifdef __APPLE__
@@ -119,6 +163,7 @@ void CLContext::createCLTexture(GLuint gl_tex) {
 
     // CL_MEM_WRITE_ONLY is faster, but we need accumulation...
     pixels = clCreateFromGLTexture(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, gl_tex, NULL);
+    //pixels = clCreateFromGLTexture2D(context, CL_MEM_READ_WRITE, gl_texture_target, 0, gl_tex, NULL);
 
     if(!pixels)
         std::cout << "Error: CL-texture creation failed!" << std::endl;

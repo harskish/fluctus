@@ -24,6 +24,7 @@ public:
     void executeKernel();
     void createCLTexture(GLuint gl_tex);
 private:
+    void printDevices();
     std::string errorString();
 
     int err;                            // error code returned from api calls
@@ -35,7 +36,6 @@ private:
     cl_command_queue commands;          // compute command queue
     cl_program program;                 // compute program
     cl_kernel kernel;                   // compute kernel
-
     cl_platform_id platform;
     
     cl_mem pixels = 0;                  // device memory used for pixel data
