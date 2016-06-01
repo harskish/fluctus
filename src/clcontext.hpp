@@ -28,15 +28,13 @@ private:
     std::string errorString();
 
     int err;                            // error code returned from api calls
-
-    size_t local;                       // local domain size for our calculation
-    size_t ndRangeSizes[2];
+    size_t ndRangeSizes[2];             // kernel workgroup sizes
 
     std::vector<cl::Device> clDevices;
     cl::Device device;
     cl::Context context;
     cl::CommandQueue cmdQueue;
-    cl::Kernel raytracer_kernel;
+    cl::Kernel pt_kernel;
     
     cl_mem pixels = 0;                  // device memory used for pixel data
 };

@@ -106,7 +106,7 @@ CLContext::CLContext(int gpu, GLuint gl_tex)
     }
 
     // Creating compute kernel from program
-    raytracer_kernel = cl::Kernel(program, "trace", &err);
+    pt_kernel = cl::Kernel(program, "trace", &err);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to create compute kernel!" << std::endl;
@@ -158,7 +158,7 @@ void CLContext::executeKernel()
     clEnqueueAcquireGLObjects(cmdQueue(), 1, &pixels, 0, 0, 0);
     
 
-    err = raytracer_kernel.setArg(0, sizeof(cl_mem), &pixels);
+    err = pt_kernel.setArg(0, sizeof(cl_mem), &pixels);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
@@ -166,7 +166,8 @@ void CLContext::executeKernel()
         exit(1);
     }
 
-    err = device.getInfo(CL_DEVICE_MAX_WORK_GROUP_SIZE, &local);
+    size_t max_gw_size;
+    err = device.getInfo(CL_DEVICE_MAX_WORK_GROUP_SIZE, &max_gw_size);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to retrieve kernel work group info! " << err << std::endl;
@@ -179,16 +180,18 @@ void CLContext::executeKernel()
     int height = 600;
 
     ndRangeSizes[0] = 32; //TODO: 32 might be too large
-    ndRangeSizes[1] = local / ndRangeSizes[0];
+    ndRangeSizes[1] = max_gw_size / ndRangeSizes[0];
 
     std::cout << "Executing kernel..." << std::endl;
 
+    // Multiples of 32
     int wgMultipleWidth = ((width & 0x1F) == 0) ? width : ((width & 0xFFFFFFE0) + 0x20);
     int wgMutipleHeight = (int) ceil(height / (float) ndRangeSizes[1]) * ndRangeSizes[1];
+
+    cl::NDRange global(wgMultipleWidth, wgMutipleHeight);
+    cl::NDRange local(ndRangeSizes[0], ndRangeSizes[1]);
     
-    cmdQueue.enqueueNDRangeKernel(raytracer_kernel, cl::NullRange,
-                cl::NDRange(wgMultipleWidth, wgMutipleHeight),
-                cl::NDRange(ndRangeSizes[0], ndRangeSizes[1]));
+    cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
     
     cmdQueue.finish();
     std::cout << "Kernel execution finished" << std::endl;
