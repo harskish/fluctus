@@ -30,13 +30,13 @@ private:
     int err;                            // error code returned from api calls
 
     size_t local;                       // local domain size for our calculation
+    size_t ndRangeSizes[2];
 
-    cl_device_id device_id;             // compute device id
-    cl_context context;                 // compute context
-    cl_command_queue commands;          // compute command queue
-    cl_program program;                 // compute program
-    cl_kernel kernel;                   // compute kernel
-    cl_platform_id platform;
+    std::vector<cl::Device> clDevices;
+    cl::Device device;
+    cl::Context context;
+    cl::CommandQueue cmdQueue;
+    cl::Kernel raytracer_kernel;
     
     cl_mem pixels = 0;                  // device memory used for pixel data
 };

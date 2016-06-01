@@ -9,4 +9,4 @@
 #include <sstream>
 #include "cl2.hpp"
 
-void kernelFromFile(const std::string filename, cl_context &context, cl_program &program, int &err);
+void kernelFromFile(const std::string filename, cl::Context &context, cl::Program &program, int &err);
