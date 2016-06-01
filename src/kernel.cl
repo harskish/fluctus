@@ -1,15 +1,12 @@
-kernel void trace(write_only image2d_t img) {
-    int i = get_global_id(0);
-    int2 dim = get_image_dim(img);
-    if(i < dim.x * dim.y) {
-        int2 pos = (int2)(i % dim.x, i / dim.x);
+kernel void trace(__global float *out, const uint width, const uint height) {
+        
+    const uint x = get_global_id(0);
+    const uint y = get_global_id(1);
 
-        float color = (float)i / (dim.x * dim.y);
-        if(dim.x * dim.y <= 100) {
-            printf("Position: [%d, %d], color: %.3f\n", pos.x, pos.y, color);
-        }
+    if(x >= width || y >= height) return;
 
-        float4 c = (float4)((float)i / (dim.x * dim.y), 0.0f, 0.0f, 1.0f);
-        write_imagef(img, pos, c);
-    }
+    float intensity = (float)(x + y) / (width + height);
+
+    float4 pixelColor = intensity * (float4)(1.0f, 0.0f, 0.0f, 0.0f);
+    vstore4(pixelColor, (y * width + x), out);
 }

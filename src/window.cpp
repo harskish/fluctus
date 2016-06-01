@@ -1,7 +1,7 @@
 #include "window.hpp"
 
 Window::~Window() {
-    if(gl_texture) glDeleteTextures(1, &gl_texture);
+    if(gl_PBO) glDeleteTextures(1, &gl_PBO);
 }
 
 void keyPressCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -35,14 +35,16 @@ void Window::init() {
     glfwSetErrorCallback(errorCallback);
     glfwSetWindowCloseCallback(window, windowCloseCallback);
 
-    createTexture();
+    createPBO();
 }
 
 void Window::repaint() {
     int w, h;
     glfwGetFramebufferSize(window, &w, &h);
 
-    glMatrixMode(GL_PROJECTION);
+    std::cout << "Dimensons from framebuffer: " << w << "x" << h << std::endl;
+
+    /*glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(0.0, w, 0.0, h, -1.0, 1.0);
     glMatrixMode(GL_MODELVIEW);
@@ -57,27 +59,46 @@ void Window::repaint() {
     glTexCoord2f(0, 1); glVertex2f(0, h);
     glTexCoord2f(1, 1); glVertex2f(w, h);
     glTexCoord2f(1, 0); glVertex2f(w, 0);
-    glEnd();
+    glEnd();*/
+
+    glViewport(0, 0, w, h);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+
+    /*
+     * Set up an ortho-projection such that the bottom/left corner
+     * of the image plane is 0,0.
+     */
+    glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+    glRasterPos2i(0, 0);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_PBO);
+    glDrawPixels(w, h, GL_RGBA, GL_FLOAT, 0);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
-/* https://software.intel.com/sites/default/files/managed/da/ab/OpenGLInterop.pdf */
-void Window::createTexture() {
-    // Remove old texture, useful e.g. when resizing window
-    if(gl_texture) {
-        std::cout << "Removing old GL-texture" << std::endl;
-        glDeleteTextures(1, &gl_texture);
-        gl_texture = 0;
+// TODO: use FBO/RenderBuffer instead?
+void Window::createPBO() {
+    if (gl_PBO) {
+        //clReleaseMemObject(clPBO); // RELEASE CL_OBJ ALSO!
+        std::cout << "Removing old gl_PBO" << std::endl;
+        glDeleteBuffers(1, &gl_PBO);
     }
 
-    // Generate new texture
-    glGenTextures(1, &gl_texture);
-    glBindTexture(GL_TEXTURE_2D, gl_texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, 0);
-    std::cout << "Created GL-texture at " << gl_texture << std::endl;
+    glGenBuffers(1, &gl_PBO);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_PBO);
+    
+    // STREAM_DRAW because of frequent updates
+    std::cout << "Allocating GL-PBO with " << width * height * sizeof(GLfloat) * 4 << " bytes" << std::endl;
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, width * height * sizeof(GLfloat) * 4, 0, GL_STREAM_DRAW);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    
+    std::cout << "Created GL-PBO at " << gl_PBO << std::endl;
 }
 
 

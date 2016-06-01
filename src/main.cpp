@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
     std::cout << "Window dimensions: [" << w << ", " << h << "]" << std::endl;
     Window window(w, h);
 
-    CLContext ctx(USE_GPU, window.getTexture());
+    CLContext ctx(USE_GPU, window.getPBO());
     ctx.executeKernel();
 
     window.repaint();

@@ -18,13 +18,13 @@ public:
     }
 
     GLFWwindow *glfwWindowPtr() { return window; }
-    GLuint getTexture() { return gl_texture; }
+    GLuint getPBO() { return gl_PBO; }
 
 private:
     void init();
-    void createTexture();
+    void createPBO();
 
     int width, height;
     GLFWwindow *window;
-    GLuint gl_texture = 0;
+    GLuint gl_PBO = 0;
 };

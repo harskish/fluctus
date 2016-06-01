@@ -36,5 +36,5 @@ private:
     cl::CommandQueue cmdQueue;
     cl::Kernel pt_kernel;
     
-    cl_mem pixels = 0;                  // device memory used for pixel data
+    cl_mem cl_PBO = 0;                  // device memory used for pixel data
 };

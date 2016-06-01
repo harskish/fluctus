@@ -132,19 +132,19 @@ CLContext::~CLContext()
     clReleaseContext(context);*/
 }
 
-void CLContext::createCLTexture(GLuint gl_tex) {
-    if(pixels) {
-        std::cout << "Removing old CL-texture" << std::endl;
-        clReleaseMemObject(pixels);
+void CLContext::createCLTexture(GLuint gl_PBO) {
+    if(cl_PBO) {
+        std::cout << "Removing old CL-PBO" << std::endl;
+        clReleaseMemObject(cl_PBO);
     }
 
     // CL_MEM_WRITE_ONLY is faster, but we need accumulation...
-    pixels = clCreateFromGLTexture(context(), CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, gl_tex, NULL);
+    cl_PBO = clCreateFromGLBuffer(context(), CL_MEM_READ_WRITE, gl_PBO, &err);
 
-    if(!pixels)
-        std::cout << "Error: CL-texture creation failed!" << std::endl;
+    if(!cl_PBO)
+        std::cout << "Error: CL-PBO creation failed!" << std::endl;
     else
-        std::cout << "Created CL-texture at " << pixels << std::endl;
+        std::cout << "Created CL-PBO at " << cl_PBO << std::endl;
 }
 
 // Execute the kernel over the entire range of our 1d input data set
@@ -155,14 +155,19 @@ void CLContext::executeKernel()
     std::cout << "Acquiring GL object" << std::endl;
     glFinish();
     
-    clEnqueueAcquireGLObjects(cmdQueue(), 1, &pixels, 0, 0, 0);
-    
+    clEnqueueAcquireGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, 0);
 
-    err = pt_kernel.setArg(0, sizeof(cl_mem), &pixels);
+    // TODO: Actually use window size!
+    const unsigned int width = 800;
+    const unsigned int height = 600;
+
+    err = 0;
+    err |= pt_kernel.setArg(0, sizeof(cl_mem), &cl_PBO);
+    err |= pt_kernel.setArg(1, width);
+    err |= pt_kernel.setArg(2, height);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
-        std::cout << errorString() << std::endl;
         exit(1);
     }
 
@@ -175,9 +180,6 @@ void CLContext::executeKernel()
         exit(1);
     }
     
-
-    int width = 800;
-    int height = 600;
 
     ndRangeSizes[0] = 32; //TODO: 32 might be too large
     ndRangeSizes[1] = max_gw_size / ndRangeSizes[0];
@@ -198,7 +200,7 @@ void CLContext::executeKernel()
 
     // Release texture for OpenGL to draw it
     std::cout << "Releasing GL object" << std::endl;
-    clEnqueueReleaseGLObjects(cmdQueue(), 1, &pixels, 0, 0, NULL);
+    clEnqueueReleaseGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, NULL);
 }
 
 // Return info about error
