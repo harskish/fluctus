@@ -18,11 +18,11 @@
 class CLContext
 {
 public:
-    CLContext(int gpu, GLuint gl_tex);
+    CLContext(GLuint gl_PBO);
     ~CLContext();
 
-    void executeKernel();
-    void createCLTexture(GLuint gl_tex);
+    void executeKernel(const unsigned int width, const unsigned int height);
+    void createPBO(GLuint gl_PBO);
 private:
     void printDevices();
     std::string errorString();

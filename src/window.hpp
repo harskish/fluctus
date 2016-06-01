@@ -2,11 +2,12 @@
 
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include "CLContext.hpp"
 
 class Window
 {
 public:
-    Window(int w, int h) : width(w), height(h) { init(); }
+    Window(int w, int h) { init(w, h); }
     ~Window();
 
     void repaint();
@@ -17,14 +18,18 @@ public:
         return !glfwWindowShouldClose(window);
     }
 
+    void setCLCtx(CLContext *ctx) { cl_ctx = ctx; }
+    void createPBO();
+    void createCLPBO();
+
     GLFWwindow *glfwWindowPtr() { return window; }
     GLuint getPBO() { return gl_PBO; }
+    void getFBSize(int &w, int &h);
 
 private:
-    void init();
-    void createPBO();
+    void init(int w, int h);
 
-    int width, height;
     GLFWwindow *window;
+    CLContext *cl_ctx;
     GLuint gl_PBO = 0;
 };

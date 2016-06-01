@@ -6,61 +6,35 @@
 #include "window.hpp"
 #include "clcontext.hpp"
 
-void draw(GLFWwindow *window) {
-    float ratio;
-    int width, height;
-    
-    glfwGetFramebufferSize(window, &width, &height);
-    ratio = width / (float) height;
-    
-    glViewport(0, 0, width, height);
-    glClear(GL_COLOR_BUFFER_BIT);
-    
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(-ratio, ratio, -1.f, 1.f, 1.f, -1.f);
-    glMatrixMode(GL_MODELVIEW);
-    
-    glLoadIdentity();
-    glRotatef((float) glfwGetTime() * 50.f, 0.f, 0.f, 1.f);
-    
-    glBegin(GL_TRIANGLES);
-    glColor3f(1.f, 0.f, 0.f);
-    glVertex3f(-0.6f, -0.4f, 0.f);
-    glColor3f(0.f, 1.f, 0.f);
-    glVertex3f(0.6f, -0.4f, 0.f);
-    glColor3f(0.f, 0.f, 1.f);
-    glVertex3f(0.f, 0.6f, 0.f);
-    glEnd();
-
-    glfwSwapBuffers(window);
-}
-
 int main(int argc, char* argv[])
 {
-    int w = (argc > 1) ? atoi(argv[1]) : 800;
-    int h = (argc > 2) ? atoi(argv[2]) : 600;
-    int USE_GPU = (argc > 3) ? atoi(argv[3]) : 1;
+    // Initial size of window
+    int width = (argc > 1) ? atoi(argv[1]) : 800;
+    int height = (argc > 2) ? atoi(argv[2]) : 600;
 
     if (!glfwInit())
     {
         exit(EXIT_FAILURE);
     }
 
-    std::cout << "Window dimensions: [" << w << ", " << h << "]" << std::endl;
-    Window window(w, h);
+    std::cout << "Window dimensions: [" << width << ", " << height << "]" << std::endl;
+    Window window(width, height);
 
-    CLContext ctx(USE_GPU, window.getPBO());
-    ctx.executeKernel();
+    CLContext ctx(window.getPBO());
+    window.setCLCtx(&ctx);
+    
+    //ctx.executeKernel();
+    //window.repaint();
 
-    window.repaint();
-    glfwSwapBuffers(window.glfwWindowPtr());
-    window.repaint();
+    int fbw, fbh;
 
     // Main loop
     while(window.available())
     {
         // Do stuff
+        window.getFBSize(fbw, fbh);
+        ctx.executeKernel((unsigned int)fbw, (unsigned int)fbh);
+        window.repaint();
     }
 
     glfwTerminate();

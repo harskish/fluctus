@@ -41,7 +41,7 @@ void CLContext::printDevices()
     }
 }
 
-CLContext::CLContext(int gpu, GLuint gl_tex)
+CLContext::CLContext(GLuint gl_PBO)
 {
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
@@ -114,8 +114,8 @@ CLContext::CLContext(int gpu, GLuint gl_tex)
         exit(1);
     }
 
-    // Create OpenCL texture from OpenGL texture
-    createCLTexture(gl_tex);
+    // Create OpenCL buffer from OpenGL PBO
+    createPBO(gl_PBO);
 }
 
 CLContext::~CLContext()
@@ -132,7 +132,7 @@ CLContext::~CLContext()
     clReleaseContext(context);*/
 }
 
-void CLContext::createCLTexture(GLuint gl_PBO) {
+void CLContext::createPBO(GLuint gl_PBO) {
     if(cl_PBO) {
         std::cout << "Removing old CL-PBO" << std::endl;
         clReleaseMemObject(cl_PBO);
@@ -149,17 +149,13 @@ void CLContext::createCLTexture(GLuint gl_PBO) {
 
 // Execute the kernel over the entire range of our 1d input data set
 // using the maximum number of work group items for this device
-void CLContext::executeKernel()
+void CLContext::executeKernel(const unsigned int width, const unsigned int height)
 {
     // Take hold of texture
-    std::cout << "Acquiring GL object" << std::endl;
+    //std::cout << "Acquiring GL object" << std::endl;
     glFinish();
     
     clEnqueueAcquireGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, 0);
-
-    // TODO: Actually use window size!
-    const unsigned int width = 800;
-    const unsigned int height = 600;
 
     err = 0;
     err |= pt_kernel.setArg(0, sizeof(cl_mem), &cl_PBO);
@@ -184,7 +180,7 @@ void CLContext::executeKernel()
     ndRangeSizes[0] = 32; //TODO: 32 might be too large
     ndRangeSizes[1] = max_gw_size / ndRangeSizes[0];
 
-    std::cout << "Executing kernel..." << std::endl;
+    //std::cout << "Executing kernel..." << std::endl;
 
     // Multiples of 32
     int wgMultipleWidth = ((width & 0x1F) == 0) ? width : ((width & 0xFFFFFFE0) + 0x20);
@@ -196,10 +192,10 @@ void CLContext::executeKernel()
     cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
     
     cmdQueue.finish();
-    std::cout << "Kernel execution finished" << std::endl;
+    //std::cout << "Kernel execution finished" << std::endl;
 
     // Release texture for OpenGL to draw it
-    std::cout << "Releasing GL object" << std::endl;
+    //std::cout << "Releasing GL object" << std::endl;
     clEnqueueReleaseGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, NULL);
 }
 

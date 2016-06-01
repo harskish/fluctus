@@ -1,6 +1,7 @@
 #include "window.hpp"
 
-Window::~Window() {
+Window::~Window()
+{
     if(gl_PBO) glDeleteTextures(1, &gl_PBO);
 }
 
@@ -17,13 +18,23 @@ void errorCallback(int error, const char *desc)
     std::cerr << desc << " (error " << error << ")" << std::endl;
 }
 
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    void *ptr = glfwGetWindowUserPointer(window);
+    Window *instance = reinterpret_cast<Window*>(ptr);
+    
+    instance->createPBO();
+    instance->createCLPBO();
+}
+
 void windowCloseCallback(GLFWwindow *window)
 {
     // Can be delayed by setting value to false temporarily
     // glfwSetWindowShouldClose(window, GL_FALSE);
 }
 
-void Window::init() {
+void Window::init(int width, int height)
+{
     window = glfwCreateWindow(width, height, "HOLDTHEDOOR!", NULL, NULL); // monitor, share
     if (!window) {
         glfwTerminate();
@@ -34,32 +45,23 @@ void Window::init() {
     glfwSetKeyCallback(window, keyPressCallback);
     glfwSetErrorCallback(errorCallback);
     glfwSetWindowCloseCallback(window, windowCloseCallback);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetWindowUserPointer(window, (void*)this);
 
     createPBO();
 }
 
-void Window::repaint() {
-    int w, h;
+void Window::getFBSize(int &w, int &h)
+{
     glfwGetFramebufferSize(window, &w, &h);
+}
 
-    std::cout << "Dimensons from framebuffer: " << w << "x" << h << std::endl;
+void Window::repaint()
+{
+    int w, h;
+    getFBSize(w, h);
 
-    /*glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0.0, w, 0.0, h, -1.0, 1.0);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    // Draw a single quad
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, gl_texture);
-
-    glBegin(GL_QUADS);
-    glTexCoord2f(0, 0); glVertex2f(0, 0);
-    glTexCoord2f(0, 1); glVertex2f(0, h);
-    glTexCoord2f(1, 1); glVertex2f(w, h);
-    glTexCoord2f(1, 0); glVertex2f(w, 0);
-    glEnd();*/
+    //std::cout << "Dimensons from framebuffer: " << w << "x" << h << std::endl;
 
     glViewport(0, 0, w, h);
     glMatrixMode(GL_MODELVIEW);
@@ -68,10 +70,8 @@ void Window::repaint() {
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
 
-    /*
-     * Set up an ortho-projection such that the bottom/left corner
-     * of the image plane is 0,0.
-     */
+    // Set up an ortho-projection such that the bottom/left
+    // corner of the image plane is 0,0
     glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
 
     glClear(GL_COLOR_BUFFER_BIT);
@@ -80,18 +80,23 @@ void Window::repaint() {
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_PBO);
     glDrawPixels(w, h, GL_RGBA, GL_FLOAT, 0);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    glfwSwapBuffers(window);
 }
 
 // TODO: use FBO/RenderBuffer instead?
-void Window::createPBO() {
+void Window::createPBO()
+{
     if (gl_PBO) {
-        //clReleaseMemObject(clPBO); // RELEASE CL_OBJ ALSO!
         std::cout << "Removing old gl_PBO" << std::endl;
         glDeleteBuffers(1, &gl_PBO);
     }
 
     glGenBuffers(1, &gl_PBO);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_PBO);
+
+    int width, height;
+    getFBSize(width, height);
     
     // STREAM_DRAW because of frequent updates
     std::cout << "Allocating GL-PBO with " << width * height * sizeof(GLfloat) * 4 << " bytes" << std::endl;
@@ -99,6 +104,12 @@ void Window::createPBO() {
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     
     std::cout << "Created GL-PBO at " << gl_PBO << std::endl;
+}
+
+// Call in createPBO()?
+void Window::createCLPBO()
+{
+    cl_ctx->createPBO(gl_PBO);
 }
 
 
