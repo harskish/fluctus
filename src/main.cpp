@@ -19,6 +19,7 @@ int main(int argc, char* argv[])
 
     std::cout << "Window dimensions: [" << width << ", " << height << "]" << std::endl;
     Window window(width, height);
+    window.setShowFPS(true);
 
     CLContext ctx(window.getPBO());
     window.setCLCtx(&ctx);

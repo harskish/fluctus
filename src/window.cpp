@@ -82,6 +82,9 @@ void Window::repaint()
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
     glfwSwapBuffers(window);
+
+    if(show_fps)
+        calcFPS(1.0, "TITLEEEE");
 }
 
 // TODO: use FBO/RenderBuffer instead?
@@ -97,6 +100,8 @@ void Window::createPBO()
 
     int width, height;
     getFBSize(width, height);
+
+    std::cout << "New size: " << width << "x" << height << std::endl;
     
     // STREAM_DRAW because of frequent updates
     std::cout << "Allocating GL-PBO with " << width * height * sizeof(GLfloat) * 4 << " bytes" << std::endl;
@@ -110,6 +115,57 @@ void Window::createPBO()
 void Window::createCLPBO()
 {
     cl_ctx->createPBO(gl_PBO);
+}
+
+double Window::calcFPS(double interval, std::string theWindowTitle)
+{
+    // Static values, only initialised once
+    static double tLast      = glfwGetTime();
+    static int    frameCount = 0;
+    static double fps        = 0.0;
+ 
+    // Current time in seconds since the program started
+    double tNow = glfwGetTime();
+ 
+    // Sanity check
+    interval = std::max(0.1, std::min(interval, 10.0));
+ 
+    // Time to show FPS?
+    if ((tNow - tLast) > interval)
+    {
+        fps = (double)frameCount / (tNow - tLast);
+ 
+        // If the user specified a window title to append the FPS value to...
+        if (theWindowTitle != "NONE")
+        {
+            // Convert the fps value into a string using an output stringstream
+            std::ostringstream stream;
+            stream.precision(3);
+            stream << std::fixed << fps;
+            std::string fpsString = stream.str();            
+ 
+            // Append the FPS value to the window title details
+            theWindowTitle += " | FPS: " + fpsString;
+ 
+            // Convert the new window title to a c_str and set it
+            const char* pszConstString = theWindowTitle.c_str();
+            glfwSetWindowTitle(window, pszConstString);
+        }
+        else
+        {
+            std::cout << "FPS: " << fps << std::endl;
+        }
+ 
+        // Reset counter and time
+        frameCount = 0;
+        tLast = glfwGetTime();
+    }
+    else
+    {
+        frameCount++;
+    }
+ 
+    return fps;
 }
 
 
