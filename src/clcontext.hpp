@@ -14,6 +14,15 @@
 #include <string>
 #include "cl2.hpp"
 #include "kernelreader.hpp"
+#include "geom.h"
+
+// Test scene
+static Sphere test_spheres[2] =
+{
+    // radius, position, Kd
+    { 1.0f, {{ 0.0f, 0.0f, 0.0f, 0.0f }}, {{ 1.0f, 0.0f, 0.0f, 0.0f }} },
+    { 0.5f, {{ 0.0f, 0.8f, 0.0f, 0.0f }}, {{ 0.0f, 1.0f, 0.0f, 0.0f }} }
+};
 
 class CLContext
 {
@@ -25,6 +34,7 @@ public:
     void createPBO(GLuint gl_PBO);
 private:
     void printDevices();
+    void setupScene();
     std::string errorString();
 
     int err;                            // error code returned from api calls
@@ -37,4 +47,5 @@ private:
     cl::Kernel pt_kernel;
     
     cl_mem cl_PBO = 0;                  // device memory used for pixel data
+    cl::Buffer sphereBuffer;
 };

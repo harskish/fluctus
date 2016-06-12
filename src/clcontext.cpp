@@ -61,7 +61,6 @@ CLContext::CLContext(GLuint gl_PBO)
             CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
             (cl_context_properties)kCGLShareGroup, 0
         };
-        //context = clCreateContext(props, 1, &(device_id), NULL, NULL, &err); // 1 = number of devices
         context = cl::Context(CL_DEVICE_TYPE_GPU, props, NULL, NULL, &err);
         if(err != CL_SUCCESS)
         {
@@ -96,7 +95,8 @@ CLContext::CLContext(GLuint gl_PBO)
     }
 
     // Build kernel source (create compute program)
-    err = program.build(clDevices);
+    // Define "GPU" to disable cl-prefixed types in shared headers (cl_float4 => float4 etc.)
+    err = program.build(clDevices, "-I./src -DGPU");
     std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
     if (err != CL_SUCCESS)
     {
@@ -116,6 +116,9 @@ CLContext::CLContext(GLuint gl_PBO)
 
     // Create OpenCL buffer from OpenGL PBO
     createPBO(gl_PBO);
+
+    // Allocate device memory for scene
+    setupScene();
 }
 
 CLContext::~CLContext()
@@ -132,7 +135,8 @@ CLContext::~CLContext()
     clReleaseContext(context);*/
 }
 
-void CLContext::createPBO(GLuint gl_PBO) {
+void CLContext::createPBO(GLuint gl_PBO)
+{
     if(cl_PBO) {
         std::cout << "Removing old CL-PBO" << std::endl;
         clReleaseMemObject(cl_PBO);
@@ -147,20 +151,51 @@ void CLContext::createPBO(GLuint gl_PBO) {
         std::cout << "Created CL-PBO at " << cl_PBO << std::endl;
 }
 
-// Execute the kernel over the entire range of our 1d input data set
-// using the maximum number of work group items for this device
+void CLContext::setupScene()
+{
+    // READ_WRITE due to Apple's OpenCL bug...?
+    size_t s_bytes = 2 * sizeof(Sphere);
+    std::cout << "cl_float size: " << sizeof(cl_float) << "B" << std::endl;
+    std::cout << "cl_float4 size: " << sizeof(cl_float4) << "B" << std::endl;
+    std::cout << "Sphere size: " << sizeof(Sphere) << "B" << std::endl;
+    std::cout << "Sphere buffer size: " << s_bytes << "B" << std::endl;
+
+    sphereBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, s_bytes, NULL, &err);
+
+    if (err != CL_SUCCESS) {
+        std::cout << "Error: scene buffer creation failed!" << err << std::endl;
+        std::cout << errorString() << std::endl;
+        exit(1);
+    }
+
+    // Blocking write!
+    err = cmdQueue.enqueueWriteBuffer(sphereBuffer, CL_TRUE, 0, s_bytes, test_spheres);
+    
+    if (err != CL_SUCCESS) {
+        std::cout << "Error: scene buffer writing failed!" << std::endl;
+        std::cout << errorString() << std::endl;
+        std::cout << "Scene buffer is at: " << test_spheres << std::endl;
+        exit(1);
+    }
+
+    std::cout << "Scene initialization succeeded!" << std::endl;
+}
+
 void CLContext::executeKernel(const unsigned int width, const unsigned int height)
 {
+    static double t0 = glfwGetTime();
     // Take hold of texture
     //std::cout << "Acquiring GL object" << std::endl;
     glFinish();
     
+    float sin2 = 0.35f + 0.65f * pow(sin(glfwGetTime() - t0), 2);
     clEnqueueAcquireGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, 0);
 
     err = 0;
     err |= pt_kernel.setArg(0, sizeof(cl_mem), &cl_PBO);
     err |= pt_kernel.setArg(1, width);
     err |= pt_kernel.setArg(2, height);
+    err |= pt_kernel.setArg(3, sin2);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
