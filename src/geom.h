@@ -12,7 +12,7 @@ typedef struct
 
 typedef struct
 {
-    cl_float radius;    // 4B (padded to 16B?)
-    cl_float4 pos;      // 16B
-    cl_float4 Kd;       // 16B
-} Sphere;               // 48B
+    cl_float R;     // 4B (padded to 16B?)
+    cl_float4 pos;  // 16B
+    cl_float4 Kd;   // 16B
+} Sphere;           // 48B

@@ -193,9 +193,10 @@ void CLContext::executeKernel(const unsigned int width, const unsigned int heigh
 
     err = 0;
     err |= pt_kernel.setArg(0, sizeof(cl_mem), &cl_PBO);
-    err |= pt_kernel.setArg(1, width);
-    err |= pt_kernel.setArg(2, height);
-    err |= pt_kernel.setArg(3, sin2);
+    err |= pt_kernel.setArg(1, sphereBuffer);
+    err |= pt_kernel.setArg(2, width);
+    err |= pt_kernel.setArg(3, height);
+    err |= pt_kernel.setArg(4, sin2);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
