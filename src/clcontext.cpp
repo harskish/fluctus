@@ -43,6 +43,8 @@ void CLContext::printDevices()
 
 CLContext::CLContext(GLuint gl_PBO)
 {
+    printDevices();
+
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
     
@@ -51,6 +53,9 @@ CLContext::CLContext(GLuint gl_PBO)
 
     platform.getDevices(CL_DEVICE_TYPE_GPU, &clDevices); //CL_DEVICE_TYPE_ALL?
     std::cout << "Forcing GPU device" << std::endl;
+
+    // Macbook pro 15 fix
+    clDevices.erase(clDevices.begin());
 
     // Init shared context
     #ifdef __APPLE__
@@ -61,7 +66,7 @@ CLContext::CLContext(GLuint gl_PBO)
             CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
             (cl_context_properties)kCGLShareGroup, 0
         };
-        context = cl::Context(CL_DEVICE_TYPE_GPU, props, NULL, NULL, &err);
+        context = cl::Context(clDevices, props, NULL, NULL, &err); //CL_DEVICE_TYPE_GPU instead of clDevices?
         if(err != CL_SUCCESS)
         {
             std::cout << "Error: Failed to create shared context" << std::endl;
