@@ -193,7 +193,7 @@ void CLContext::executeKernel(const unsigned int width, const unsigned int heigh
     //std::cout << "Acquiring GL object" << std::endl;
     glFinish();
     
-    float sin2 = 0.35f + 0.65f * pow(sin(glfwGetTime() - t0), 2);
+    float sin2 = pow(sin(glfwGetTime() - t0), 2);
     clEnqueueAcquireGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, 0);
 
     err = 0;
