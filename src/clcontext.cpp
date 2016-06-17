@@ -55,7 +55,7 @@ CLContext::CLContext(GLuint gl_PBO)
     std::cout << "Forcing GPU device" << std::endl;
 
     // Macbook pro 15 fix
-    clDevices.erase(clDevices.begin());
+    // clDevices.erase(clDevices.begin());
 
     // Init shared context
     #ifdef __APPLE__

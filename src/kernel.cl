@@ -1,5 +1,5 @@
 #include "geom.h"
-#define toRad(deg) (deg * M_PI / 180)
+#define toRad(deg) (deg * 3.141592f / 180)
 
 inline bool shereIntersect(Ray *r, global Sphere *s, float *t)
 {
@@ -33,20 +33,14 @@ inline bool shereIntersect(Ray *r, global Sphere *s, float *t)
     return true;
 }
 
-kernel void trace(global float *out, global Sphere *scene, const uint width, const uint height, const float sin2)
-{        
-    const uint x = get_global_id(0);
-    const uint y = get_global_id(1);
-
-    if(x >= width || y >= height) return;
-
-    
+inline Ray getCameraRay(const uint x, const uint y, const uint width, const uint height, const float sin2)
+{
     // Camera plane is 1 unit away, by convention
     // Camera points in the negative z-direction
-    float4 camOrig = (float4)(0.0f, 0.0f, 1.5f + sin2, 0.0f);
-    float4 camDir = (float4)(0.0f, 0.0f, -1.0f, 0.0f);
+    float4 camOrig =  (float4)(0.0f, 0.0f + sin2, 2.5f + sin2, 0.0f);
+    float4 camDir =   (float4)(0.0f, -0.2f * sin2, -1.0f, 0.0f);
     float4 camRight = (float4)(1.0f, 0.0f, 0.0f, 0.0f);
-    float4 camUp = (float4)(0.0f, 1.0f, 0.0f, 0.0f);
+    float4 camUp =    (float4)(0.0f, 1.0f, 0.0f, 0.0f);
 
     // NDC-space, [0,1]x[0,1]
     float NDCx = (x + 0.5f) / width;
@@ -54,13 +48,13 @@ kernel void trace(global float *out, global Sphere *scene, const uint width, con
 
     // Screen space, [-1,1]x[-1,1]
     float SCRx = 2.0f * NDCx - 1.0f;
-    float SCRy = -2.0f * NDCy + 1.0f;
+    float SCRy = 2.0f * NDCy - 1.0f;
 
     // Aspect ratio fix applied horizontally
     SCRx *= (float)width / height;
 
     // Screen space coordinates scaled based on fov
-    const int fov = 90;
+    const int fov = 70;
     float scale = tan(toRad(fov / 2)); // half of width
     SCRx *= scale;
     SCRy *= scale;
@@ -71,9 +65,21 @@ kernel void trace(global float *out, global Sphere *scene, const uint width, con
 
     // Construct camera ray
     Ray r = { camOrig, rayDirection };
+    return r;
+}
+
+kernel void trace(global float *out, global Sphere *scene, const uint width, const uint height, const float sin2)
+{        
+    const uint x = get_global_id(0); // left to right
+    const uint y = get_global_id(1); // bottom to top
+
+    if(x >= width || y >= height) return;
+    
+    Ray r = getCameraRay(x, y, width, height, sin2);
 
     // Check intersections
     float tmin = FLT_MAX;
+    int imin;
     for(int i = 0; i < 2; i++)
     {
         float t;
@@ -81,9 +87,14 @@ kernel void trace(global float *out, global Sphere *scene, const uint width, con
         if(hit && t < tmin)
         {
             tmin = t;
+            imin = i;
         }
     }
     
-    float4 pixelColor = (tmin != FLT_MAX) ? (float4)(1.0f) : float4(0.0f);
+    float4 pixelColor = (tmin != FLT_MAX) ? scene[imin].Kd : float4(0.0f);
+    
+    //float4 prev = vload4((y * width + x), out);
+    //float4 newCol = 0.005f * pixelColor + prev;
+
     vstore4(pixelColor, (y * width + x), out); // (value, offset, ptr)
 }
