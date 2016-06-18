@@ -17,11 +17,12 @@
 #include "geom.h"
 
 // Test scene
-static Sphere test_spheres[2] =
+static Sphere test_spheres[] =
 {
     // radius, position, Kd
     { 1.0f, {{ 0.0f, 0.0f, 0.0f, 0.0f }}, {{ 1.0f, 0.0f, 0.0f, 0.0f }} },
-    { 0.5f, {{ 0.0f, 1.5f, 0.0f, 0.0f }}, {{ 0.0f, 1.0f, 0.0f, 0.0f }} }
+    { 0.5f, {{ 0.0f, 1.5f, 0.0f, 0.0f }}, {{ 0.0f, 1.0f, 0.0f, 0.0f }} },
+    { 1000.0f, {{ 0.0f, -1000.0f, 0.0f, 0.0f }}, {{ 0.0f, 0.0f, 1.0f, 0.0f }} } //floor
 };
 
 class CLContext
@@ -45,7 +46,7 @@ private:
     cl::Context context;
     cl::CommandQueue cmdQueue;
     cl::Kernel pt_kernel;
-    
+
     cl_mem cl_PBO = 0;                  // device memory used for pixel data
     cl::Buffer sphereBuffer;
 };

@@ -27,7 +27,7 @@ void CLContext::printDevices()
             bool GPU = (device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_GPU);
 
             std::cout << "Device " << device_id++ << ": " << std::endl;
-            std::cout << "\tName: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;  
+            std::cout << "\tName: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
             std::cout << "\tType: " << (GPU ? "(GPU)" : "(CPU)") << std::endl;
             std::cout << "\tVendor: " << device.getInfo<CL_DEVICE_VENDOR>() << std::endl;
             std::cout << "\tCompute Units: " << device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl;
@@ -36,7 +36,7 @@ void CLContext::printDevices()
             std::cout << "\tMax Allocateable Memory: " << device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>() << std::endl;
             std::cout << "\tLocal Memory: " << device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
             std::cout << "\tAvailable: " << device.getInfo< CL_DEVICE_AVAILABLE>() << std::endl;
-        }  
+        }
         std::cout << std::endl;
     }
 }
@@ -47,7 +47,7 @@ CLContext::CLContext(GLuint gl_PBO)
 
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
-    
+
     cl::Platform platform = platforms[0];
     std::cout << "Using platform 0" << std::endl;
 
@@ -132,8 +132,8 @@ CLContext::~CLContext()
 
     // TODO: CPP-destructors????
 
-    // Shutdown and cleanup
-    /*clReleaseMemObject(pixels);
+    /* Shutdown and cleanup
+    clReleaseMemObject(pixels);
     clReleaseProgram(program);
     clReleaseKernel(kernel);
     clReleaseCommandQueue(commands);
@@ -159,7 +159,7 @@ void CLContext::createPBO(GLuint gl_PBO)
 void CLContext::setupScene()
 {
     // READ_WRITE due to Apple's OpenCL bug...?
-    size_t s_bytes = 2 * sizeof(Sphere);
+    size_t s_bytes = sizeof(test_spheres);
     std::cout << "cl_float size: " << sizeof(cl_float) << "B" << std::endl;
     std::cout << "cl_float4 size: " << sizeof(cl_float4) << "B" << std::endl;
     std::cout << "Sphere size: " << sizeof(Sphere) << "B" << std::endl;
@@ -175,7 +175,7 @@ void CLContext::setupScene()
 
     // Blocking write!
     err = cmdQueue.enqueueWriteBuffer(sphereBuffer, CL_TRUE, 0, s_bytes, test_spheres);
-    
+
     if (err != CL_SUCCESS) {
         std::cout << "Error: scene buffer writing failed!" << std::endl;
         std::cout << errorString() << std::endl;
@@ -189,19 +189,30 @@ void CLContext::setupScene()
 void CLContext::executeKernel(const unsigned int width, const unsigned int height)
 {
     static double t0 = glfwGetTime();
+
+    // TODO: don't recreate params every time
+
+    // Render parameters to be passed to kernel
+    RenderParams params;
+    params.width = width;
+    params.height = height;
+    params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
+    params.sin2 = pow(sin(glfwGetTime() - t0), 2);
+
+    Camera cam;
+    cam.pos = {{ 0.0f, 0.1f + params.sin2, 2.5f + params.sin2, 0.0f }};
+    cam.dir = {{ 0.0f, -0.2f * params.sin2, -1.0f, 0.0f }};
+    cam.fov = 70.0f;
+    params.camera = cam;
+
     // Take hold of texture
-    //std::cout << "Acquiring GL object" << std::endl;
     glFinish();
-    
-    float sin2 = pow(sin(glfwGetTime() - t0), 2);
     clEnqueueAcquireGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, 0);
 
     err = 0;
     err |= pt_kernel.setArg(0, sizeof(cl_mem), &cl_PBO);
     err |= pt_kernel.setArg(1, sphereBuffer);
-    err |= pt_kernel.setArg(2, width);
-    err |= pt_kernel.setArg(3, height);
-    err |= pt_kernel.setArg(4, sin2);
+    err |= pt_kernel.setArg(2, params);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
@@ -216,7 +227,7 @@ void CLContext::executeKernel(const unsigned int width, const unsigned int heigh
         std::cout << errorString() << std::endl;
         exit(1);
     }
-    
+
 
     ndRangeSizes[0] = 32; //TODO: 32 might be too large
     ndRangeSizes[1] = max_gw_size / ndRangeSizes[0];
@@ -229,9 +240,9 @@ void CLContext::executeKernel(const unsigned int width, const unsigned int heigh
 
     cl::NDRange global(wgMultipleWidth, wgMutipleHeight);
     cl::NDRange local(ndRangeSizes[0], ndRangeSizes[1]);
-    
+
     cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
-    
+
     cmdQueue.finish();
     //std::cout << "Kernel execution finished" << std::endl;
 
