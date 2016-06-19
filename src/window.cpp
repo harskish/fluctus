@@ -1,16 +1,18 @@
 #include "window.hpp"
-
-Window::~Window()
-{
-    if(gl_PBO) glDeleteTextures(1, &gl_PBO);
-}
+#include "tracer.hpp"
 
 void keyPressCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
-    if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-    {
+    if(action == GLFW_RELEASE)
+        return;
+
+    if(key == GLFW_KEY_ESCAPE)
         glfwSetWindowShouldClose(window, GL_TRUE);
-    }
+
+    // Pass keypress to tracer
+    void *ptr = glfwGetWindowUserPointer(window);
+    Tracer *tracer = reinterpret_cast<Tracer*>(ptr);
+    tracer->handleKeypress(key);
 }
 
 void errorCallback(int error, const char *desc)
@@ -21,10 +23,9 @@ void errorCallback(int error, const char *desc)
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     void *ptr = glfwGetWindowUserPointer(window);
-    Window *instance = reinterpret_cast<Window*>(ptr);
+    Tracer *instance = reinterpret_cast<Tracer*>(ptr);
     
-    instance->createPBO();
-    instance->createCLPBO();
+    instance->resizeBuffers();
 }
 
 void windowCloseCallback(GLFWwindow *window)
@@ -33,7 +34,7 @@ void windowCloseCallback(GLFWwindow *window)
     // glfwSetWindowShouldClose(window, GL_FALSE);
 }
 
-void Window::init(int width, int height)
+Window::Window(int width, int height, void *tracer)
 {
     window = glfwCreateWindow(width, height, "HOLDTHEDOOR!", NULL, NULL); // monitor, share
     if (!window) {
@@ -46,19 +47,27 @@ void Window::init(int width, int height)
     glfwSetErrorCallback(errorCallback);
     glfwSetWindowCloseCallback(window, windowCloseCallback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSetWindowUserPointer(window, (void*)this);
+    glfwSetWindowUserPointer(window, tracer); // for callbacks
 
     createPBO();
 }
 
-void Window::getFBSize(int &w, int &h)
+Window::~Window()
 {
-    glfwGetFramebufferSize(window, &w, &h);
+    if(gl_PBO) glDeleteTextures(1, &gl_PBO);
+}
+
+void Window::getFBSize(unsigned int &w, unsigned int &h)
+{
+    int fbw, fbh;
+    glfwGetFramebufferSize(window, &fbw, &fbh);
+    w = (unsigned int) fbw;
+    h = (unsigned int) fbh;
 }
 
 void Window::repaint()
 {
-    int w, h;
+    unsigned int w, h;
     getFBSize(w, h);
 
     //std::cout << "Dimensons from framebuffer: " << w << "x" << h << std::endl;
@@ -84,7 +93,7 @@ void Window::repaint()
     glfwSwapBuffers(window);
 
     if(show_fps)
-        calcFPS(1.0, "TITLEEEE");
+        calcFPS(1.0, "HOLDTHEDOOR");
 }
 
 // TODO: use FBO/RenderBuffer instead?
@@ -98,7 +107,7 @@ void Window::createPBO()
     glGenBuffers(1, &gl_PBO);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_PBO);
 
-    int width, height;
+    unsigned int width, height;
     getFBSize(width, height);
 
     std::cout << "New size: " << width << "x" << height << std::endl;
@@ -109,12 +118,6 @@ void Window::createPBO()
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     
     std::cout << "Created GL-PBO at " << gl_PBO << std::endl;
-}
-
-// Call in createPBO()?
-void Window::createCLPBO()
-{
-    cl_ctx->createPBO(gl_PBO);
 }
 
 double Window::calcFPS(double interval, std::string theWindowTitle)

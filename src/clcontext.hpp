@@ -13,6 +13,8 @@
 #include <GLFW/glfw3.h> // texture conversion stuff
 #include <iostream>
 #include <string>
+#include <cmath>
+#include <vector>
 #include "cl2.hpp"
 #include "kernelreader.hpp"
 #include "geom.h"
@@ -35,7 +37,7 @@ public:
     CLContext(GLuint gl_PBO);
     ~CLContext();
 
-    void executeKernel(const unsigned int width, const unsigned int height);
+    void executeKernel(const RenderParams params);
     void createPBO(GLuint gl_PBO);
 private:
     void printDevices();

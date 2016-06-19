@@ -1,3 +1,5 @@
+#pragma once
+
 #ifdef GPU
 typedef float4 cl_float4;
 typedef float cl_float;

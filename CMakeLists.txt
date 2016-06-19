@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.3)
 project(CL_TRACE)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -Wall -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib -lglfw3 -framework OpenCL -framework OpenGL")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
@@ -17,6 +17,8 @@ set(SOURCE_FILES
     src/kernel.cl
     src/kernelreader.cpp
     src/kernelreader.hpp
-    src/main.cpp)
+    src/main.cpp
+    src/tracer.cpp
+    src/tracer.hpp)
 
 add_executable(CL_TRACE ${SOURCE_FILES})

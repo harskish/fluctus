@@ -1,7 +1,4 @@
-#include <cmath>
-#include <vector>
 #include "clcontext.hpp"
-
 
 // Print the devices, C++ style
 void CLContext::printDevices()
@@ -186,25 +183,8 @@ void CLContext::setupScene()
     std::cout << "Scene initialization succeeded!" << std::endl;
 }
 
-void CLContext::executeKernel(const unsigned int width, const unsigned int height)
+void CLContext::executeKernel(const RenderParams params)
 {
-    static double t0 = glfwGetTime();
-
-    // TODO: don't recreate params every time
-
-    // Render parameters to be passed to kernel
-    RenderParams params;
-    params.width = width;
-    params.height = height;
-    params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
-    params.sin2 = pow(sin(glfwGetTime() - t0), 2);
-
-    Camera cam;
-    cam.pos = {{ 0.0f, 0.1f + params.sin2, 2.5f + params.sin2, 0.0f }};
-    cam.dir = {{ 0.0f, -0.2f * params.sin2, -1.0f, 0.0f }};
-    cam.fov = 70.0f;
-    params.camera = cam;
-
     // Take hold of texture
     glFinish();
     clEnqueueAcquireGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, 0);
@@ -235,8 +215,8 @@ void CLContext::executeKernel(const unsigned int width, const unsigned int heigh
     //std::cout << "Executing kernel..." << std::endl;
 
     // Multiples of 32
-    int wgMultipleWidth = ((width & 0x1F) == 0) ? width : ((width & 0xFFFFFFE0) + 0x20);
-    int wgMutipleHeight = (int) ceil(height / (float) ndRangeSizes[1]) * ndRangeSizes[1];
+    int wgMultipleWidth = ((params.width & 0x1F) == 0) ? params.width : ((params.width & 0xFFFFFFE0) + 0x20);
+    int wgMutipleHeight = (int)(ceil(params.height / (float) ndRangeSizes[1]) * ndRangeSizes[1]);
 
     cl::NDRange global(wgMultipleWidth, wgMutipleHeight);
     cl::NDRange local(ndRangeSizes[0], ndRangeSizes[1]);

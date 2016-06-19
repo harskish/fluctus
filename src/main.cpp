@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include "cl2.hpp"
 #include "window.hpp"
+#include "tracer.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -17,24 +18,17 @@ int main(int argc, char* argv[])
     }
 
     std::cout << "Window dimensions: [" << width << ", " << height << "]" << std::endl;
-    Window window(width, height);
-    window.setShowFPS(true);
 
-    CLContext ctx(window.getPBO());
-    window.setCLCtx(&ctx);
-
-    int fbw, fbh;
+    Tracer tracer(width, height);
 
     // Main loop
-    while(window.available())
+    while(tracer.running())
     {
         // Do stuff
-        window.getFBSize(fbw, fbh);
-        ctx.executeKernel((unsigned int)fbw, (unsigned int)fbh);
-        window.repaint();
+        tracer.update();
     }
 
-    glfwTerminate();
+    glfwTerminate(); // in tracer destructor?
 
     return 0;
 }
