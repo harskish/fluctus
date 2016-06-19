@@ -1,8 +1,9 @@
 #pragma once
 
-#define DATA_SIZE (2048)
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
 #define CL_HPP_TARGET_OPENCL_VERSION 120
+
+#define RGB(r,g,b) {{ r / 255.0f, g / 255.0f, b / 255.0f, 0.0f }}
 
 #ifdef __APPLE__
 #include <OpenCL/cl_gl_ext.h>
@@ -20,9 +21,12 @@
 static Sphere test_spheres[] =
 {
     // radius, position, Kd
-    { 1.0f, {{ 0.0f, 0.0f, 0.0f, 0.0f }}, {{ 1.0f, 0.0f, 0.0f, 0.0f }} },
-    { 0.5f, {{ 0.0f, 1.5f, 0.0f, 0.0f }}, {{ 0.0f, 1.0f, 0.0f, 0.0f }} },
-    { 1000.0f, {{ 0.0f, -1000.0f, 0.0f, 0.0f }}, {{ 0.0f, 0.0f, 1.0f, 0.0f }} } //floor
+    { 1.0f, {{ 0.0f, 0.0f, 0.0f, 0.0f }}, RGB(255, 0, 0) },             // big sphere
+    { 0.5f, {{ 0.0f, 1.5f, 0.0f, 0.0f }}, RGB(0, 255, 0) },             // small sphere
+    { 1000.0f, {{ 0.0f, -1000.0f, 0.0f, 0.0f }}, RGB(0, 0, 255) },      // floor
+    { 1000.0f, {{ 0.0f, 0.0f, -1005.0f, 0.0f }}, RGB(180, 190, 180) },  // back wall
+    { 1000.0f, {{ -1005.0f, 0.0f, 0.0f, 0.0f }}, RGB(205, 110, 15) },   // left wall
+    { 1000.0f, {{ +1005.0f, 0.0f, 0.0f, 0.0f }}, RGB(255, 0, 255) },    // right wall
 };
 
 class CLContext

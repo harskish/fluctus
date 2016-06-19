@@ -4,7 +4,6 @@
 #include <GLFW/glfw3.h>
 #include "cl2.hpp"
 #include "window.hpp"
-#include "clcontext.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -23,9 +22,6 @@ int main(int argc, char* argv[])
 
     CLContext ctx(window.getPBO());
     window.setCLCtx(&ctx);
-    
-    //ctx.executeKernel();
-    //window.repaint();
 
     int fbw, fbh;
 
