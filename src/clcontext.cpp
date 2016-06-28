@@ -15,7 +15,7 @@ CLContext::CLContext(GLuint gl_PBO)
     std::cout << "Forcing GPU device" << std::endl;
 
     // Macbook pro 15 fix
-    clDevices.erase(clDevices.begin());
+    // clDevices.erase(clDevices.begin());
 
     // Init shared context
     #ifdef __APPLE__
@@ -82,8 +82,9 @@ CLContext::CLContext(GLuint gl_PBO)
     // Create OpenCL buffer from OpenGL PBO
     createPBO(gl_PBO);
 
-    // Allocate device memory for scene
+    // Allocate device memory for scene and rendering parameters
     setupScene();
+    setupParams();
 }
 
 CLContext::~CLContext()
@@ -146,12 +147,11 @@ void CLContext::setupScene()
     std::cout << "Scene initialization succeeded!" << std::endl;
 }
 
-void CLContext::setupParams(const RenderParams params)
+// Passing structs to kernels is broken in several drivers (e.g. GT 750M on MacOS)
+// Allocating memory for the rendering params is more compatible
+void CLContext::setupParams()
 {
-
-    size_t s_bytes = sizeof(params);
-
-    testBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, s_bytes, NULL, &err);
+    renderParams = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(RenderParams), NULL, &err);
 
     if (err != CL_SUCCESS) {
         std::cout << "Error: test buffer creation failed!" << err << std::endl;
@@ -159,34 +159,33 @@ void CLContext::setupParams(const RenderParams params)
         exit(1);
     }
 
+    std::cout << "RenderParam allocation succeeded!" << std::endl;
+}
+
+void CLContext::updateParams(const RenderParams &params)
+{
     // Blocking write!
-    err = cmdQueue.enqueueWriteBuffer(testBuffer, CL_TRUE, 0, s_bytes, &params);
+    err = cmdQueue.enqueueWriteBuffer(renderParams, CL_TRUE, 0, sizeof(RenderParams), &params);
 
     if (err != CL_SUCCESS) {
-        std::cout << "Error: test buffer writing failed!" << std::endl;
+        std::cout << "Error: RenderParam writing failed!" << std::endl;
         std::cout << errorString() << std::endl;
-        std::cout << "test buffer is at: " << test_spheres << std::endl;
         exit(1);
     }
 
-    std::cout << "test buffer initialization succeeded!" << std::endl;
+    std::cout << "RenderParams updated!" << std::endl;
 }
 
-void CLContext::executeKernel(const RenderParams params)
+void CLContext::executeKernel(const RenderParams &params)
 {
     // Take hold of texture
     glFinish();
     clEnqueueAcquireGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, 0);
 
-    Sphere s;
-    s.R = 1.0f;
-    s.pos = {{1.0f, 1.0f, 1.0f, 1.0f}};
-    s.Kd = {{1.0f, 1.0f, 1.0f, 1.0f}};
-
     err = 0;
     err |= pt_kernel.setArg(0, sizeof(cl_mem), &cl_PBO);
     err |= pt_kernel.setArg(1, sphereBuffer);
-    err |= pt_kernel.setArg(2, testBuffer);
+    err |= pt_kernel.setArg(2, renderParams);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;

@@ -20,4 +20,6 @@ private:
     Window *window;
     CLContext *clctx;
     RenderParams params;
+
+    bool paramsUpdatePending = true; // force one param update
 };

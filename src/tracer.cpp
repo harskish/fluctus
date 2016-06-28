@@ -35,6 +35,7 @@ void Tracer::resizeBuffers()
 {
     window->createPBO();
     clctx->createPBO(window->getPBO());
+    paramsUpdatePending = true;
     std::cout << std::endl;
 }
 
@@ -43,9 +44,14 @@ void Tracer::update()
     // React to key presses
     glfwPollEvents();
 
-    // Advance render state
+    // Update RenderParams in GPU memory if needed
     window->getFBSize(params.width, params.height);
-    clctx->setupParams(params);
+    if(paramsUpdatePending) {
+        clctx->updateParams(params);
+        paramsUpdatePending = false;
+    }
+
+    // Advance render state
     clctx->executeKernel(params);
 
     // Draw progress to screen
@@ -57,33 +63,43 @@ void Tracer::handleKeypress(int key)
     switch(key) {
         case GLFW_KEY_W:
             params.camera.pos.s[2] -= 0.1f;
+            paramsUpdatePending = true;
             break;
         case GLFW_KEY_A:
             params.camera.pos.s[0] -= 0.1f;
+            paramsUpdatePending = true;
             break;
         case GLFW_KEY_S:
             params.camera.pos.s[2] += 0.1f;
+            paramsUpdatePending = true;
             break;
         case GLFW_KEY_D:
             params.camera.pos.s[0] += 0.1f;
+            paramsUpdatePending = true;
             break;
         case GLFW_KEY_R:
             params.camera.pos.s[1] += 0.1f;
+            paramsUpdatePending = true;
             break;
         case GLFW_KEY_F:
             params.camera.pos.s[1] -= 0.1f;
+            paramsUpdatePending = true;
             break;
         case GLFW_KEY_UP:
             params.camera.dir.s[1] += 0.1f;
+            paramsUpdatePending = true;
             break;
         case GLFW_KEY_DOWN:
             params.camera.dir.s[1] -= 0.1f;
+            paramsUpdatePending = true;
             break;
         case GLFW_KEY_LEFT:
             params.camera.dir.s[0] -= 0.1f;
+            paramsUpdatePending = true;
             break;
         case GLFW_KEY_RIGHT:
             params.camera.dir.s[0] += 0.1f;
+            paramsUpdatePending = true;
             break;
     }
 }
