@@ -38,6 +38,7 @@ public:
     ~CLContext();
 
     void executeKernel(const RenderParams params);
+    void setupParams(const RenderParams params);
     void createPBO(GLuint gl_PBO);
 private:
     void printDevices();
@@ -55,4 +56,5 @@ private:
 
     cl_mem cl_PBO = 0;                  // device memory used for pixel data
     cl::Buffer sphereBuffer;
+    cl::Buffer testBuffer;
 };

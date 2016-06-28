@@ -45,6 +45,7 @@ void Tracer::update()
 
     // Advance render state
     window->getFBSize(params.width, params.height);
+    clctx->setupParams(params);
     clctx->executeKernel(params);
 
     // Draw progress to screen

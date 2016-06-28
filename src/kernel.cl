@@ -35,7 +35,7 @@ inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
     return true;
 }
 
-inline Ray getCameraRay(const uint x, const uint y, const RenderParams params)
+inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
 {
     // Camera plane is 1 unit away, by convention
     // Camera points in the negative z-direction
@@ -43,43 +43,43 @@ inline Ray getCameraRay(const uint x, const uint y, const RenderParams params)
     float4 camUp =    (float4)(0.0f, 1.0f, 0.0f, 0.0f);
 
     // NDC-space, [0,1]x[0,1]
-    float NDCx = (x + 0.5f) / params.width;
-    float NDCy = (y + 0.5f) / params.height;
+    float NDCx = (x + 0.5f) / params->width;
+    float NDCy = (y + 0.5f) / params->height;
 
     // Screen space, [-1,1]x[-1,1]
     float SCRx = 2.0f * NDCx - 1.0f;
     float SCRy = 2.0f * NDCy - 1.0f;
 
     // Aspect ratio fix applied horizontally
-    SCRx *= (float)params.width / params.height;
+    SCRx *= (float)params->width / params->height;
 
     // Screen space coordinates scaled based on fov
-    float scale = tan(toRad(params.camera.fov / 2)); // half of width
+    float scale = tan(toRad(params->camera.fov / 2)); // half of width
     SCRx *= scale;
     SCRy *= scale;
 
     // World space coorinates of pixel
-    float4 rayTarget = params.camera.pos + camRight * SCRx + camUp * SCRy + params.camera.dir;
-    float4 rayDirection = normalize(rayTarget - params.camera.pos);
+    float4 rayTarget = params->camera.pos + camRight * SCRx + camUp * SCRy + params->camera.dir;
+    float4 rayDirection = normalize(rayTarget - params->camera.pos);
 
     // Construct camera ray
-    Ray r = { params.camera.pos, rayDirection };
+    Ray r = { params->camera.pos, rayDirection };
     return r;
 }
 
-kernel void trace(global float *out, global Sphere *scene, const RenderParams params)
+kernel void trace(global float *out, global Sphere *scene, global RenderParams *params)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
 
-    if(x >= params.width || y >= params.height) return;
+    if(x >= params->width || y >= params->height) return;
 
     Ray r = getCameraRay(x, y, params);
 
     // Check intersections
     float tmin = FLT_MAX;
     int imin;
-    for(uint i = 0; i < params.n_objects; i++)
+    for(uint i = 0; i < params->n_objects; i++)
     {
         float t;
         bool hit = sphereIntersect(&r, &(scene[i]), &t);
@@ -95,5 +95,5 @@ kernel void trace(global float *out, global Sphere *scene, const RenderParams pa
     //float4 prev = vload4((y * width + x), out);
     //float4 newCol = 0.005f * pixelColor + prev;
 
-    vstore4(pixelColor, (y * params.width + x), out); // (value, offset, ptr)
+    vstore4(pixelColor, (y * params->width + x), out); // (value, offset, ptr)
 }

@@ -1,42 +1,5 @@
 #include "clcontext.hpp"
-
-// Print the devices, C++ style
-void CLContext::printDevices()
-{
-    std::vector<cl::Platform> platforms;
-    cl::Platform::get(&platforms);
-    const std::string DECORATOR = "================";
-
-    int platform_id = 0;
-    int device_id = 0;
-
-    std::cout << "Number of Platforms: " << platforms.size() << std::endl;
-
-    for(cl::Platform &platform : platforms)
-    {
-        std::cout << DECORATOR << " Platform " << platform_id++ << " (" << platform.getInfo<CL_PLATFORM_NAME>() << ") " << DECORATOR << std::endl;
-
-        std::vector<cl::Device> devices;
-        platform.getDevices(CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_CPU, &devices);
-
-        for(cl::Device &device : devices)
-        {
-            bool GPU = (device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_GPU);
-
-            std::cout << "Device " << device_id++ << ": " << std::endl;
-            std::cout << "\tName: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
-            std::cout << "\tType: " << (GPU ? "(GPU)" : "(CPU)") << std::endl;
-            std::cout << "\tVendor: " << device.getInfo<CL_DEVICE_VENDOR>() << std::endl;
-            std::cout << "\tCompute Units: " << device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl;
-            std::cout << "\tGlobal Memory: " << device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl;
-            std::cout << "\tMax Clock Frequency: " << device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>() << std::endl;
-            std::cout << "\tMax Allocateable Memory: " << device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>() << std::endl;
-            std::cout << "\tLocal Memory: " << device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
-            std::cout << "\tAvailable: " << device.getInfo< CL_DEVICE_AVAILABLE>() << std::endl;
-        }
-        std::cout << std::endl;
-    }
-}
+#include "geom.h"
 
 CLContext::CLContext(GLuint gl_PBO)
 {
@@ -52,7 +15,7 @@ CLContext::CLContext(GLuint gl_PBO)
     std::cout << "Forcing GPU device" << std::endl;
 
     // Macbook pro 15 fix
-    // clDevices.erase(clDevices.begin());
+    clDevices.erase(clDevices.begin());
 
     // Init shared context
     #ifdef __APPLE__
@@ -183,16 +146,47 @@ void CLContext::setupScene()
     std::cout << "Scene initialization succeeded!" << std::endl;
 }
 
+void CLContext::setupParams(const RenderParams params)
+{
+
+    size_t s_bytes = sizeof(params);
+
+    testBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, s_bytes, NULL, &err);
+
+    if (err != CL_SUCCESS) {
+        std::cout << "Error: test buffer creation failed!" << err << std::endl;
+        std::cout << errorString() << std::endl;
+        exit(1);
+    }
+
+    // Blocking write!
+    err = cmdQueue.enqueueWriteBuffer(testBuffer, CL_TRUE, 0, s_bytes, &params);
+
+    if (err != CL_SUCCESS) {
+        std::cout << "Error: test buffer writing failed!" << std::endl;
+        std::cout << errorString() << std::endl;
+        std::cout << "test buffer is at: " << test_spheres << std::endl;
+        exit(1);
+    }
+
+    std::cout << "test buffer initialization succeeded!" << std::endl;
+}
+
 void CLContext::executeKernel(const RenderParams params)
 {
     // Take hold of texture
     glFinish();
     clEnqueueAcquireGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, 0);
 
+    Sphere s;
+    s.R = 1.0f;
+    s.pos = {{1.0f, 1.0f, 1.0f, 1.0f}};
+    s.Kd = {{1.0f, 1.0f, 1.0f, 1.0f}};
+
     err = 0;
     err |= pt_kernel.setArg(0, sizeof(cl_mem), &cl_PBO);
     err |= pt_kernel.setArg(1, sphereBuffer);
-    err |= pt_kernel.setArg(2, params);
+    err |= pt_kernel.setArg(2, testBuffer);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
@@ -261,6 +255,44 @@ std::string CLContext::errorString()
 
     const int ind = -err;
     return (ind >= 0 && ind < SIZE) ? errors[ind] : "unknown!";
+}
+
+// Print the devices, C++ style
+void CLContext::printDevices()
+{
+    std::vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
+    const std::string DECORATOR = "================";
+
+    int platform_id = 0;
+    int device_id = 0;
+
+    std::cout << "Number of Platforms: " << platforms.size() << std::endl;
+
+    for(cl::Platform &platform : platforms)
+    {
+        std::cout << DECORATOR << " Platform " << platform_id++ << " (" << platform.getInfo<CL_PLATFORM_NAME>() << ") " << DECORATOR << std::endl;
+
+        std::vector<cl::Device> devices;
+        platform.getDevices(CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_CPU, &devices);
+
+        for(cl::Device &device : devices)
+        {
+            bool GPU = (device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_GPU);
+
+            std::cout << "Device " << device_id++ << ": " << std::endl;
+            std::cout << "\tName: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+            std::cout << "\tType: " << (GPU ? "(GPU)" : "(CPU)") << std::endl;
+            std::cout << "\tVendor: " << device.getInfo<CL_DEVICE_VENDOR>() << std::endl;
+            std::cout << "\tCompute Units: " << device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl;
+            std::cout << "\tGlobal Memory: " << device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl;
+            std::cout << "\tMax Clock Frequency: " << device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>() << std::endl;
+            std::cout << "\tMax Allocateable Memory: " << device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>() << std::endl;
+            std::cout << "\tLocal Memory: " << device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
+            std::cout << "\tAvailable: " << device.getInfo< CL_DEVICE_AVAILABLE>() << std::endl;
+        }
+        std::cout << std::endl;
+    }
 }
 
 
