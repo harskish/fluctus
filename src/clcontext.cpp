@@ -1,5 +1,4 @@
 #include "clcontext.hpp"
-#include "geom.h"
 
 CLContext::CLContext(GLuint gl_PBO)
 {
@@ -15,7 +14,7 @@ CLContext::CLContext(GLuint gl_PBO)
     std::cout << "Forcing GPU device" << std::endl;
 
     // Macbook pro 15 fix
-    // clDevices.erase(clDevices.begin());
+    clDevices.erase(clDevices.begin());
 
     // Init shared context
     #ifdef __APPLE__
@@ -173,7 +172,7 @@ void CLContext::updateParams(const RenderParams &params)
         exit(1);
     }
 
-    std::cout << "RenderParams updated!" << std::endl;
+    // std::cout << "RenderParams updated!" << std::endl;
 }
 
 void CLContext::executeKernel(const RenderParams &params)

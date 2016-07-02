@@ -4,6 +4,9 @@
 #include <cmath>
 #include "geom.h"
 #include "window.hpp"
+#include "math/float3.hpp"
+
+using FireRays::float4;
 
 class Tracer
 {

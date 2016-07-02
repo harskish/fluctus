@@ -10,11 +10,10 @@ Tracer::Tracer(int width, int height)
     params.width = (unsigned int)width;
     params.height = (unsigned int)height;
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
-    params.sin2 = 0.0f;
 
     Camera cam;
-    cam.pos = {{ 0.0f, 0.1f, 2.5f, 0.0f }};
-    cam.dir = {{ 0.0f, -0.2f, -1.0f, 0.0f }};
+    cam.pos = float4(0.0f, 0.1f, 2.5f, 0.0f);
+    cam.dir = float4(0.0f, -0.2f, -1.0f, 0.0f);
     cam.fov = 70.0f;
     params.camera = cam;
 }
@@ -62,43 +61,43 @@ void Tracer::handleKeypress(int key)
 {
     switch(key) {
         case GLFW_KEY_W:
-            params.camera.pos.s[2] -= 0.1f;
+            params.camera.pos.z -= 0.1f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_A:
-            params.camera.pos.s[0] -= 0.1f;
+            params.camera.pos.x -= 0.1f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_S:
-            params.camera.pos.s[2] += 0.1f;
+            params.camera.pos.z += 0.1f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_D:
-            params.camera.pos.s[0] += 0.1f;
+            params.camera.pos.x += 0.1f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_R:
-            params.camera.pos.s[1] += 0.1f;
+            params.camera.pos.y += 0.1f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_F:
-            params.camera.pos.s[1] -= 0.1f;
+            params.camera.pos.y -= 0.1f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_UP:
-            params.camera.dir.s[1] += 0.1f;
+            params.camera.dir.y += 0.1f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_DOWN:
-            params.camera.dir.s[1] -= 0.1f;
+            params.camera.dir.y -= 0.1f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_LEFT:
-            params.camera.dir.s[0] -= 0.1f;
+            params.camera.dir.x -= 0.1f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_RIGHT:
-            params.camera.dir.s[0] += 0.1f;
+            params.camera.dir.x += 0.1f;
             paramsUpdatePending = true;
             break;
     }
