@@ -2,6 +2,7 @@
 
 #define PI 3.14159265358979323846
 #define toRad(deg) (deg * PI / 180)
+#define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
 
 inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
 {
@@ -73,6 +74,14 @@ kernel void trace(global float *out, global Sphere *scene, global RenderParams *
     const uint y = get_global_id(1); // bottom to top
 
     if(x >= params->width || y >= params->height) return;
+
+    /*
+    float4 p = params->camera.pos;
+    float4 d = params->camera.dir;
+    dbg(printf("Camera pos: { %.2f, %.2f, %.2f, %.2f }\n", p.x, p.y, p.z, p.w));
+    dbg(printf("Camera dir: { %.2f, %.2f, %.2f, %.2f }\n", d.x, d.y, d.z, d.w));
+    dbg(printf("Width: %d\n", params->width));
+    */
 
     Ray r = getCameraRay(x, y, params);
 
