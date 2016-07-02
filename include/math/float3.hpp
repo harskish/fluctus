@@ -43,6 +43,10 @@ namespace FireRays
         float3& operator *= (float3 const& o) { x*=o.x; y*=o.y; z*= o.z; return *this;}
         float3& operator *= (float c) { x*=c; y*=c; z*= c; return *this;}
         float3& operator /= (float c) { float cinv = 1.f/c; x*=cinv; y*=cinv; z*=cinv; return *this;}
+
+        void rotX(float phi);
+        void rotY(float phi);
+        void rotZ(float phi);
     };
 
     typedef float3 float4;
@@ -119,6 +123,33 @@ namespace FireRays
         v.x = std::max(v1.x, v2.x);
         v.y = std::max(v1.y, v2.y);
         v.z = std::max(v1.z, v2.z);
+    }
+
+    inline void float3::rotX(float phi)
+    {
+        phi *= (2 * M_PI) / 360;
+        float tmpY = this->y;
+        float tmpZ = this->z;
+        this->y = cos(phi) * tmpY - sin(phi) * tmpZ;
+        this->z = sin(phi) * tmpY + cos(phi) * tmpZ;
+    }
+
+    inline void float3::rotY(float phi)
+    {
+        phi *= (2 * M_PI) / 360;
+        float tmpX = this->x;
+        float tmpZ = this->z;
+        this->z = -sin(phi) * tmpX + cos(phi) * tmpZ;
+        this->x = cos(phi) * tmpX + sin(phi) * tmpZ;
+    }
+
+    inline void float3::rotZ(float phi)
+    {
+        phi *= (2 * M_PI) / 360;
+        float tmpX = this->x;
+        float tmpY = this->y;
+        this->x = cos(phi) * tmpX - sin(phi) * tmpY;
+        this->y = sin(phi) * tmpX + cos(phi) * tmpY;
     }
 }
 
