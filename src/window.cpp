@@ -34,6 +34,22 @@ void windowCloseCallback(GLFWwindow *window)
     // glfwSetWindowShouldClose(window, GL_FALSE);
 }
 
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    void *ptr = glfwGetWindowUserPointer(window);
+    Tracer *instance = reinterpret_cast<Tracer*>(ptr);
+
+    instance->handleMouseButton(button, action);
+}
+
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) //static?
+{
+    void *ptr = glfwGetWindowUserPointer(window);
+    Tracer *instance = reinterpret_cast<Tracer*>(ptr);
+
+    instance->handleCursorPos(xpos, ypos);
+}
+
 Window::Window(int width, int height, void *tracer)
 {
     window = glfwCreateWindow(width, height, "HOLDTHEDOOR!", NULL, NULL); // monitor, share
@@ -47,7 +63,9 @@ Window::Window(int width, int height, void *tracer)
     glfwSetErrorCallback(errorCallback);
     glfwSetWindowCloseCallback(window, windowCloseCallback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSetWindowUserPointer(window, tracer); // for callbacks
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetCursorPosCallback(window, cursor_position_callback);
+    glfwSetWindowUserPointer(window, tracer);
 
     createPBO();
 }
@@ -169,6 +187,13 @@ double Window::calcFPS(double interval, std::string theWindowTitle)
     }
  
     return fps;
+}
+
+float2 Window::getCursorPos()
+{
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+    return float2((float)xpos, (float)ypos);
 }
 
 

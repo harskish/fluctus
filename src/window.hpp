@@ -4,6 +4,9 @@
 #include <iostream>
 #include <string>
 #include "CLContext.hpp"
+#include "math/float2.hpp"
+
+using FireRays::float2;
 
 class Window
 {
@@ -21,6 +24,8 @@ public:
 
     void setShowFPS(bool show) { show_fps = show; }
     void createPBO();
+
+    float2 getCursorPos();
 
     GLFWwindow *glfwWindowPtr() { return window; }
     GLuint getPBO() { return gl_PBO; }

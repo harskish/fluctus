@@ -20,12 +20,17 @@ public:
     void update();
     void resizeBuffers();
     void handleKeypress(int key);
+    void handleMouseButton(int key, int action);
+    void handleCursorPos(double x, double y);
+
+    void updateCamera();
 
 private:
     Window *window;
     CLContext *clctx;
-    RenderParams params;
-    float2 camera_rotation; // not passed to GPU but needed for camera basis vectors
-
+    RenderParams params;    // copied into GPU memory
+    float2 cameraRotation;  // not passed to GPU but needed for camera basis vectors
+    float2 lastCursorPos;
+    bool mouseButtonState[3] = { false, false, false };
     bool paramsUpdatePending = true; // force one param update
 };
