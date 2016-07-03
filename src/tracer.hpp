@@ -4,9 +4,11 @@
 #include <cmath>
 #include "geom.h"
 #include "window.hpp"
+#include "math/float2.hpp"
 #include "math/float3.hpp"
+#include "math/matrix.hpp"
 
-using FireRays::float4;
+using namespace FireRays;
 
 class Tracer
 {
@@ -23,6 +25,7 @@ private:
     Window *window;
     CLContext *clctx;
     RenderParams params;
+    float2 camera_rotation; // not passed to GPU but needed for camera basis vectors
 
     bool paramsUpdatePending = true; // force one param update
 };

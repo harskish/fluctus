@@ -1,7 +1,5 @@
 #include "geom.h"
 
-#define PI 3.14159265358979323846
-#define toRad(deg) (deg * PI / 180)
 #define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
 
 inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
@@ -40,8 +38,6 @@ inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
 {
     // Camera plane is 1 unit away, by convention
     // Camera points in the negative z-direction
-    float4 camRight = (float4)(1.0f, 0.0f, 0.0f, 0.0f);
-    float4 camUp =    (float4)(0.0f, 1.0f, 0.0f, 0.0f);
 
     // NDC-space, [0,1]x[0,1]
     float NDCx = (x + 0.5f) / params->width;
@@ -60,7 +56,7 @@ inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
     SCRy *= scale;
 
     // World space coorinates of pixel
-    float4 rayTarget = params->camera.pos + camRight * SCRx + camUp * SCRy + params->camera.dir;
+    float4 rayTarget = params->camera.pos + params->camera.right * SCRx + params->camera.up * SCRy + params->camera.dir;
     float4 rayDirection = normalize(rayTarget - params->camera.pos);
 
     // Construct camera ray

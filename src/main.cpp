@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
     std::cout << "sizeof(FireRays::float4): " << sizeof(FireRays::float4) << std::endl;
     std::cout << "alignof(FireRays::float4): " << alignof(FireRays::float4) << std::endl;
-    std::cout << "cl_float4: " << sizeof(cl_float4) << std::endl;
+    std::cout << "sizeof(cl_float4): " << sizeof(cl_float4) << std::endl;
     std::cout << "alignof(cl_float4): " << alignof(cl_float4) << std::endl;
     std::cout << std::endl;
 

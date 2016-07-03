@@ -13,9 +13,13 @@ Tracer::Tracer(int width, int height)
 
     Camera cam;
     cam.pos = float4(0.0f, 0.1f, 2.5f, 0.0f);
-    cam.dir = float4(0.0f, -0.2f, -1.0f, 0.0f);
+    cam.right = float4(1.0f, 0.0f, 0.0f, 0.0f);
+    cam.up = float4(0.0f, 1.0f, 0.0f, 0.0f);
+    cam.dir = float4(0.0f, 0.0f, -1.0f, 0.0f);
     cam.fov = 70.0f;
     params.camera = cam;
+
+    camera_rotation = float2(180.0f, 0.0f);
 }
 
 Tracer::~Tracer()
@@ -59,46 +63,60 @@ void Tracer::update()
 
 void Tracer::handleKeypress(int key)
 {
+    Camera &cam = params.camera;
+
     switch(key) {
         case GLFW_KEY_W:
-            params.camera.pos.z -= 0.1f;
+            cam.pos += 0.1f * cam.dir;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_A:
-            params.camera.pos.x -= 0.1f;
+            cam.pos -= 0.1f * cam.right;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_S:
-            params.camera.pos.z += 0.1f;
+            cam.pos -= 0.1f * cam.dir;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_D:
-            params.camera.pos.x += 0.1f;
+            cam.pos += 0.1f * cam.right;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_R:
-            params.camera.pos.y += 0.1f;
+            cam.pos += 0.1f * cam.up;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_F:
-            params.camera.pos.y -= 0.1f;
+            cam.pos -= 0.1f * cam.up;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_UP:
-            params.camera.dir.y += 0.1f;
+            camera_rotation.y += 5.0f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_DOWN:
-            params.camera.dir.y -= 0.1f;
+            camera_rotation.y -= 5.0f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_LEFT:
-            params.camera.dir.x -= 0.1f;
+            camera_rotation.x += 5.0f;
             paramsUpdatePending = true;
             break;
         case GLFW_KEY_RIGHT:
-            params.camera.dir.x += 0.1f;
+            camera_rotation.x -= 5.0f;
             paramsUpdatePending = true;
             break;
+    }
+
+    // Update camera and other params
+    if(paramsUpdatePending) {
+        matrix rot = rotation(float3(1, 0, 0), toRad(camera_rotation.y)) * rotation(float3(0, 1, 0), toRad(camera_rotation.x));
+
+        cam.right = float4(rot.m00, rot.m01, rot.m02, 0.0f); // row 1
+        cam.up =    float4(rot.m10, rot.m11, rot.m12, 0.0f); // row 2
+        cam.dir =   float4(rot.m20, rot.m21, rot.m22, 0.0f); // row 3
+
+        //std::cout << "Up is: " << rot.m10 << ", " << rot.m11 << ", "  << rot.m12 << std::endl;
+        std::cout << "Rotation is: " << camera_rotation.x << ", " << camera_rotation.y << std::endl;
     }
 }

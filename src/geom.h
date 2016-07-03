@@ -8,6 +8,9 @@ typedef unsigned int cl_uint;
 using FireRays::float4;
 #endif
 
+#define PI 3.14159265358979323846
+#define toRad(deg) (deg * PI / 180)
+
 typedef struct
 {
     float4 orig;
@@ -25,6 +28,8 @@ typedef struct
 {
     float4 pos;
     float4 dir;
+    float4 up;
+    float4 right;
     cl_float fov;
 } Camera;
 
