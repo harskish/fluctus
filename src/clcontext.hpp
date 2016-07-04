@@ -10,6 +10,10 @@
 #include <OpenGL/OpenGL.h>
 #endif
 
+#ifdef __linux__
+#include <GL/glx.h>
+#endif
+
 #include <GLFW/glfw3.h> // texture conversion stuff
 #include <iostream>
 #include <string>
