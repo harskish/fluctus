@@ -1,18 +1,19 @@
 #pragma once
 
+#include <GL/glew.h> // somehow included first of all glew includes?
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <string>
-#include "CLContext.hpp"
+#include "clcontext.hpp"
 #include "math/float2.hpp"
 
 using FireRays::float2;
 
-class Window
+class PTWindow
 {
 public:
-    Window(int w, int h, void *tracer);
-    ~Window();
+    PTWindow(int w, int h, void *tracer);
+    ~PTWindow();
 
     void repaint();
 

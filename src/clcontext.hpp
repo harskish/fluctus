@@ -10,16 +10,14 @@
 #include <OpenGL/OpenGL.h>
 #endif
 
-#ifdef __linux__
-#include <GL/glx.h>
-#endif
+#include "cl2.hpp" // first due to conflicts with X.h (included by glxew)
 
+#include <GL/glxew.h>
 #include <GLFW/glfw3.h> // texture conversion stuff
 #include <iostream>
 #include <string>
 #include <cmath>
 #include <vector>
-#include "cl2.hpp"
 #include "math/float3.hpp"
 #include "kernelreader.hpp"
 #include "geom.h"

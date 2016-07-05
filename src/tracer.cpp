@@ -3,7 +3,7 @@
 
 Tracer::Tracer(int width, int height)
 {
-    window = new Window(width, height, this);
+    window = new PTWindow(width, height, this);
     window->setShowFPS(true);
     clctx = new CLContext(window->getPBO());
 

@@ -26,7 +26,7 @@ public:
     void updateCamera();
 
 private:
-    Window *window;
+    PTWindow *window;
     CLContext *clctx;
     RenderParams params;    // copied into GPU memory
     float2 cameraRotation;  // not passed to GPU but needed for camera basis vectors

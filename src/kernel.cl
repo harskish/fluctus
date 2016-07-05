@@ -95,7 +95,7 @@ kernel void trace(global float *out, global Sphere *scene, global RenderParams *
         }
     }
 
-    float4 pixelColor = (tmin != FLT_MAX) ? scene[imin].Kd : float4(0.0f);
+    float4 pixelColor = (tmin != FLT_MAX) ? scene[imin].Kd : (float4)(0.0f);
 
     //float4 prev = vload4((y * width + x), out);
     //float4 newCol = 0.005f * pixelColor + prev;

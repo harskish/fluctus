@@ -14,45 +14,7 @@ CLContext::CLContext(GLuint gl_PBO)
     std::cout << "Forcing GPU device" << std::endl;
 
     // Macbook pro 15 fix
-    clDevices.erase(clDevices.begin());
-
-    /*
-
-    #if defined(_WIN32)
-
-    // Windows                                                                  
-    cl_context_properties properties[] = {
-      CL_GL_CONTEXT_KHR, (cl_context_properties)wglGetCurrentContext(),
-      CL_WGL_HDC_KHR, (cl_context_properties)wglGetCurrentDC(),
-      CL_CONTEXT_PLATFORM, (cl_context_properties)platform,
-      0
-    };
-
-    #elif defined(__APPLE__)
-
-    // OS X                                                                     
-    CGLContextObj     kCGLContext     = CGLGetCurrentContext();
-    CGLShareGroupObj  kCGLShareGroup  = CGLGetShareGroup(kCGLContext);
-
-    cl_context_properties properties[] = {
-      CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
-      (cl_context_properties) kCGLShareGroup,
-      0
-    };
-
-    #else
-
-    // Linux                                                                    
-    cl_context_properties properties[] = {
-      CL_GL_CONTEXT_KHR, (cl_context_properties)glXGetCurrentContext(),
-      CL_GLX_DISPLAY_KHR, (cl_context_properties)glXGetCurrentDisplay(),
-      CL_CONTEXT_PLATFORM, (cl_context_properties)platform,
-      0
-    };
-
-    #endif
-
-    */
+    // clDevices.erase(clDevices.begin());
 
     // Init shared context
     #ifdef __APPLE__
@@ -63,25 +25,7 @@ CLContext::CLContext(GLuint gl_PBO)
             CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
             (cl_context_properties)kCGLShareGroup, 0
         };
-        context = cl::Context(clDevices, props, NULL, NULL, &err); //CL_DEVICE_TYPE_GPU instead of clDevices?
-        if(err != CL_SUCCESS)
-        {
-            std::cout << "Error: Failed to create shared context" << std::endl;
-            std::cout << errorString() << std::endl;
-            exit(1);
-        }
-        device = context.getInfo<CL_CONTEXT_DEVICES>()[0];
-        std::cout << "Using device nr. 0 of context" << std::endl;
     #else
-        // Only MacOS support for now
-        //Not yet implemented!
-        //typedef cl_int(*GetGLContextInfoKHRFunction)(
-        //    const cl_context_properties*, cl_gl_context_info, size_t, void *, size_t *
-        //);
-
-        // create context properties listing the platform and current OpenGL display
-        std::cout << "Creating non-mac context!" << std::endl;
-
         cl_context_properties props[] = {
             CL_CONTEXT_PLATFORM, (cl_context_properties) platform(),
         #if defined(__linux__)
@@ -93,19 +37,19 @@ CLContext::CLContext(GLuint gl_PBO)
         #endif
             0
         };
-
-        context = cl::Context(clDevices, props, NULL, NULL, &err); //CL_DEVICE_TYPE_GPU instead of clDevices?
-        if(err != CL_SUCCESS)
-        {
-            std::cout << "Error: Failed to create shared context" << std::endl;
-            std::cout << errorString() << std::endl;
-            exit(1);
-        }
-        device = context.getInfo<CL_CONTEXT_DEVICES>()[0];
-        std::cout << "Using device nr. 0 of context" << std::endl;
     #endif
+        
+    context = cl::Context(clDevices, props, NULL, NULL, &err); //CL_DEVICE_TYPE_GPU instead of clDevices?
+    if(err != CL_SUCCESS)
+    {
+        std::cout << "Error: Failed to create shared context" << std::endl;
+        std::cout << errorString() << std::endl;
+        exit(1);
+    }
+    device = context.getInfo<CL_CONTEXT_DEVICES>()[0];
+    std::cout << "Using device nr. 0 of context" << std::endl;
 
-
+    // Create command queue for context
     cmdQueue = cl::CommandQueue(context, device, 0, &err);
     if(err != CL_SUCCESS)
     {

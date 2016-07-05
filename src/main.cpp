@@ -19,19 +19,8 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
-    GLenum err = glewInit();
-    if (err != GLEW_OK)
-    {
-        std::cout << "Error: " << glewGetErrorString(err) << std::endl;
-        exit(EXIT_FAILURE);
-    }
     
-    std::cout << "Using GLEW " << glewGetString(GLEW_VERSION) << std::endl;
     std::cout << "Window dimensions: [" << width << ", " << height << "]" << std::endl;
-
-    GLuint gl_PBO = 0;
-    glGenBuffers(1, &gl_PBO);
-    glDeleteBuffers(1, &gl_PBO);
 
     Tracer tracer(width, height);
 

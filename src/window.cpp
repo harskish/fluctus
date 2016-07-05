@@ -50,7 +50,7 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) //st
     instance->handleCursorPos(xpos, ypos);
 }
 
-Window::Window(int width, int height, void *tracer)
+PTWindow::PTWindow(int width, int height, void *tracer)
 {
     window = glfwCreateWindow(width, height, "HOLDTHEDOOR!", NULL, NULL); // monitor, share
     if (!window) {
@@ -67,15 +67,26 @@ Window::Window(int width, int height, void *tracer)
     glfwSetCursorPosCallback(window, cursor_position_callback);
     glfwSetWindowUserPointer(window, tracer);
 
+    // ===============================================
+    GLenum err = glewInit();
+    if (err != GLEW_OK)
+    {
+        std::cout << "Error: " << glewGetErrorString(err) << std::endl;
+        exit(EXIT_FAILURE);
+    }
+        
+    std::cout << "Using GLEW " << glewGetString(GLEW_VERSION) << std::endl;
+    // ===============================================
+
     createPBO();
 }
 
-Window::~Window()
+PTWindow::~PTWindow()
 {
     if(gl_PBO) glDeleteTextures(1, &gl_PBO);
 }
 
-void Window::getFBSize(unsigned int &w, unsigned int &h)
+void PTWindow::getFBSize(unsigned int &w, unsigned int &h)
 {
     int fbw, fbh;
     glfwGetFramebufferSize(window, &fbw, &fbh);
@@ -83,7 +94,7 @@ void Window::getFBSize(unsigned int &w, unsigned int &h)
     h = (unsigned int) fbh;
 }
 
-void Window::repaint()
+void PTWindow::repaint()
 {
     unsigned int w, h;
     getFBSize(w, h);
@@ -115,7 +126,7 @@ void Window::repaint()
 }
 
 // TODO: use FBO/RenderBuffer instead?
-void Window::createPBO()
+void PTWindow::createPBO()
 {
     if (gl_PBO) {
         std::cout << "Removing old gl_PBO" << std::endl;
@@ -138,7 +149,7 @@ void Window::createPBO()
     std::cout << "Created GL-PBO at " << gl_PBO << std::endl;
 }
 
-double Window::calcFPS(double interval, std::string theWindowTitle)
+double PTWindow::calcFPS(double interval, std::string theWindowTitle)
 {
     // Static values, only initialised once
     static double tLast      = glfwGetTime();
@@ -189,7 +200,7 @@ double Window::calcFPS(double interval, std::string theWindowTitle)
     return fps;
 }
 
-float2 Window::getCursorPos()
+float2 PTWindow::getCursorPos()
 {
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
