@@ -11,7 +11,7 @@ all:
 	$(CXX) $(CXXFLAGS) $(FRAMEWORKS) $(LIBS) $(SOURCES) -o main
 
 linux:
-	$(CXX) -std=c++0x -I/usr/local/include -I./include $(SOURCES) -o main $(LNX_PKG)
+	$(CXX) -std=c++0x -Wall -Werror -I/usr/local/include -I./include $(SOURCES) -o main $(LNX_PKG)
 
 clean:
 	rm -f *.o main
