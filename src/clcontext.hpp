@@ -5,14 +5,15 @@
 
 #define RGB(r,g,b) float4(r / 255.0f, g / 255.0f, b / 255.0f, 0.0f)
 
-#ifdef __APPLE__
-#include <OpenCL/cl_gl_ext.h>
-#include <OpenGL/OpenGL.h>
-#endif
-
 #include "cl2.hpp" // first due to conflicts with X.h (included by glxew)
 
+#if defined(__APPLE__)
+#include <OpenCL/cl_gl_ext.h>
+#include <OpenGL/OpenGL.h>
+#elif defined(__linux__)
 #include <GL/glxew.h>
+#endif
+
 #include <GLFW/glfw3.h> // texture conversion stuff
 #include <iostream>
 #include <string>

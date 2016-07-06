@@ -1,5 +1,6 @@
 #pragma once
 
+#include <GL/glew.h>
 #include "clcontext.hpp"
 #include <cmath>
 #include "geom.h"
