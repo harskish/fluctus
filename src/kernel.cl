@@ -8,7 +8,7 @@ inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
     float radius2 = s->R * s->R;
 
     // Geometric solution
-    float4 L = s->pos - r->orig;
+    float4 L = s->P - r->orig;
     float tca = dot(L, r->dir);
     float d2 = dot(L, L) - tca * tca;
     if (d2 > radius2) return false;
@@ -51,7 +51,7 @@ inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
     SCRx *= (float)params->width / params->height;
 
     // Screen space coordinates scaled based on fov
-    float scale = tan(toRad(params->camera.fov / 2)); // half of width
+    float scale = tan(toRad(0.5f * params->camera.fov)); // half of width
     SCRx *= scale;
     SCRy *= scale;
 
@@ -64,7 +64,71 @@ inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
     return r;
 }
 
-kernel void trace(global float *out, global Sphere *scene, global RenderParams *params)
+inline void calcNormalSphere(global Sphere *scene, Hit *hit)
+{
+    hit->N = normalize(hit->P - (scene + hit->i)->P);
+}
+
+// Will be replaced with a BVH in the future...
+// The ray length encodes the maximum intersection distance!
+inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global RenderParams *params)
+{
+    Hit hit = { (float4)(0.0f), (float4)(0.0f), tMax, -1 };
+
+    for(uint i = 0; i < params->n_objects; i++)
+    {
+        float t;
+        bool found = sphereIntersect(r, &(scene[i]), &t);
+        if(found && t < hit.t)
+        {
+            hit.t = t;
+            hit.i = i;
+        }
+    }
+
+    // Done once
+    calcNormalSphere(scene, &hit);
+
+    return hit;
+}
+
+inline float4 whittedShading(Hit *hit, global Sphere *scene, global Light *lights, global RenderParams *params)
+{
+    float4 res = (float4)(0.0f);
+    float4 lifted = hit->P + 1e-3f * hit->N;
+    float4 V = params->camera.pos - hit->P;
+
+    // Point light assumed for now
+    for(uint i = 0; i < params->n_lights; i++)
+    {
+        float4 L = lights[i].pos - hit->P;
+
+        Ray shadowRay = { lifted, normalize(L) };
+        Hit shdw = raycast(&shadowRay, length(L), scene, params);
+        float visibility = (shdw.i == -1) ? 0.0f : 1.0f; // early exits useless on GPU
+
+        // Blinn-Phong
+
+        // Testing material:
+        float4 Ks = (float4)(1.0f);
+        float glossiness = 0.1f; // probably not the right name...
+
+        float4 H = normalize(L + V);
+        float4 diffuse = scene[i].Kd * max(0.0f, dot(L, hit->N));
+        float4 specular = Ks * pow(max(0.0f, dot(hit->N, H)), 1.0f / glossiness);
+
+        if(dot(hit->N, L) < 0) specular = (float4)(0.0f);
+
+        float dist = fast_length(L);
+        float falloff = 1.0f / (dist * dist + 1e-5f);
+
+        res += lights[i].intensity * falloff * (diffuse + specular);
+    }
+
+    return res;
+}
+
+kernel void trace(global float *out, global Sphere *scene, global Light *lights, global RenderParams *params)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
@@ -80,22 +144,10 @@ kernel void trace(global float *out, global Sphere *scene, global RenderParams *
     */
 
     Ray r = getCameraRay(x, y, params);
+    Hit hit = raycast(&r, FLT_MAX, scene, params);
 
-    // Check intersections
-    float tmin = FLT_MAX;
-    int imin;
-    for(uint i = 0; i < params->n_objects; i++)
-    {
-        float t;
-        bool hit = sphereIntersect(&r, &(scene[i]), &t);
-        if(hit && t < tmin)
-        {
-            tmin = t;
-            imin = i;
-        }
-    }
-
-    float4 pixelColor = (tmin != FLT_MAX) ? scene[imin].Kd : (float4)(0.0f);
+    float4 pixelColor = (hit.i == -1) ? (float4)(0.0f) : whittedShading(&hit, scene, lights, params);
+    //float4 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float4)(0.0f);
 
     //float4 prev = vload4((y * width + x), out);
     //float4 newCol = 0.005f * pixelColor + prev;

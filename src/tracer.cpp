@@ -9,10 +9,11 @@ Tracer::Tracer(int width, int height)
 
     params.width = (unsigned int)width;
     params.height = (unsigned int)height;
+    params.n_lights = sizeof(test_lights) / sizeof(Light);
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
 
     Camera cam;
-    cam.pos = float4(0.0f, 0.1f, 2.5f, 0.0f);
+    cam.pos = float4(0.0f, 1.0f, 3.5f, 0.0f);
     cam.right = float4(1.0f, 0.0f, 0.0f, 0.0f);
     cam.up = float4(0.0f, 1.0f, 0.0f, 0.0f);
     cam.dir = float4(0.0f, 0.0f, -1.0f, 0.0f);
@@ -148,12 +149,12 @@ void Tracer::handleMouseButton(int key, int action)
             {
                 lastCursorPos = window->getCursorPos();
                 mouseButtonState[0] = true;
-                std::cout << "Left mouse button pressed" << std::endl;
+                //std::cout << "Left mouse button pressed" << std::endl;
             }
             if(action == GLFW_RELEASE)
             {
                 mouseButtonState[0] = false;
-                std::cout << "Left mouse button released" << std::endl;
+                //std::cout << "Left mouse button released" << std::endl;
             }
             break;
         case GLFW_MOUSE_BUTTON_MIDDLE:

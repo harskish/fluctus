@@ -19,23 +19,25 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
-    
-    std::cout << "Window dimensions: [" << width << ", " << height << "]" << std::endl;
-
     Tracer tracer(width, height);
 
+    /*
     std::cout << std::endl;
     std::cout << "sizeof(FireRays::float4): " << sizeof(FireRays::float4) << std::endl;
     std::cout << "alignof(FireRays::float4): " << alignof(FireRays::float4) << std::endl;
     std::cout << "sizeof(cl_float4): " << sizeof(cl_float4) << std::endl;
     std::cout << "alignof(cl_float4): " << alignof(cl_float4) << std::endl;
     std::cout << std::endl;
+     */
+
+    int iter = 0;
 
     // Main loop
     while(tracer.running())
     {
         // Do stuff
         tracer.update();
+        if(++iter % 50 == 0) std::cout << "\rIteration " << iter << std::flush;
     }
 
     glfwTerminate(); // in tracer destructor?

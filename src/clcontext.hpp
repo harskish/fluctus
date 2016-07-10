@@ -32,9 +32,16 @@ static Sphere test_spheres[] =
     { 1.0f, float4(0.0f, 0.0f, 0.0f, 0.0f), RGB(255, 0, 0) },             // big sphere
     { 0.5f, float4(0.0f, 1.5f, 0.0f, 0.0f), RGB(0, 255, 0) },             // small sphere
     { 1000.0f, float4(0.0f, -1000.0f, 0.0f, 0.0f), RGB(0, 0, 255) },      // floor
-    { 1000.0f, float4(0.0f, 0.0f, -1005.0f, 0.0f), RGB(180, 190, 180) },  // back wall
-    { 1000.0f, float4(-1005.0f, 0.0f, 0.0f, 0.0f), RGB(205, 110, 15) },   // left wall
-    { 1000.0f, float4(+1005.0f, 0.0f, 0.0f, 0.0f), RGB(255, 0, 255) },    // right wall
+    { 1000.0f, float4(0.0f, 0.0f, -1008.0f, 0.0f), RGB(180, 190, 180) },  // front (visible) wall
+    { 1000.0f, float4(-1008.0f, 0.0f, 0.0f, 0.0f), RGB(205, 110, 15) },   // left wall
+    { 1000.0f, float4(+1008.0f, 0.0f, 0.0f, 0.0f), RGB(255, 0, 255) },    // right wall
+    { 1000.0f, float4(0.0f, 0.0f, +1008.0f, 0.0f), RGB(180, 190, 180) },  // back wall
+    { 1000.0f, float4(0.0f, +1020.0f, 0.0f, 0.0f), RGB(0, 0, 255) },      // ceiling
+};
+
+static Light test_lights[] =
+{
+    { POINT, RGB(255, 255, 255), 100.0f, float4(1.0f, 3.5f, 0.0f, 0.0f) }
 };
 
 class CLContext
@@ -63,5 +70,6 @@ private:
 
     cl_mem cl_PBO = 0;                  // device memory used for pixel data
     cl::Buffer sphereBuffer;
+    cl::Buffer lightBuffer;
     cl::Buffer renderParams;            // contains only one RenderParam
 };

@@ -128,17 +128,13 @@ void CLContext::createPBO(GLuint gl_PBO)
 
 void CLContext::setupScene()
 {
-    // READ_WRITE due to Apple's OpenCL bug...?
     size_t s_bytes = sizeof(test_spheres);
-    std::cout << "cl_float size: " << sizeof(cl_float) << "B" << std::endl;
-    std::cout << "cl_float4 size: " << sizeof(cl_float4) << "B" << std::endl;
-    std::cout << "Sphere size: " << sizeof(Sphere) << "B" << std::endl;
-    std::cout << "Sphere buffer size: " << s_bytes << "B" << std::endl;
 
+    // READ_WRITE due to Apple's OpenCL bug...?
     sphereBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, s_bytes, NULL, &err);
 
     if (err != CL_SUCCESS) {
-        std::cout << "Error: scene buffer creation failed!" << err << std::endl;
+        std::cout << "Error: sphere buffer creation failed!" << err << std::endl;
         std::cout << errorString() << std::endl;
         exit(1);
     }
@@ -149,7 +145,24 @@ void CLContext::setupScene()
     if (err != CL_SUCCESS) {
         std::cout << "Error: scene buffer writing failed!" << std::endl;
         std::cout << errorString() << std::endl;
-        std::cout << "Scene buffer is at: " << test_spheres << std::endl;
+        exit(1);
+    }
+
+    // Lights
+    size_t l_bytes = sizeof(test_lights);
+    lightBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, l_bytes, NULL, &err);
+
+    if (err != CL_SUCCESS) {
+        std::cout << "Error: light buffer creation failed!" << err << std::endl;
+        std::cout << errorString() << std::endl;
+        exit(1);
+    }
+
+    err = cmdQueue.enqueueWriteBuffer(lightBuffer, CL_TRUE, 0, l_bytes, test_lights);
+
+    if (err != CL_SUCCESS) {
+        std::cout << "Error: light buffer writing failed!" << std::endl;
+        std::cout << errorString() << std::endl;
         exit(1);
     }
 
@@ -194,7 +207,8 @@ void CLContext::executeKernel(const RenderParams &params)
     err = 0;
     err |= pt_kernel.setArg(0, sizeof(cl_mem), &cl_PBO);
     err |= pt_kernel.setArg(1, sphereBuffer);
-    err |= pt_kernel.setArg(2, renderParams);
+    err |= pt_kernel.setArg(2, lightBuffer);
+    err |= pt_kernel.setArg(3, renderParams);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
