@@ -68,7 +68,7 @@ inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
 
 inline void calcNormalSphere(global Sphere *scene, Hit *hit)
 {
-    hit->N = normalize(hit->P - (scene + hit->i)->P);
+    hit->N = normalize(hit->P - (scene +hit->i)->P);
 }
 
 // Will be replaced with a BVH in the future...
@@ -89,8 +89,8 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global RenderParams
     }
 
     // Done once
-    calcNormalSphere(scene, &hit);
     hit.P = r->orig + hit.t * r->dir;
+    calcNormalSphere(scene, &hit);
 
     return hit;
 }
@@ -134,7 +134,6 @@ inline float4 whittedShading(Hit *hit, global Sphere *scene, global Light *light
         float falloff = 1.0f / (dist * dist + 1e-5f);
 
         float4 color = lights[i].intensity * falloff * (diffuse + specular);
-        color.w = 0.0f;
         res += color;
     }
 
@@ -149,14 +148,6 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
     const uint y = get_global_id(1); // bottom to top
 
     if(x >= params->width || y >= params->height) return;
-
-    /*
-    float4 p = params->camera.pos;
-    float4 d = params->camera.dir;
-    dbg(printf("Camera pos: { %.2f, %.2f, %.2f, %.2f }\n", p.x, p.y, p.z, p.w));
-    dbg(printf("Camera dir: { %.2f, %.2f, %.2f, %.2f }\n", d.x, d.y, d.z, d.w));
-    dbg(printf("Width: %d\n", params->width));
-    */
 
     Ray r = getCameraRay(x, y, params);
     Hit hit = raycast(&r, FLT_MAX, scene, params);
