@@ -38,6 +38,7 @@ int main(int argc, char* argv[])
         // Do stuff
         tracer.update();
         if(++iter % 50 == 0) std::cout << "\rIteration " << iter << std::flush;
+        //std::cout << "Press any key to continue..." << std::endl; system("read");
     }
 
     glfwTerminate(); // in tracer destructor?

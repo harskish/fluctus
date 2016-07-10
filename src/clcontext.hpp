@@ -41,7 +41,8 @@ static Sphere test_spheres[] =
 
 static Light test_lights[] =
 {
-    { POINT, RGB(255, 255, 255), 100.0f, float4(1.0f, 3.5f, 0.0f, 0.0f) }
+    { POINT, RGB(255, 255, 255), 3.0f, { float4(1.0f, 3.5f, 0.0f, 0.0f) } },
+    { POINT, RGB(0, 255, 0), 3.0f, { float4(7.0f, 2.0f, 0.0f, 0.0f) } }
 };
 
 class CLContext

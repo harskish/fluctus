@@ -1,6 +1,8 @@
 #include "geom.h"
 
+#define printVec(title, v) printf("%s: { %.4f, %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z, (v).w)
 #define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
+//#define dbg(expr) if(false) { expr; }
 
 inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
 {
@@ -88,20 +90,26 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global RenderParams
 
     // Done once
     calcNormalSphere(scene, &hit);
+    hit.P = r->orig + hit.t * r->dir;
 
     return hit;
 }
 
 inline float4 whittedShading(Hit *hit, global Sphere *scene, global Light *lights, global RenderParams *params)
 {
+    dbg(printVec("Hit->P", hit->P));
+    dbg(printVec("Hit->N", hit->N));
+
     float4 res = (float4)(0.0f);
     float4 lifted = hit->P + 1e-3f * hit->N;
+    dbg(printVec("Lifted", lifted));
     float4 V = params->camera.pos - hit->P;
 
     // Point light assumed for now
     for(uint i = 0; i < params->n_lights; i++)
     {
         float4 L = lights[i].pos - hit->P;
+        dbg(printVec("Light pos", lights[i].pos));
 
         Ray shadowRay = { lifted, normalize(L) };
         Hit shdw = raycast(&shadowRay, length(L), scene, params);
@@ -110,11 +118,14 @@ inline float4 whittedShading(Hit *hit, global Sphere *scene, global Light *light
         // Blinn-Phong
 
         // Testing material:
-        float4 Ks = (float4)(1.0f);
-        float glossiness = 0.1f; // probably not the right name...
+        float4 Ks = (float4)(1.0f, 1.0f, 1.0f, 0.0f);
+        float glossiness = 0.4f; // probably not the right name...
 
         float4 H = normalize(L + V);
-        float4 diffuse = scene[i].Kd * max(0.0f, dot(L, hit->N));
+
+        dbg(printVec("Kd", scene[hit->i].Kd));
+
+        float4 diffuse = scene[hit->i].Kd * max(0.0f, dot(L, hit->N));
         float4 specular = Ks * pow(max(0.0f, dot(hit->N, H)), 1.0f / glossiness);
 
         if(dot(hit->N, L) < 0) specular = (float4)(0.0f);
@@ -122,8 +133,12 @@ inline float4 whittedShading(Hit *hit, global Sphere *scene, global Light *light
         float dist = fast_length(L);
         float falloff = 1.0f / (dist * dist + 1e-5f);
 
-        res += lights[i].intensity * falloff * (diffuse + specular);
+        float4 color = lights[i].intensity * falloff * (diffuse + specular);
+        color.w = 0.0f;
+        res += color;
     }
+
+    dbg(printVec("Final color", res));
 
     return res;
 }
@@ -151,6 +166,8 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
 
     //float4 prev = vload4((y * width + x), out);
     //float4 newCol = 0.005f * pixelColor + prev;
+
+    dbg(printf("\n"));
 
     vstore4(pixelColor, (y * params->width + x), out); // (value, offset, ptr)
 }
