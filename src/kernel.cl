@@ -97,47 +97,36 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global RenderParams
 
 inline float4 whittedShading(Hit *hit, global Sphere *scene, global Light *lights, global RenderParams *params)
 {
-    dbg(printVec("Hit->P", hit->P));
-    dbg(printVec("Hit->N", hit->N));
-
     float4 res = (float4)(0.0f);
     float4 lifted = hit->P + 1e-3f * hit->N;
-    dbg(printVec("Lifted", lifted));
-    float4 V = params->camera.pos - hit->P;
+    float4 V = normalize(params->camera.pos - hit->P);
 
     // Point light assumed for now
     for(uint i = 0; i < params->n_lights; i++)
     {
         float4 L = lights[i].pos - hit->P;
-        dbg(printVec("Light pos", lights[i].pos));
+        float dist = length(L);
+        L = normalize(L);
 
-        Ray shadowRay = { lifted, normalize(L) };
-        Hit shdw = raycast(&shadowRay, length(L), scene, params);
-        float visibility = (shdw.i == -1) ? 0.0f : 1.0f; // early exits useless on GPU
+        Ray shadowRay = { lifted, L };
+        Hit shdw = raycast(&shadowRay, dist, scene, params);
+        float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
 
         // Blinn-Phong
 
         // Testing material:
-        float4 Ks = (float4)(1.0f, 1.0f, 1.0f, 0.0f);
-        float glossiness = 0.4f; // probably not the right name...
+        float4 Ks = (float4)(1.0f);
+        float glossiness = 0.025f; // probably not the right name...
 
         float4 H = normalize(L + V);
-
-        dbg(printVec("Kd", scene[hit->i].Kd));
-
         float4 diffuse = scene[hit->i].Kd * max(0.0f, dot(L, hit->N));
         float4 specular = Ks * pow(max(0.0f, dot(hit->N, H)), 1.0f / glossiness);
 
         if(dot(hit->N, L) < 0) specular = (float4)(0.0f);
 
-        float dist = fast_length(L);
         float falloff = 1.0f / (dist * dist + 1e-5f);
-
-        float4 color = lights[i].intensity * falloff * (diffuse + specular);
-        res += color;
+        res += visibility * lights[i].intensity * falloff * (diffuse + specular);
     }
-
-    dbg(printVec("Final color", res));
 
     return res;
 }
