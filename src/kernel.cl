@@ -4,7 +4,7 @@
 #define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
 //#define dbg(expr) if(false) { expr; }
 
-inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
+inline bool sphereIntersect(Ray *r, constant Sphere *s, float *t)
 {
     float t0, t1;
     float radius2 = s->R * s->R;
@@ -36,7 +36,7 @@ inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
     return true;
 }
 
-inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
+inline Ray getCameraRay(const uint x, const uint y, constant RenderParams *params)
 {
     // Camera plane is 1 unit away, by convention
     // Camera points in the negative z-direction
@@ -66,14 +66,14 @@ inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
     return r;
 }
 
-inline void calcNormalSphere(global Sphere *scene, Hit *hit)
+inline void calcNormalSphere(constant Sphere *scene, Hit *hit)
 {
     hit->N = normalize(hit->P - (scene +hit->i)->P);
 }
 
 // Will be replaced with a BVH in the future...
 // The ray length encodes the maximum intersection distance!
-inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global RenderParams *params)
+inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderParams *params)
 {
     Hit hit = { (float4)(0.0f), (float4)(0.0f), tMax, -1 };
 
@@ -95,7 +95,7 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global RenderParams
     return hit;
 }
 
-inline float4 whittedShading(Hit *hit, global Sphere *scene, global Light *lights, global RenderParams *params)
+inline float4 whittedShading(Hit *hit, constant Sphere *scene, constant Light *lights, constant RenderParams *params)
 {
     float4 res = (float4)(0.0f);
     float4 lifted = hit->P + 1e-3f * hit->N;
@@ -131,7 +131,7 @@ inline float4 whittedShading(Hit *hit, global Sphere *scene, global Light *light
     return res;
 }
 
-kernel void trace(global float *out, global Sphere *scene, global Light *lights, global RenderParams *params)
+kernel void trace(global float *out, constant Sphere *scene, constant Light *lights, constant RenderParams *params)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
