@@ -60,8 +60,8 @@ private:
     void setupScene();
     std::string errorString();
 
-    int err;                            // error code returned from api calls
-    size_t ndRangeSizes[2];             // kernel workgroup sizes
+    int err;                                // error code returned from api calls
+    size_t ndRangeSizes[2];                 // kernel workgroup sizes
 
     std::vector<cl::Device> clDevices;
     cl::Device device;
@@ -69,8 +69,8 @@ private:
     cl::CommandQueue cmdQueue;
     cl::Kernel pt_kernel;
 
-    cl_mem cl_PBO = 0;                  // device memory used for pixel data
+    std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data
     cl::Buffer sphereBuffer;
     cl::Buffer lightBuffer;
-    cl::Buffer renderParams;            // contains only one RenderParam
+    cl::Buffer renderParams;                // contains only one RenderParam
 };

@@ -14,7 +14,9 @@ CLContext::CLContext(GLuint gl_PBO)
     std::cout << "Forcing GPU device" << std::endl;
 
     // Macbook pro 15 fix
+    #ifdef __APPLE__
     clDevices.erase(clDevices.begin());
+    #endif
 
     // Init shared context
     #ifdef __APPLE__
@@ -112,18 +114,20 @@ CLContext::~CLContext()
 
 void CLContext::createPBO(GLuint gl_PBO)
 {
-    if(cl_PBO) {
+    if(sharedMemory.size() > 0) {
         std::cout << "Removing old CL-PBO" << std::endl;
-        clReleaseMemObject(cl_PBO);
+        sharedMemory.clear(); // memory freed by cl-cpp-wrapper
     }
 
     // CL_MEM_WRITE_ONLY is faster, but we need accumulation...
-    cl_PBO = clCreateFromGLBuffer(context(), CL_MEM_READ_WRITE, gl_PBO, &err);
+    sharedMemory.push_back(cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err));
 
-    if(!cl_PBO)
+    if(err != CL_SUCCESS) {
         std::cout << "Error: CL-PBO creation failed!" << std::endl;
-    else
-        std::cout << "Created CL-PBO at " << cl_PBO << std::endl;
+        exit(1);
+    } else {
+        std::cout << "Created CL-PBO at " << (sharedMemory.back())() << std::endl;
+    }
 }
 
 void CLContext::setupScene()
@@ -200,12 +204,8 @@ void CLContext::updateParams(const RenderParams &params)
 
 void CLContext::executeKernel(const RenderParams &params)
 {
-    // Take hold of texture
-    glFinish();
-    clEnqueueAcquireGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, 0);
-
     err = 0;
-    err |= pt_kernel.setArg(0, sizeof(cl_mem), &cl_PBO);
+    err |= pt_kernel.setArg(0, sharedMemory.back());
     err |= pt_kernel.setArg(1, sphereBuffer);
     err |= pt_kernel.setArg(2, lightBuffer);
     err |= pt_kernel.setArg(3, renderParams);
@@ -224,11 +224,8 @@ void CLContext::executeKernel(const RenderParams &params)
         exit(1);
     }
 
-
     ndRangeSizes[0] = 32; //TODO: 32 might be too large
     ndRangeSizes[1] = max_gw_size / ndRangeSizes[0];
-
-    //std::cout << "Executing kernel..." << std::endl;
 
     // Multiples of 32
     int wgMultipleWidth = ((params.width & 0x1F) == 0) ? params.width : ((params.width & 0xFFFFFFE0) + 0x20);
@@ -237,14 +234,12 @@ void CLContext::executeKernel(const RenderParams &params)
     cl::NDRange global(wgMultipleWidth, wgMutipleHeight);
     cl::NDRange local(ndRangeSizes[0], ndRangeSizes[1]);
 
+    // Enqueue commands to be executed in order
+    glFinish();
+    cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
     cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
-
+    cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
     cmdQueue.finish();
-    //std::cout << "Kernel execution finished" << std::endl;
-
-    // Release texture for OpenGL to draw it
-    //std::cout << "Releasing GL object" << std::endl;
-    clEnqueueReleaseGLObjects(cmdQueue(), 1, &cl_PBO, 0, 0, NULL);
 }
 
 // Return info about error
