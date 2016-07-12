@@ -147,7 +147,5 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
     //float4 prev = vload4((y * width + x), out);
     //float4 newCol = 0.005f * pixelColor + prev;
 
-    dbg(printf("\n"));
-
     vstore4(pixelColor, (y * params->width + x), out); // (value, offset, ptr)
 }
