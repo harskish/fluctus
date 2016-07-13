@@ -3,6 +3,9 @@
 
 Tracer::Tracer(int width, int height)
 {
+    scene = new Scene("assets/torus.obj");
+    this->constructHierarchy(scene->getTriangles(), SplitMode_Sah);
+
     window = new PTWindow(width, height, this);
     window->setShowFPS(true);
     clctx = new CLContext(window->getPBO());
@@ -26,6 +29,8 @@ Tracer::~Tracer()
 {
     delete window;
     delete clctx;
+    delete scene;
+    delete bvh;
 }
 
 bool Tracer::running()
@@ -68,7 +73,7 @@ void Tracer::loadHierarchy(const char* filename, std::vector<RTTriangle>& triang
     bvh = new BVH(m_triangles, filename);
 }
 
-void Tracer::saveHierarchy(const char* filename, const std::vector<RTTriangle>& triangles)
+void Tracer::saveHierarchy(const char* filename)
 {
     bvh->exportTo(filename);
 }

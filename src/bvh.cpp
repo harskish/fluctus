@@ -128,7 +128,7 @@ void BVH::exportTo(const char* filename) const {
 	for_each(m_indices.begin(), m_indices.end(), [&out](U32 index) { write(out, index); });
 
 	// Node list
-	write(out, (U32)m_nodes.size()); 
+	write(out, (U32)m_nodes.size());
 	for_each(m_build_nodes.begin(), m_build_nodes.end(), [&out](const BuildNode &n) { exportNode(out, n); });
 }
 

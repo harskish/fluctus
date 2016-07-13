@@ -2,6 +2,7 @@
 
 #include <GL/glew.h>
 #include "clcontext.hpp"
+#include <string>
 #include <cmath>
 #include "geom.h"
 #include "window.hpp"
@@ -9,6 +10,7 @@
 #include "math/float3.hpp"
 #include "math/matrix.hpp"
 #include "bvh.hpp"
+#include "scene.hpp"
 
 using namespace FireRays;
 
@@ -28,8 +30,8 @@ public:
     void updateCamera();
 
     // Create/load/export BVH
-    void loadHierarchy(const char* filename, std::vector<RTTriangle>& triangles);
-    void saveHierarchy(const char* filename, const std::vector<RTTriangle>& triangles);
+    void loadHierarchy(const char* filename, std::vector<RTTriangle> &triangles);
+    void saveHierarchy(const char* filename);
     void constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode);
 
 private:
@@ -41,6 +43,7 @@ private:
     bool mouseButtonState[3] = { false, false, false };
     bool paramsUpdatePending = true; // force initial param update
 
+    Scene *scene;
     BVH *bvh;
     std::vector<RTTriangle>* m_triangles;
 };
