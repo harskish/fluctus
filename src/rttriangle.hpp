@@ -29,9 +29,9 @@ struct VertexPNTC
 };
 
 struct tri_data {
-    int3 vertex_indices; // indices to the vertex array of the mesh
     matrix M; // Mat3f (for Woop)
     float3 N; // for Woop intersection
+    int3 vertex_indices; // indices to the vertex array of the mesh
 
     tri_data() : M(), N() { }
     //tri_data() : N() { }
@@ -78,11 +78,11 @@ struct RTTriangle {
     }
 
     inline float3 min() const {
-        return std::min(m_vertices[0].p, std::min(m_vertices[1].p, m_vertices[2].p));
+        return vmin(m_vertices[0].p, vmin(m_vertices[1].p, m_vertices[2].p));
     }
 
     inline float3 max() const {
-        return std::max(m_vertices[0].p, std::max(m_vertices[1].p, m_vertices[2].p));
+        return vmax(m_vertices[0].p, vmax(m_vertices[1].p, m_vertices[2].p));
     }
 
     inline float3 centroid() const {

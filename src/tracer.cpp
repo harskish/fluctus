@@ -19,7 +19,6 @@ Tracer::Tracer(int width, int height)
     cam.dir = float4(0.0f, 0.0f, -1.0f, 0.0f);
     cam.fov = 60.0f;
     params.camera = cam;
-
     cameraRotation = float2(-180.0f, 0.0f);
 }
 
@@ -63,6 +62,23 @@ void Tracer::update()
     window->repaint();
 }
 
+void Tracer::loadHierarchy(const char* filename, std::vector<RTTriangle>& triangles)
+{
+    m_triangles = &triangles;
+    bvh = new BVH(m_triangles, filename);
+}
+
+void Tracer::saveHierarchy(const char* filename, const std::vector<RTTriangle>& triangles)
+{
+    bvh->exportTo(filename);
+}
+
+void Tracer::constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode)
+{
+    m_triangles = &triangles;
+    bvh = new BVH(m_triangles, splitMode);
+}
+
 void Tracer::updateCamera()
 {
     if(cameraRotation.x < 0) cameraRotation.x += 360.0f;
@@ -75,14 +91,6 @@ void Tracer::updateCamera()
     params.camera.right = float4(rot.m00, rot.m01, rot.m02, 0.0f); // row 1
     params.camera.up =    float4(rot.m10, rot.m11, rot.m12, 0.0f); // row 2
     params.camera.dir =   float4(rot.m20, rot.m21, rot.m22, 0.0f); // row 3
-
-    /*
-    std::cout << "Right is: " << cam.right.x << ", " << cam.right.y << ", "  << cam.right.z << std::endl;
-    std::cout << "Up is   : " << cam.up.x << ", " << cam.up.y << ", "  << cam.up.z << std::endl;
-    std::cout << "Out is:   " << cam.dir.x << ", " << cam.dir.y << ", "  << cam.dir.z << std::endl;
-    std::cout << "Rotation is: " << camera_rotation.x << ", " << camera_rotation.y << std::endl;
-    std::cout << std::endl;
-     */
 }
 
 void Tracer::handleKeypress(int key)

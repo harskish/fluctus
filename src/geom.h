@@ -9,7 +9,7 @@ typedef unsigned int cl_uint;
 using FireRays::float4;
 #endif
 
-#define PI 3.14159265358979323846
+#define PI 3.14159265358979323846f
 #define toRad(deg) (deg * PI / 180)
 
 typedef struct

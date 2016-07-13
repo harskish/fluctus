@@ -8,6 +8,7 @@
 #include "math/float2.hpp"
 #include "math/float3.hpp"
 #include "math/matrix.hpp"
+#include "bvh.hpp"
 
 using namespace FireRays;
 
@@ -26,6 +27,11 @@ public:
 
     void updateCamera();
 
+    // Create/load/export BVH
+    void loadHierarchy(const char* filename, std::vector<RTTriangle>& triangles);
+    void saveHierarchy(const char* filename, const std::vector<RTTriangle>& triangles);
+    void constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode);
+
 private:
     PTWindow *window;
     CLContext *clctx;
@@ -33,5 +39,8 @@ private:
     float2 cameraRotation;  // not passed to GPU but needed for camera basis vectors
     float2 lastCursorPos;
     bool mouseButtonState[3] = { false, false, false };
-    bool paramsUpdatePending = true; // force one param update
+    bool paramsUpdatePending = true; // force initial param update
+
+    BVH *bvh;
+    std::vector<RTTriangle>* m_triangles;
 };
