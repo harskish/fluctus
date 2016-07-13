@@ -81,6 +81,17 @@ namespace FireRays
         return operator*(v1, c);
     }
 
+    inline float3 operator/(float3 const& v1, float c)
+    {
+        float3 res = v1;
+        return res/=c;
+    }
+
+    inline float3 operator/(float c, float3 const& v1)
+    {
+        return operator/(v1, c);
+    }
+
     inline float dot(float3 const& v1, float3 const& v2)
     {
         return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
@@ -150,6 +161,11 @@ namespace FireRays
         float tmpY = this->y;
         this->x = cos(phi) * tmpX - sin(phi) * tmpY;
         this->y = sin(phi) * tmpX + cos(phi) * tmpY;
+    }
+
+    inline float length(float3 const &v)
+    {
+        return sqrt(v.sqnorm());
     }
 }
 

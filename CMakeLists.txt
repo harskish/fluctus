@@ -30,7 +30,7 @@ set(SOURCE_FILES
     src/kernelreader.cpp
     src/kernelreader.hpp
     src/tracer.cpp
-    src/tracer.hpp)
+    src/tracer.hpp src/bvh.hpp src/bvh.cpp src/bvhnode.hpp src/bvhnode.cpp src/rtutil.hpp src/rttriangle.hpp src/raycastresult.hpp include/math/int3.hpp)
 
 add_executable(CL_TRACE ${SOURCE_FILES})
 
