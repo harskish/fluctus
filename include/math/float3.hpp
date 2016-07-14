@@ -89,7 +89,7 @@ namespace FireRays
 
     inline float3 operator/(float c, float3 const& v1)
     {
-        return operator/(v1, c);
+        return float3(c/v1.x, c/v1.y, c/v1.z, c/v1.w);
     }
 
     inline float dot(float3 const& v1, float3 const& v2)
