@@ -8,7 +8,7 @@
 /* Fat node used in BVH construction */
 struct BuildNode
 {
-	AABB box;								// Axis-aligned bounding box
+	AABB_t box;								// Axis-aligned bounding box
 	U32 iStart, iEnd;						// Indices in the index list
 	S32 rightChild = -1;					// Index into node vector (left child always current + 1)
 
@@ -19,7 +19,7 @@ struct BuildNode
 /* Small node used in BVH traversal */
 struct alignas(32) Node
 {
-	AABB box;
+	AABB_t box;
 	union {
 		U32 iStart;		// leaf node, indiex into index list
 		U32 rightChild; // internal node, index into node vector (left child always current + 1)

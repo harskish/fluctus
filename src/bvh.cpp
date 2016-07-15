@@ -82,7 +82,7 @@ std::vector<BuildNode> importNodes(std::ifstream &in) {
 		read(in, bmax.x);
 		read(in, bmax.y);
 		read(in, bmax.z);
-		n.box = AABB { bmin, bmax };
+		n.box = AABB_t { bmin, bmax };
 		read(in, n.iStart);
 		read(in, n.iEnd);
 		read(in, n.rightChild);
@@ -103,7 +103,7 @@ void BVH::importFrom(const char* filename) {
 
 
 void exportNode(std::ofstream &out, const BuildNode &n) {
-	// AABB
+	// AABB_t
 	float3 bmin = n.box.min;
 	float3 bmax = n.box.max;
 	write(out, (F32)bmin.x);
@@ -239,10 +239,10 @@ inline F32 BVH::sahCost(U32 N1, F32 area1, U32 N2, F32 area2, F32 area_root) con
 	return 2 * sahParams.costBox + sahParams.costTri * (lcost + rcost);
 }
 
-// lookup[n] = area of AABB with last n + 1 triangles
+// lookup[n] = area of AABB_t with last n + 1 triangles
 std::vector<F32> BVH::buildAreaLookup(BuildNode &n) const {
 	std::vector<F32> vec;
-	AABB box;
+	AABB_t box;
 	for (U32 i = 0; i < n.spannedTris(); i++) {
 		RTTriangle t = (*m_triangles)[m_indices[n.iEnd - i]];
 		box.expand(t);
@@ -267,7 +267,7 @@ bool BVH::sahSplit(BuildNode &n, U32 &split) {
 		// Create area lookup array
 		std::vector<F32> rightAreas = buildAreaLookup(n);
 
-		AABB leftBox;
+		AABB_t leftBox;
 		U32 leftCount = 0;
 		U32 spanSize = n.spannedTris();
 

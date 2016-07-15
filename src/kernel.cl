@@ -4,6 +4,13 @@
 #define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
 //#define dbg(expr) if(false) { expr; }
 
+inline void swap(float *a, float *b)
+{
+  float tmp = *b;
+  *b = *a;
+  *a = tmp;
+}
+
 inline bool sphereIntersect(Ray *r, constant Sphere *s, float *t)
 {
     float t0, t1;
@@ -35,6 +42,90 @@ inline bool sphereIntersect(Ray *r, constant Sphere *s, float *t)
 
     return true;
 }
+
+#define NORMAL_X ((float3)(-1, 0, 0))
+#define NORMAL_Y ((float3)(0, -1, 0))
+#define NORMAL_Z ((float3)(0, 0, -1))
+
+// Assign normal according to face hit
+inline bool intersectSlab(Ray *r, AABB *box, float *tminRet, float *tMaxRet, float3 *N) {
+    float3 n;
+    float3 dinv = 1.0f / r->dir;
+
+    // X-axis
+    n = NORMAL_X;
+    float dinvx = dinv.x;
+		float tmin = (box->min.x - r->orig.x) * dinvx;
+		float tmax = (box->max.x - r->orig.x) * dinvx;
+
+		if (dinvx < 0) {
+			swap(&tmin, &tmax);
+      n *= -1.0f;
+		}
+
+		if (tmax < 0) {
+			return false;
+		}
+
+    *N = n;
+
+    // Y-axis
+    n = NORMAL_Y;
+		float dinvy = dinv.y;
+		float tminy = (box->min.y - r->orig.y) * dinvy;
+		float tmaxy = (box->max.y - r->orig.y) * dinvy;
+
+		if (dinvy < 0) {
+			swap(&tminy, &tmaxy);
+      n *= -1.0f;
+		}
+
+		if (tmin > tmaxy || tmax < tminy) {
+			return false;
+		}
+
+		if (tminy > tmin) {
+			tmin = tminy;
+      *N = n;
+		}
+
+		if (tmaxy < tmax) {
+			tmax = tmaxy;
+		}
+
+		if (tmax < 0) {
+			return false;
+		}
+
+    // Z-axis
+    n = NORMAL_Z;
+		float dinvz = dinv.z;
+		float tminz = (box->min.z - r->orig.z) * dinvz;
+		float tmaxz = (box->max.z - r->orig.z) * dinvz;
+
+		if (dinvz < 0) {
+			swap(&tminz, &tmaxz);
+      n *= -1.0f;
+		}
+
+		if (tmin > tmaxz || tmax < tminz) {
+			return false;
+		}
+
+		if (tminz > tmin) {
+			tmin = tminz;
+      *N = n;
+		}
+
+		if (tmaxz < tmax) {
+			tmax = tmaxz;
+		}
+
+		// Assign output variables
+		*tminRet = tmin;
+		*tMaxRet = tmax;
+		return true;
+	}
 
 inline Ray getCameraRay(const uint x, const uint y, constant RenderParams *params)
 {
@@ -77,6 +168,7 @@ inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderPa
 {
     Hit hit = { (float3)(0.0f), (float3)(0.0f), tMax, -1 };
 
+    // Spheres
     for(uint i = 0; i < params->n_objects; i++)
     {
         float t;
@@ -85,12 +177,27 @@ inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderPa
         {
             hit.t = t;
             hit.i = i;
+            hit.P = r->orig + hit.t * r->dir;
+            calcNormalSphere(scene, &hit);
         }
     }
 
-    // Done once
-    hit.P = r->orig + hit.t * r->dir;
-    calcNormalSphere(scene, &hit);
+    // AABBs
+    AABB boxes[1] = { {(float3)(-1, 1, -3), (float3)(0, 2, -2)} };
+    const uint n_boxes = 1;
+    for(uint i = 0; i < n_boxes; i++)
+    {
+      float tmin, tmax;
+      float3 N;
+      bool found = intersectSlab(r, &(boxes[i]), &tmin, &tmax, &N); // fills in normal
+      if(found && tmin < hit.t)
+      {
+          hit.t = tmin;
+          hit.i = i; // use Kd of sphere with same index
+          hit.P = r->orig + hit.t * r->dir;
+          hit.N = N;
+      }
+    }
 
     return hit;
 }

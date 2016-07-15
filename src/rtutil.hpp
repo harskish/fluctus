@@ -19,10 +19,10 @@ enum SplitMode {
 	SplitMode_Sah
 };
 
-struct AABB {
+struct AABB_t {
     float3 min, max;
-    inline AABB() : min(), max() {}
-    inline AABB(const float3& min, const float3& max) : min(min), max(max) {}
+    inline AABB_t() : min(), max() {}
+    inline AABB_t(const float3& min, const float3& max) : min(min), max(max) {}
     inline F32 area() const {
         float3 d(max - min);
         return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
@@ -46,7 +46,7 @@ struct AABB {
 	}
 
     /*
-    // SLAB AABB intersection algorithm
+    // SLAB AABB_t intersection algorithm
 	inline bool intersectSlab(const float3& orig, const float3& dinv, float *tminRet, float *tMaxRet) const {
 		float dinvx = dinv.x;
 
@@ -117,6 +117,6 @@ inline std::ostream& operator<<(std::ostream& os, const float4& v) {
     return os << "(" << v.x << ", " << v.y << ", " << v.z << ", " << v.w << ")";
 }
 
-inline std::ostream& operator<<(std::ostream& os, const AABB& bb) {
+inline std::ostream& operator<<(std::ostream& os, const AABB_t& bb) {
     return os << "BB(" << bb.min << ", " << bb.max << ")";
 }

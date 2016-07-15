@@ -25,6 +25,12 @@ typedef struct
     float3 Kd;   // 16B
 } Sphere;        // 48B
 
+typedef struct
+{
+    float3 min;
+    float3 max;
+} AABB;
+
 enum lightType
 {
     POINT,
