@@ -112,7 +112,11 @@ void Scene::unpackIndexedData(const std::vector<float3> &positions,
 {
     std::cout << "Unpacking mesh" << std::endl;
 
-    VertexPNTC v0, v1, v2;
+    std::cout << "Positions: " << positions.size() << std::endl;
+    std::cout << "Normals: " << normals.size() << std::endl;
+    std::cout << "Faces: " << faces.size() << std::endl;
+
+    VertexPNT v0, v1, v2;
 
     for (auto& f : faces)
     {

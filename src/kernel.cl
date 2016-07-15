@@ -10,7 +10,7 @@ inline bool sphereIntersect(Ray *r, constant Sphere *s, float *t)
     float radius2 = s->R * s->R;
 
     // Geometric solution
-    float4 L = s->P - r->orig;
+    float3 L = s->P - r->orig;
     float tca = dot(L, r->dir);
     float d2 = dot(L, L) - tca * tca;
     if (d2 > radius2) return false;
@@ -58,8 +58,8 @@ inline Ray getCameraRay(const uint x, const uint y, constant RenderParams *param
     SCRy *= scale;
 
     // World space coorinates of pixel
-    float4 rayTarget = params->camera.pos + params->camera.right * SCRx + params->camera.up * SCRy + params->camera.dir;
-    float4 rayDirection = normalize(rayTarget - params->camera.pos);
+    float3 rayTarget = params->camera.pos + params->camera.right * SCRx + params->camera.up * SCRy + params->camera.dir;
+    float3 rayDirection = normalize(rayTarget - params->camera.pos);
 
     // Construct camera ray
     Ray r = { params->camera.pos, rayDirection };
@@ -75,7 +75,7 @@ inline void calcNormalSphere(constant Sphere *scene, Hit *hit)
 // The ray length encodes the maximum intersection distance!
 inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderParams *params)
 {
-    Hit hit = { (float4)(0.0f), (float4)(0.0f), tMax, -1 };
+    Hit hit = { (float3)(0.0f), (float3)(0.0f), tMax, -1 };
 
     for(uint i = 0; i < params->n_objects; i++)
     {
@@ -95,16 +95,16 @@ inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderPa
     return hit;
 }
 
-inline float4 whittedShading(Hit *hit, constant Sphere *scene, constant Light *lights, constant RenderParams *params)
+inline float3 whittedShading(Hit *hit, constant Sphere *scene, constant Light *lights, constant RenderParams *params)
 {
-    float4 res = (float4)(0.0f);
-    float4 lifted = hit->P + 1e-3f * hit->N;
-    float4 V = normalize(params->camera.pos - hit->P);
+    float3 res = (float3)(0.0f);
+    float3 lifted = hit->P + 1e-3f * hit->N;
+    float3 V = normalize(params->camera.pos - hit->P);
 
     // Point light assumed for now
     for(uint i = 0; i < params->n_lights; i++)
     {
-        float4 L = lights[i].pos - hit->P;
+        float3 L = lights[i].pos - hit->P;
         float dist = length(L);
         L = normalize(L);
 
@@ -115,14 +115,14 @@ inline float4 whittedShading(Hit *hit, constant Sphere *scene, constant Light *l
         // Blinn-Phong
 
         // Testing material:
-        float4 Ks = (float4)(1.0f);
+        float3 Ks = (float3)(1.0f);
         float glossiness = 0.025f; // probably not the right name...
 
-        float4 H = normalize(L + V);
-        float4 diffuse = scene[hit->i].Kd * max(0.0f, dot(L, hit->N));
-        float4 specular = Ks * pow(max(0.0f, dot(hit->N, H)), 1.0f / glossiness);
+        float3 H = normalize(L + V);
+        float3 diffuse = scene[hit->i].Kd * max(0.0f, dot(L, hit->N));
+        float3 specular = Ks * pow(max(0.0f, dot(hit->N, H)), 1.0f / glossiness);
 
-        if(dot(hit->N, L) < 0) specular = (float4)(0.0f);
+        if(dot(hit->N, L) < 0) specular = (float3)(0.0f);
 
         float falloff = 1.0f / (dist * dist + 1e-5f);
         res += visibility * lights[i].intensity * falloff * (diffuse + specular);
@@ -141,11 +141,11 @@ kernel void trace(global float *out, constant Sphere *scene, constant Light *lig
     Ray r = getCameraRay(x, y, params);
     Hit hit = raycast(&r, FLT_MAX, scene, params);
 
-    float4 pixelColor = (hit.i == -1) ? (float4)(0.0f) : whittedShading(&hit, scene, lights, params);
-    //float4 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float4)(0.0f);
+    float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, lights, params);
+    //float3 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float3)(0.0f);
 
-    //float4 prev = vload4((y * width + x), out);
-    //float4 newCol = 0.005f * pixelColor + prev;
+    //float3 prev = vload4((y * width + x), out);
+    //float3 newCol = 0.005f * pixelColor + prev;
 
-    vstore4(pixelColor, (y * params->width + x), out); // (value, offset, ptr)
+    vstore4((float4)(pixelColor, 0.0f), (y * params->width + x), out); // (value, offset, ptr)
 }

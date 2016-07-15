@@ -6,10 +6,9 @@
 #include <iterator>
 #include <fstream>
 
-#include "rttriangle.hpp"
+#include "triangle.hpp"
 #include "bvhnode.hpp"
 #include "rtutil.hpp"
-#include "raycastresult.hpp"
 
 class BVH {
 public:
@@ -17,9 +16,7 @@ public:
     BVH(std::vector<RTTriangle> *tris, const char *filename);
     ~BVH() { }
 
-    //bool intersect(RaycastResult &res, const float3 &orig, const float3 &dir, bool occlusion = false) const;
     void exportTo(const char *filename) const;
-    F32 sceneDiagLen() const;
 
 private:
     void build(U32 nInd, U32 depth);
@@ -27,9 +24,6 @@ private:
 
     // Convert build nodes to small nodes
     void createSmallNodes();
-
-    // Recurse internal tree structure
-    //bool recurse(RaycastResult &res, const float3 &orig, const float3 &dir, bool occlusion) const;
 
     bool sortElems(BuildNode &n, U32 &split); // writes index of first element of second group into split
     F32 centroidSplit(U32 iStart, U32 iEnd, U32 dimension);
@@ -63,15 +57,6 @@ private:
         U32 bad_splits = 0;
         U32 splits = 0;
     } metrics;
-
-    // Node for the simulated stack
-    struct SimStackNode {
-        U32 i; // index of node
-        float mint;
-
-        SimStackNode() { }
-        SimStackNode(U32 _i, float _mint) : i(_i), mint(_mint) { }
-    };
 };
 
 // Write a simple data type to a stream.

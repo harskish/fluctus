@@ -1,7 +1,6 @@
 #pragma once
 
-//#include "base/Math.hpp"
-#include "rttriangle.hpp"
+#include "triangle.hpp"
 #include "math/float3.hpp"
 #include <iostream>
 
@@ -17,19 +16,8 @@ typedef char U8;
 enum SplitMode {
 	SplitMode_SpatialMedian,
 	SplitMode_ObjectMedian,
-	SplitMode_Sah,
-	SplitMode_None,
-	SplitMode_Linear
+	SplitMode_Sah
 };
-
-/*
-struct Plane : public Vec4f {
-    inline float dot(const float3& p) const {
-        return p.x * x + p.y * y + p.z * z + w;
-    }
-};
- */
-
 
 struct AABB {
     float3 min, max;
@@ -124,12 +112,6 @@ struct AABB {
 	}*/
 };
 
-
-/*
-inline std::ostream& operator<<(std::ostream& os, const float3& v) {
-    return os << "(" << v.x << ", " << v.y << ", " << v.z << ")";
-}
- */
 
 inline std::ostream& operator<<(std::ostream& os, const float4& v) {
     return os << "(" << v.x << ", " << v.y << ", " << v.z << ", " << v.w << ")";

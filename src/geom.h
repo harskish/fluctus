@@ -6,7 +6,7 @@ typedef int cl_int;
 typedef unsigned int cl_uint;
 #else
 #include "math/float3.hpp"
-using FireRays::float4;
+using FireRays::float3;
 #endif
 
 #define PI 3.14159265358979323846f
@@ -14,15 +14,15 @@ using FireRays::float4;
 
 typedef struct
 {
-    float4 orig;
-    float4 dir;
+    float3 orig;
+    float3 dir;
 } Ray;
 
 typedef struct
 {
     cl_float R;  // 4B (padded to 16B?)
-    float4 P;    // 16B
-    float4 Kd;   // 16B
+    float3 P;    // 16B
+    float3 Kd;   // 16B
 } Sphere;        // 48B
 
 enum lightType
@@ -35,30 +35,30 @@ enum lightType
 typedef struct
 {
     enum lightType type;
-    float4 color;
+    float3 color;
     cl_float intensity;
     union
     {
-        float4 pos; // P/A
-        float4 dir; // D
+        float3 pos; // P/A
+        float3 dir; // D
     };
     // more params needed for area lights...
 } Light;
 
 typedef struct
 {
-    float4 P;
-    float4 N;
+    float3 P;
+    float3 N;
     cl_float t;
     cl_int i; // index of hit primitive, -1 by default
 } Hit;
 
 typedef struct
 {
-    float4 pos;
-    float4 dir;
-    float4 up;
-    float4 right;
+    float3 pos;
+    float3 dir;
+    float3 up;
+    float3 right;
     cl_float fov;
 } Camera;
 

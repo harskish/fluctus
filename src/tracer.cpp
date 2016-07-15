@@ -4,6 +4,8 @@
 Tracer::Tracer(int width, int height)
 {
     scene = new Scene("assets/torus.obj");
+
+    std::cout << "Building BVH..." << std::endl;
     this->constructHierarchy(scene->getTriangles(), SplitMode_Sah);
 
     window = new PTWindow(width, height, this);
@@ -16,10 +18,10 @@ Tracer::Tracer(int width, int height)
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
 
     Camera cam;
-    cam.pos = float4(0.0f, 1.0f, 3.5f, 0.0f);
-    cam.right = float4(1.0f, 0.0f, 0.0f, 0.0f);
-    cam.up = float4(0.0f, 1.0f, 0.0f, 0.0f);
-    cam.dir = float4(0.0f, 0.0f, -1.0f, 0.0f);
+    cam.pos = float3(0.0f, 1.0f, 3.5f);
+    cam.right = float3(1.0f, 0.0f, 0.0f);
+    cam.up = float3(0.0f, 1.0f, 0.0f);
+    cam.dir = float3(0.0f, 0.0f, -1.0f);
     cam.fov = 60.0f;
     params.camera = cam;
     cameraRotation = float2(-180.0f, 0.0f);
@@ -93,9 +95,9 @@ void Tracer::updateCamera()
 
     matrix rot = rotation(float3(1, 0, 0), toRad(cameraRotation.y)) * rotation(float3(0, 1, 0), toRad(cameraRotation.x));
 
-    params.camera.right = float4(rot.m00, rot.m01, rot.m02, 0.0f); // row 1
-    params.camera.up =    float4(rot.m10, rot.m11, rot.m12, 0.0f); // row 2
-    params.camera.dir =   float4(rot.m20, rot.m21, rot.m22, 0.0f); // row 3
+    params.camera.right = float3(rot.m00, rot.m01, rot.m02); // row 1
+    params.camera.up =    float3(rot.m10, rot.m11, rot.m12); // row 2
+    params.camera.dir =   float3(rot.m20, rot.m21, rot.m22); // row 3
 }
 
 void Tracer::handleKeypress(int key)

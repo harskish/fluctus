@@ -166,13 +166,6 @@ void BVH::build(U32 nInd, U32 depth) {
 	}
 }
 
-// The maximum length of any vector within the scene.
-// Needed as the vector length determines the maximum intersection distance.
-F32 BVH::sceneDiagLen() const {
-	Node root = m_nodes[0];
-	return length(root.box.max - root.box.min);
-}
-
 bool BVH::sortElems(BuildNode &n, U32 &split) {
 	switch (m_mode) {
 		case SplitMode_Sah:
@@ -320,89 +313,3 @@ bool BVH::sahSplit(BuildNode &n, U32 &split) {
 	split = bestSplitPoint;
 	return true;
 }
-
-
-/*bool BVH::intersect(RaycastResult& res, const float3& orig, const float3& dir, bool occlusion) const {
-	return recurse(res, orig, 1.0f / dir, occlusion);
-}*/
-
-/*bool BVH::recurse(RaycastResult& res, const float3& orig, const float3& invDir, bool occlusion) const {
-	float lnear, lfar, rnear, rfar; //AABB limits
-	U32 closer, farther;
-
-	// Stack state
-	SimStackNode stack[64];
-	S32 stackptr = 0;
-
-	// Root node
-	stack[stackptr].i = 0;
-	stack[stackptr].mint = -FLT_MAX;
-
-	while (stackptr >= 0) {
-		// Next node
-		int ni = stack[stackptr].i;
-		float tnear = stack[stackptr].mint;
-		stackptr--;
-		const Node n = m_nodes[ni];
-
-		// Closer intersection found already
-		if (tnear > res.t)
-			continue;
-
-		if (n.nPrims != 0) { // Leaf node
-			float3 dir = 1.0f / invDir;
-			float tmin = 1.0f, umin = 0.0f, vmin = 0.0f;
-			int imin = -1;
-			for (U32 i = n.iStart; i < n.iStart + n.nPrims; i++) {
-				float t, u, v;
-				RTTriangle tri = (*m_triangles)[m_indices[i]];
-				if (tri.intersect_woop(orig, dir, t, u, v)) {
-					if (t > 0.0f && t < tmin && tri.isOpaque(u, v)) {
-						imin = i;
-						tmin = t;
-						umin = u;
-						vmin = v;
-
-						if (occlusion) {
-							res = RaycastResult(&(*m_triangles)[m_indices[imin]], tmin, umin, vmin, orig + tmin*dir, orig, dir);
-							return true;
-						}
-					}
-				}
-			}
-			if (imin != -1 && tmin < res.t) {
-				res = RaycastResult(&(*m_triangles)[m_indices[imin]], tmin, umin, vmin, orig + tmin*dir, orig, dir);
-			}
-		}
-		else { // Internal node
-			bool leftWasHit = m_nodes[ni + 1].box.intersectSlab(orig, invDir, &lnear, &lfar);
-			bool rightWasHit = m_nodes[n.rightChild].box.intersectSlab(orig, invDir, &rnear, &rfar);
-
-			if (leftWasHit && rightWasHit) {
-				closer = ni + 1;
-				farther = n.rightChild;
-
-				// Right child was closer -> swap
-				if (rnear < lnear) {
-					std::swap(lnear, rnear);
-					std::swap(lfar, rfar);
-					std::swap(closer, farther);
-				}
-
-				// Farther node pushed first
-				stack[++stackptr] = SimStackNode(farther, rnear);
-				stack[++stackptr] = SimStackNode(closer, lnear);
-			}
-
-			else if (leftWasHit) {
-				stack[++stackptr] = SimStackNode(ni + 1, lnear);
-			}
-
-			else if (rightWasHit) {
-				stack[++stackptr] = SimStackNode(n.rightChild, rnear);
-			}
-		}
-	}
-
-	return (res.tri != nullptr);
-}*/

@@ -6,7 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "rttriangle.hpp"
+#include "triangle.hpp"
 #include "math/float3.hpp"
 
 using FireRays::float3;
