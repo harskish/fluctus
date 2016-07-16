@@ -1,20 +1,6 @@
 #include "window.hpp"
 #include "tracer.hpp"
 
-void keyPressCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
-{
-    if(action == GLFW_RELEASE)
-        return;
-
-    if(key == GLFW_KEY_ESCAPE)
-        glfwSetWindowShouldClose(window, GL_TRUE);
-
-    // Pass keypress to tracer
-    void *ptr = glfwGetWindowUserPointer(window);
-    Tracer *tracer = reinterpret_cast<Tracer*>(ptr);
-    tracer->handleKeypress(key);
-}
-
 void errorCallback(int error, const char *desc)
 {
     std::cerr << desc << " (error " << error << ")" << std::endl;
@@ -59,13 +45,15 @@ PTWindow::PTWindow(int width, int height, void *tracer)
     }
 
     glfwMakeContextCurrent(window);
-    glfwSetKeyCallback(window, keyPressCallback);
     glfwSetErrorCallback(errorCallback);
     glfwSetWindowCloseCallback(window, windowCloseCallback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_position_callback);
     glfwSetWindowUserPointer(window, tracer);
+
+    // For key polling
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
 
     // ===============================================
     GLenum err = glewInit();
@@ -84,6 +72,12 @@ PTWindow::PTWindow(int width, int height, void *tracer)
 PTWindow::~PTWindow()
 {
     if(gl_PBO) glDeleteTextures(1, &gl_PBO);
+}
+
+void PTWindow::requestClose()
+{
+    std::cout << "Setting window close flag..." << std::endl;
+    glfwSetWindowShouldClose(window, GL_TRUE);
 }
 
 void PTWindow::getFBSize(unsigned int &w, unsigned int &h)
@@ -205,6 +199,11 @@ float2 PTWindow::getCursorPos()
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
     return float2((float)xpos, (float)ypos);
+}
+
+bool PTWindow::keyPressed(int key)
+{
+    return glfwGetKey(window, key) == GLFW_PRESS;
 }
 
 

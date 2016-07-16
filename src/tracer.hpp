@@ -23,10 +23,10 @@ public:
     bool running();
     void update();
     void resizeBuffers();
-    void handleKeypress(int key);
     void handleMouseButton(int key, int action);
     void handleCursorPos(double x, double y);
 
+    void pollKeys();
     void updateCamera();
     void initCamera();
 

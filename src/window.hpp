@@ -25,8 +25,10 @@ public:
 
     void setShowFPS(bool show) { show_fps = show; }
     void createPBO();
+    void requestClose();
 
     float2 getCursorPos();
+    bool keyPressed(int key);
 
     GLFWwindow *glfwWindowPtr() { return window; }
     GLuint getPBO() { return gl_PBO; }

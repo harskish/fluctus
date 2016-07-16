@@ -46,6 +46,7 @@ void Tracer::update()
 {
     // React to key presses
     glfwPollEvents();
+    pollKeys();
 
     // Update RenderParams in GPU memory if needed
     window->getFBSize(params.width, params.height);
@@ -109,72 +110,33 @@ void Tracer::updateCamera()
     params.camera.dir =  -float3(rot.m20, rot.m21, rot.m22); // camera points in the negative z-direction
 }
 
-void Tracer::handleKeypress(int key)
+// Polling enables instant and simultaneous key presses (callbacks less so)
+#define check(key, expr) if(window->keyPressed(key)) { expr; paramsUpdatePending = true; }
+void Tracer::pollKeys()
 {
     Camera &cam = params.camera;
 
-    switch(key)
-    {
-        case GLFW_KEY_W:
-            cam.pos += 0.1f * cam.dir;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_A:
-            cam.pos -= 0.1f * cam.right;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_S:
-            cam.pos -= 0.1f * cam.dir;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_D:
-            cam.pos += 0.1f * cam.right;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_R:
-            cam.pos += 0.1f * cam.up;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_F:
-            cam.pos -= 0.1f * cam.up;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_UP:
-            cameraRotation.y += 5.0f;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_DOWN:
-            cameraRotation.y -= 5.0f;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_LEFT:
-            cameraRotation.x += 5.0f;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_RIGHT:
-            cameraRotation.x -= 5.0f;
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_KP_ADD:
-            cam.fov = std::min(cam.fov + 5.0f, 175.0f);
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_KP_SUBTRACT:
-            cam.fov = std::max(cam.fov - 5.0f, 5.0f);
-            paramsUpdatePending = true;
-            break;
-        case GLFW_KEY_F1:
-            initCamera();
-            paramsUpdatePending = true;
-            break;
-    }
+    check(GLFW_KEY_W,           cam.pos += 0.07f * cam.dir);
+    check(GLFW_KEY_A,           cam.pos -= 0.07f * cam.right);
+    check(GLFW_KEY_S,           cam.pos -= 0.07f * cam.dir);
+    check(GLFW_KEY_D,           cam.pos += 0.07f * cam.right);
+    check(GLFW_KEY_R,           cam.pos += 0.07f * cam.up);
+    check(GLFW_KEY_F,           cam.pos -= 0.07f * cam.up);
+    check(GLFW_KEY_KP_ADD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
+    check(GLFW_KEY_KP_SUBTRACT, cam.fov = std::max(cam.fov - 1.0f, 5.0f));
+    check(GLFW_KEY_UP,          cameraRotation.y -= 1.0f);
+    check(GLFW_KEY_DOWN,        cameraRotation.y += 1.0f);
+    check(GLFW_KEY_LEFT,        cameraRotation.x -= 1.0f);
+    check(GLFW_KEY_RIGHT,       cameraRotation.x += 1.0f);
+    check(GLFW_KEY_F1,          initCamera());
+    check(GLFW_KEY_ESCAPE,      window->requestClose());
 
-    // Update camera and other params
     if(paramsUpdatePending)
     {
         updateCamera();
     }
 }
+#undef check
 
 void Tracer::handleMouseButton(int key, int action)
 {
