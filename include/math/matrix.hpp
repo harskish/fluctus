@@ -260,6 +260,7 @@ namespace FireRays
         return result;
     }
 
+    // https://en.wikipedia.org/wiki/Rotation_matrix#Rotation_matrix_from_axis_and_angle
     inline float sqr(float v) { return v * v; }
     inline matrix rotation(const float3 &axis, const float angle)
     {

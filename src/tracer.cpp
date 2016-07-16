@@ -17,14 +17,7 @@ Tracer::Tracer(int width, int height)
     params.n_lights = sizeof(test_lights) / sizeof(Light);
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
 
-    Camera cam;
-    cam.pos = float3(0.0f, 1.0f, 3.5f);
-    cam.right = float3(1.0f, 0.0f, 0.0f);
-    cam.up = float3(0.0f, 1.0f, 0.0f);
-    cam.dir = float3(0.0f, 0.0f, -1.0f);
-    cam.fov = 60.0f;
-    params.camera = cam;
-    cameraRotation = float2(-180.0f, 0.0f);
+    initCamera();
 }
 
 Tracer::~Tracer()
@@ -86,6 +79,22 @@ void Tracer::constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode sp
     bvh = new BVH(m_triangles, splitMode);
 }
 
+void Tracer::initCamera()
+{
+    Camera cam;
+    cam.pos = float3(0.0f, 1.0f, 3.5f);
+    cam.right = float3(1.0f, 0.0f, 0.0f);
+    cam.up = float3(0.0f, 1.0f, 0.0f);
+    cam.dir = float3(0.0f, 0.0f, -1.0f);
+    cam.fov = 60.0f;
+
+    params.camera = cam;
+    cameraRotation = float2(0.0f);
+    paramsUpdatePending = true;
+}
+
+// "The rows of R represent the coordinates in the original space of unit vectors along the
+// coordinate axes of the rotated space." (https://www.fastgraph.com/makegames/3drotation/)
 void Tracer::updateCamera()
 {
     if(cameraRotation.x < 0) cameraRotation.x += 360.0f;
@@ -95,9 +104,9 @@ void Tracer::updateCamera()
 
     matrix rot = rotation(float3(1, 0, 0), toRad(cameraRotation.y)) * rotation(float3(0, 1, 0), toRad(cameraRotation.x));
 
-    params.camera.right = float3(rot.m00, rot.m01, rot.m02); // row 1
-    params.camera.up =    float3(rot.m10, rot.m11, rot.m12); // row 2
-    params.camera.dir =   float3(rot.m20, rot.m21, rot.m22); // row 3
+    params.camera.right = float3(rot.m00, rot.m01, rot.m02);
+    params.camera.up =    float3(rot.m10, rot.m11, rot.m12);
+    params.camera.dir =  -float3(rot.m20, rot.m21, rot.m22); // camera points in the negative z-direction
 }
 
 void Tracer::handleKeypress(int key)
@@ -146,6 +155,18 @@ void Tracer::handleKeypress(int key)
             cameraRotation.x -= 5.0f;
             paramsUpdatePending = true;
             break;
+        case GLFW_KEY_KP_ADD:
+            cam.fov = std::min(cam.fov + 5.0f, 175.0f);
+            paramsUpdatePending = true;
+            break;
+        case GLFW_KEY_KP_SUBTRACT:
+            cam.fov = std::max(cam.fov - 5.0f, 5.0f);
+            paramsUpdatePending = true;
+            break;
+        case GLFW_KEY_F1:
+            initCamera();
+            paramsUpdatePending = true;
+            break;
     }
 
     // Update camera and other params
@@ -188,7 +209,7 @@ void Tracer::handleCursorPos(double x, double y)
     if(mouseButtonState[0])
     {
         float2 newPos = float2((float)x, (float)y);
-        float2 delta = lastCursorPos - newPos;
+        float2 delta =  newPos - lastCursorPos;
 
         // std::cout << "Mouse delta: " << delta.x <<  ", " << delta.y << std::endl;
 

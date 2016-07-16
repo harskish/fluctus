@@ -28,6 +28,7 @@ public:
     void handleCursorPos(double x, double y);
 
     void updateCamera();
+    void initCamera();
 
     // Create/load/export BVH
     void loadHierarchy(const char* filename, std::vector<RTTriangle> &triangles);
