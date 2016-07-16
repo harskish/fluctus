@@ -31,6 +31,20 @@ typedef struct
     float3 max;
 } AABB;
 
+typedef struct
+{
+    float3 p;
+    float3 n;
+    float3 t;
+} Vertex;
+
+typedef struct
+{
+    Vertex v0;
+    Vertex v1;
+    Vertex v2;
+} Triangle;
+
 enum lightType
 {
     POINT,

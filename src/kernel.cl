@@ -145,6 +145,38 @@ inline bool intersectSlab(Ray *r, AABB *box, float *tminRet, float *tMaxRet, flo
 	return true;
 }
 
+// Möller-Trumbore
+inline bool intersectTriangle(Ray *r, Triangle *tri, float *tret, float *uret, float *vret)
+{
+	float3 s1 = tri->v1.p - tri->v0.p;;
+	float3 s2 = tri->v2.p - tri->v0.p;
+	float3 pvec = cross(r->dir, s2); // order matters!
+	float det = dot(s1, pvec);
+
+	// miss if det close to 0
+	if (fabs(det) < FLT_EPSILON) return false;
+	float iDet = 1.0f / det;
+
+	float3 tvec = r->orig - tri->v0.p;
+	float u = dot(tvec, pvec) * iDet;
+	if (u < 0.0f || u > 1.0f) return false;
+
+	float3 qvec = cross(tvec, s1); // order matters!
+	float v = dot(r->dir, qvec) * iDet;
+	if (v < 0.0f || u + v > 1.0f) return false;
+
+	//float t = s2.dot(qvec) * iDet;
+	float t = dot(s2, qvec) * iDet;
+
+	if(t < 0.0f) return false;
+
+	*tret = t;
+	*uret = u;
+	*vret = v;
+
+	return true;
+}
+
 inline Ray getCameraRay(const uint x, const uint y, constant RenderParams *params)
 {
     // Camera plane is 1 unit away, by convention
@@ -201,7 +233,7 @@ inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderPa
     }
 
     // AABBs
-    AABB boxes[1] = { {(float3)(-1, 1, -3), (float3)(0, 2, -2)} };
+    AABB boxes[] = { {(float3)(-3, 1, -3), (float3)(-2, 2, -2)} };
     const uint n_boxes = 1;
     for(uint i = 0; i < n_boxes; i++)
     {
@@ -211,9 +243,29 @@ inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderPa
       if(found && tmin < hit.t)
       {
           hit.t = tmin;
-          hit.i = i; // use Kd of sphere with same index
+          hit.i = 2; // FOR TESTING ONLY!
           hit.P = r->orig + hit.t * r->dir;
           hit.N = N;
+      }
+    }
+
+    // Triangles
+    Vertex v0 = { (float3)(1.5f, 1.0f, -3.0f), (float3)(0.0f, 0.0f, 1.0f), (float3)(0.0f) };
+    Vertex v1 = { (float3)(2.25f, 2.5f, -2.0f), (float3)(0.0f, 0.0f, 1.0f), (float3)(0.0f) };
+    Vertex v2 = { (float3)(3.0f, 1.0f, -1.0f), (float3)(0.0f, 0.0f, 1.0f), (float3)(0.0f) };
+    Triangle tris[] = { {v0, v1, v2} };
+    const uint n_tris = 1;
+    for(uint i = 0; i < n_tris; i++)
+    {
+      float t, u, v;
+      float3 N;
+      bool found = intersectTriangle(r, &(tris[i]), &t, &u, &v);
+      if(found && t < hit.t)
+      {
+          hit.t = t;
+          hit.i = i; // use Kd of sphere with same index
+          hit.P = r->orig + hit.t * r->dir;
+          hit.N = tris[i].v0.n; // interpolate!
       }
     }
 
