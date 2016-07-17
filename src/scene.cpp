@@ -132,7 +132,7 @@ void Scene::unpackIndexedData(const std::vector<float3> &positions,
         if (normals.size() == 0)
         {
             // Generate normals
-            v0.n = v1.n = v2.n = normalize(cross(v2.p - v0.p, v1.p - v0.p));
+            v0.n = v1.n = v2.n = normalize(cross(v1.p - v0.p, v2.p - v0.p));
         }
         else if(type_ply)
         {

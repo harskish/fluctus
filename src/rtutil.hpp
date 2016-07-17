@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cl2.hpp"
 #include "triangle.hpp"
 #include "math/float3.hpp"
 #include <iostream>
@@ -8,10 +9,10 @@ using FireRays::float3;
 using FireRays::float4;
 
 // TODO: remove these!
-typedef unsigned int U32;
-typedef int S32;
-typedef float F32;
-typedef char U8;
+typedef cl_uint U32;
+typedef cl_int S32;
+typedef cl_float F32;
+typedef cl_uchar U8;
 
 enum SplitMode {
 	SplitMode_SpatialMedian,

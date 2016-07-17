@@ -3,7 +3,7 @@
 
 Tracer::Tracer(int width, int height)
 {
-    scene = new Scene("assets/torus.obj");
+    scene = new Scene("assets/icosahedron.obj");
 
     std::cout << "Building BVH..." << std::endl;
     this->constructHierarchy(scene->getTriangles(), SplitMode_Sah);
@@ -11,6 +11,7 @@ Tracer::Tracer(int width, int height)
     window = new PTWindow(width, height, this);
     window->setShowFPS(true);
     clctx = new CLContext(window->getPBO());
+    clctx->createBVHBuffers(bvh->m_triangles, &bvh->m_indices, &bvh->m_nodes);
 
     params.width = (unsigned int)width;
     params.height = (unsigned int)height;
@@ -66,6 +67,7 @@ void Tracer::update()
 void Tracer::loadHierarchy(const char* filename, std::vector<RTTriangle>& triangles)
 {
     m_triangles = &triangles;
+    params.n_tris = (cl_uint)m_triangles->size();
     bvh = new BVH(m_triangles, filename);
 }
 
@@ -77,6 +79,7 @@ void Tracer::saveHierarchy(const char* filename)
 void Tracer::constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode)
 {
     m_triangles = &triangles;
+    params.n_tris = (cl_uint)m_triangles->size();
     bvh = new BVH(m_triangles, splitMode);
 }
 

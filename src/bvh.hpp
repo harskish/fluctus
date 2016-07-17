@@ -11,6 +11,9 @@
 #include "rtutil.hpp"
 
 class BVH {
+
+friend class Tracer;
+
 public:
     BVH(std::vector<RTTriangle> *tris, SplitMode mode);
     BVH(std::vector<RTTriangle> *tris, const char *filename);

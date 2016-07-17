@@ -22,6 +22,8 @@
 #include "math/float3.hpp"
 #include "kernelreader.hpp"
 #include "geom.h"
+#include "triangle.hpp"
+#include "bvhnode.hpp"
 
 using FireRays::float3;
 
@@ -48,6 +50,9 @@ static Light test_lights[] =
 
 class CLContext
 {
+
+friend class Tracer;
+
 public:
     CLContext(GLuint gl_PBO);
     ~CLContext();
@@ -55,10 +60,12 @@ public:
     void executeKernel(const RenderParams &params);
     void setupParams();
     void updateParams(const RenderParams &params);
+    void createBVHBuffers(std::vector<RTTriangle> *triangles, std::vector<cl_uint> *indices, std::vector<Node> *nodes);
     void createPBO(GLuint gl_PBO);
 private:
     void printDevices();
     void setupScene();
+    void verify(std::string msg);
     std::string errorString();
 
     int err;                                // error code returned from api calls
@@ -74,4 +81,10 @@ private:
     cl::Buffer sphereBuffer;
     cl::Buffer lightBuffer;
     cl::Buffer renderParams;                // contains only one RenderParam
+
+    // Variables from BVH
+    cl::Buffer triangleBuffer;
+    cl::Buffer nodeBuffer;
+    cl::Buffer indexBuffer;
+    cl_uint nodes = 0; // needed outside of building?
 };

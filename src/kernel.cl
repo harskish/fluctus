@@ -1,6 +1,7 @@
 #include "geom.h"
 
-#define printVec(title, v) printf("%s: { %.4f, %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z, (v).w)
+#define printVec3(title, v) printf("%s: { %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z)
+#define printVec4(title, v) printf("%s: { %.4f, %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z, (v).w)
 #define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
 //#define dbg(expr) if(false) { expr; }
 
@@ -11,7 +12,7 @@ inline void swap(float *a, float *b)
   *a = tmp;
 }
 
-inline bool sphereIntersect(Ray *r, constant Sphere *s, float *t)
+inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
 {
     float t0, t1;
     float radius2 = s->R * s->R;
@@ -146,7 +147,7 @@ inline bool intersectSlab(Ray *r, AABB *box, float *tminRet, float *tMaxRet, flo
 }
 
 // Möller-Trumbore
-inline bool intersectTriangle(Ray *r, Triangle *tri, float *tret, float *uret, float *vret)
+inline bool intersectTriangle(Ray *r, global Triangle *tri, float *tret, float *uret, float *vret)
 {
 	float3 s1 = tri->v1.p - tri->v0.p;;
 	float3 s2 = tri->v2.p - tri->v0.p;
@@ -177,7 +178,7 @@ inline bool intersectTriangle(Ray *r, Triangle *tri, float *tret, float *uret, f
 	return true;
 }
 
-inline Ray getCameraRay(const uint x, const uint y, constant RenderParams *params)
+inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
 {
     // Camera plane is 1 unit away, by convention
     // Camera points in the negative z-direction
@@ -207,14 +208,14 @@ inline Ray getCameraRay(const uint x, const uint y, constant RenderParams *param
     return r;
 }
 
-inline void calcNormalSphere(constant Sphere *scene, Hit *hit)
+inline void calcNormalSphere(global Sphere *scene, Hit *hit)
 {
     hit->N = normalize(hit->P - (scene +hit->i)->P);
 }
 
 // Will be replaced with a BVH in the future...
 // The ray length encodes the maximum intersection distance!
-inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderParams *params)
+inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tris, global RenderParams *params)
 {
     Hit hit = { (float3)(0.0f), (float3)(0.0f), tMax, -1 };
 
@@ -250,20 +251,14 @@ inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderPa
     }
 
     // Triangles
-    Vertex v0 = { (float3)(1.5f, 1.0f, -3.0f), (float3)(0.0f, 0.0f, 1.0f), (float3)(0.0f) };
-    Vertex v1 = { (float3)(2.25f, 2.5f, -2.0f), (float3)(0.0f, 0.0f, 1.0f), (float3)(0.0f) };
-    Vertex v2 = { (float3)(3.0f, 1.0f, -1.0f), (float3)(0.0f, 0.0f, 1.0f), (float3)(0.0f) };
-    Triangle tris[] = { {v0, v1, v2} };
-    const uint n_tris = 1;
-    for(uint i = 0; i < n_tris; i++)
+    for(uint i = 0; i < params->n_tris; i++)
     {
       float t, u, v;
-      float3 N;
       bool found = intersectTriangle(r, &(tris[i]), &t, &u, &v);
       if(found && t < hit.t)
       {
           hit.t = t;
-          hit.i = i; // use Kd of sphere with same index
+          hit.i = 4; // FOR TESTING!
           hit.P = r->orig + hit.t * r->dir;
           hit.N = tris[i].v0.n; // interpolate!
       }
@@ -272,7 +267,7 @@ inline Hit raycast(Ray *r, float tMax, constant Sphere *scene, constant RenderPa
     return hit;
 }
 
-inline float3 whittedShading(Hit *hit, constant Sphere *scene, constant Light *lights, constant RenderParams *params)
+inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global Light *lights, global RenderParams *params)
 {
     float3 res = (float3)(0.0f);
     float3 lifted = hit->P + 1e-3f * hit->N;
@@ -286,7 +281,7 @@ inline float3 whittedShading(Hit *hit, constant Sphere *scene, constant Light *l
         L = normalize(L);
 
         Ray shadowRay = { lifted, L };
-        Hit shdw = raycast(&shadowRay, dist, scene, params);
+        Hit shdw = raycast(&shadowRay, dist, scene, tris, params);
         float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
 
         // Blinn-Phong
@@ -308,7 +303,7 @@ inline float3 whittedShading(Hit *hit, constant Sphere *scene, constant Light *l
     return res;
 }
 
-kernel void trace(global float *out, constant Sphere *scene, constant Light *lights, constant RenderParams *params)
+kernel void trace(global float *out, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
@@ -316,9 +311,9 @@ kernel void trace(global float *out, constant Sphere *scene, constant Light *lig
     if(x >= params->width || y >= params->height) return;
 
     Ray r = getCameraRay(x, y, params);
-    Hit hit = raycast(&r, FLT_MAX, scene, params);
+    Hit hit = raycast(&r, FLT_MAX, scene, tris, params);
 
-    float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, lights, params);
+    float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, tris, lights, params);
     //float3 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float3)(0.0f);
 
     //float3 prev = vload4((y * width + x), out);

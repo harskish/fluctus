@@ -4,6 +4,7 @@
 typedef float cl_float;
 typedef int cl_int;
 typedef unsigned int cl_uint;
+typedef char cl_uchar;
 #else
 #include "math/float3.hpp"
 using FireRays::float3;
@@ -30,6 +31,16 @@ typedef struct
     float3 min;
     float3 max;
 } AABB;
+
+typedef struct
+{
+    AABB box;
+    union {
+        cl_uint iStart;		// leaf node, index into index list
+        cl_uint rightChild; // internal node, index into node vector (left child always current + 1)
+    };
+    cl_uchar nPrims;	    // 0 for interior nodes
+} GPUNode;
 
 typedef struct
 {
@@ -87,6 +98,7 @@ typedef struct
     cl_uint width;         // window width
     cl_uint height;        // window height
     cl_uint n_objects;     // number of objects in scene
+    cl_uint n_tris;
     cl_uint n_lights;      // number of lights in scene
     Camera camera;         // camera struct
 } RenderParams;

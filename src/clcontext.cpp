@@ -122,7 +122,8 @@ void CLContext::createPBO(GLuint gl_PBO)
     // CL_MEM_WRITE_ONLY is faster, but we need accumulation...
     sharedMemory.push_back(cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err));
 
-    if(err != CL_SUCCESS) {
+    if(err != CL_SUCCESS)
+    {
         std::cout << "Error: CL-PBO creation failed!" << std::endl;
         exit(1);
     } else {
@@ -137,7 +138,8 @@ void CLContext::setupScene()
     // READ_WRITE due to Apple's OpenCL bug...?
     sphereBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, s_bytes, NULL, &err);
 
-    if (err != CL_SUCCESS) {
+    if (err != CL_SUCCESS)
+    {
         std::cout << "Error: sphere buffer creation failed!" << err << std::endl;
         std::cout << errorString() << std::endl;
         exit(1);
@@ -146,7 +148,8 @@ void CLContext::setupScene()
     // Blocking write!
     err = cmdQueue.enqueueWriteBuffer(sphereBuffer, CL_TRUE, 0, s_bytes, test_spheres);
 
-    if (err != CL_SUCCESS) {
+    if (err != CL_SUCCESS)
+    {
         std::cout << "Error: scene buffer writing failed!" << std::endl;
         std::cout << errorString() << std::endl;
         exit(1);
@@ -156,7 +159,8 @@ void CLContext::setupScene()
     size_t l_bytes = sizeof(test_lights);
     lightBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, l_bytes, NULL, &err);
 
-    if (err != CL_SUCCESS) {
+    if (err != CL_SUCCESS)
+    {
         std::cout << "Error: light buffer creation failed!" << err << std::endl;
         std::cout << errorString() << std::endl;
         exit(1);
@@ -164,7 +168,8 @@ void CLContext::setupScene()
 
     err = cmdQueue.enqueueWriteBuffer(lightBuffer, CL_TRUE, 0, l_bytes, test_lights);
 
-    if (err != CL_SUCCESS) {
+    if (err != CL_SUCCESS)
+    {
         std::cout << "Error: light buffer writing failed!" << std::endl;
         std::cout << errorString() << std::endl;
         exit(1);
@@ -173,13 +178,42 @@ void CLContext::setupScene()
     std::cout << "Scene initialization succeeded!" << std::endl;
 }
 
+// TODO: Check if Apple still breaks when using CL_MEM_READ
+void CLContext::createBVHBuffers(std::vector<RTTriangle> *tris, std::vector<cl_uint> *indices, std::vector<Node> *nodes)
+{
+    size_t t_bytes = tris->size() * sizeof(RTTriangle);
+    size_t i_bytes = indices->size() * sizeof(cl_uint);
+    size_t n_bytes = nodes->size() * sizeof(Node);
+
+    // Allocate memory for buffers
+    triangleBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, t_bytes, NULL, &err);
+    verify("Triangle buffer creation failed!");
+
+    indexBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, i_bytes, NULL, &err);
+    verify("Index buffer creation failed!");
+
+    nodeBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, n_bytes, NULL, &err);
+    verify("Node buffer creation failed!");
+
+    // Write data to buffers
+    err = cmdQueue.enqueueWriteBuffer(triangleBuffer, CL_TRUE, 0, t_bytes, tris->data());
+    verify("Triangle buffer writing failed!");
+
+    err = cmdQueue.enqueueWriteBuffer(indexBuffer, CL_TRUE, 0, i_bytes, indices->data());
+    verify("Index buffer writing failed!");
+
+    err = cmdQueue.enqueueWriteBuffer(nodeBuffer, CL_TRUE, 0, n_bytes, nodes->data());
+    verify("Node buffer writing failed!");
+}
+
 // Passing structs to kernels is broken in several drivers (e.g. GT 750M on MacOS)
 // Allocating memory for the rendering params is more compatible
 void CLContext::setupParams()
 {
     renderParams = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(RenderParams), NULL, &err);
 
-    if (err != CL_SUCCESS) {
+    if (err != CL_SUCCESS)
+    {
         std::cout << "Error: test buffer creation failed!" << err << std::endl;
         std::cout << errorString() << std::endl;
         exit(1);
@@ -193,7 +227,8 @@ void CLContext::updateParams(const RenderParams &params)
     // Blocking write!
     err = cmdQueue.enqueueWriteBuffer(renderParams, CL_TRUE, 0, sizeof(RenderParams), &params);
 
-    if (err != CL_SUCCESS) {
+    if (err != CL_SUCCESS)
+    {
         std::cout << "Error: RenderParam writing failed!" << std::endl;
         std::cout << errorString() << std::endl;
         exit(1);
@@ -204,11 +239,15 @@ void CLContext::updateParams(const RenderParams &params)
 
 void CLContext::executeKernel(const RenderParams &params)
 {
+    int i = 0;
     err = 0;
-    err |= pt_kernel.setArg(0, sharedMemory.back());
-    err |= pt_kernel.setArg(1, sphereBuffer);
-    err |= pt_kernel.setArg(2, lightBuffer);
-    err |= pt_kernel.setArg(3, renderParams);
+    err |= pt_kernel.setArg(i++, sharedMemory.back()); // output buffer
+    err |= pt_kernel.setArg(i++, sphereBuffer);
+    err |= pt_kernel.setArg(i++, lightBuffer);
+    err |= pt_kernel.setArg(i++, triangleBuffer);
+    err |= pt_kernel.setArg(i++, nodeBuffer);
+    err |= pt_kernel.setArg(i++, indexBuffer);
+    err |= pt_kernel.setArg(i++, renderParams);
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
@@ -272,6 +311,15 @@ std::string CLContext::errorString()
 
     const int ind = -err;
     return (ind >= 0 && ind < SIZE) ? errors[ind] : "unknown!";
+}
+
+void CLContext::verify(std::string msg)
+{
+    if(err != CL_SUCCESS)
+    {
+        std::cout << msg << std::endl << errorString() << std::endl;
+        exit(1);
+    }
 }
 
 // Print the devices, C++ style
