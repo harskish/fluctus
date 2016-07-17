@@ -1,5 +1,8 @@
 #pragma once
 
+#define CL_HPP_MINIMUM_OPENCL_VERSION 120
+#define CL_HPP_TARGET_OPENCL_VERSION 120
+
 #include "cl2.hpp"
 #include "triangle.hpp"
 #include "math/float3.hpp"
@@ -45,72 +48,6 @@ struct AABB_t {
 			max = vmax(max, t.max());
 		}
 	}
-
-    /*
-    // SLAB AABB_t intersection algorithm
-	inline bool intersectSlab(const float3& orig, const float3& dinv, float *tminRet, float *tMaxRet) const {
-		float dinvx = dinv.x;
-
-		float tmin = (min.x - orig.x) * dinvx;
-		float tmax = (max.x - orig.x) * dinvx;
-
-		if (dinvx < 0) {
-			std::swap(tmin, tmax);
-		}
-
-		if (tmax < 0) {
-			return false;
-		}
-
-		float dinvy = dinv.y;
-		float tminy = (min.y - orig.y) * dinvy;
-		float tmaxy = (max.y - orig.y) * dinvy;
-
-		if (dinvy  < 0) {
-			std::swap(tminy, tmaxy);
-		}
-
-		if (tmin > tmaxy || tmax < tminy) {
-			return false;
-		}
-
-		if (tminy > tmin) {
-			tmin = tminy;
-		}
-
-		if (tmaxy < tmax) {
-			tmax = tmaxy;
-		}
-
-		if (tmax < 0) {
-			return false;
-		}
-
-		float dinvz = dinv.z;
-		float tminz = (min.z - orig.z) * dinvz;
-		float tmaxz = (max.z - orig.z) * dinvz;
-
-		if (dinvz <  0) {
-			std::swap(tminz, tmaxz);
-		}
-
-		if (tmin > tmaxz || tmax < tminz) {
-			return false;
-		}
-
-		if (tminz > tmin) {
-			tmin = tminz;
-		}
-
-		if (tmaxz < tmax) {
-			tmax = tmaxz;
-		}
-
-		// Assign output variables
-		*tminRet = tmin;
-		*tMaxRet = tmax;
-		return true;
-	}*/
 };
 
 

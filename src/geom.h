@@ -35,6 +35,7 @@ typedef struct
 typedef struct
 {
     AABB box;
+    cl_int parent;
     union {
         cl_uint iStart;		// leaf node, index into index list
         cl_uint rightChild; // internal node, index into node vector (left child always current + 1)

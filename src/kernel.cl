@@ -146,6 +146,23 @@ inline bool intersectSlab(Ray *r, AABB *box, float *tminRet, float *tMaxRet, flo
 	return true;
 }
 
+inline bool box_intersect(Ray *r, AABB *box, float *tcurr, float *tminRet)
+{
+    float3 tmin = (box->min - r->orig) / r->dir;
+    float3 tmax = (box->max - r->orig) / r->dir;
+
+    float3 t1 = min(tmin, tmax);
+    float3 t2 = max(tmin, tmax);
+
+    float ts = max(t1.x, max(t1.y, t1.z));
+    float te = min(t2.x, min(t2.y, t2.z));
+
+    if (te < 0.0f || ts > *tcurr || ts > te) return false;
+    *tminRet = max(0.0f, ts);
+
+    return true;
+}
+
 // Möller-Trumbore
 inline bool intersectTriangle(Ray *r, global Triangle *tri, float *tret, float *uret, float *vret)
 {
@@ -176,6 +193,127 @@ inline bool intersectTriangle(Ray *r, global Triangle *tri, float *tret, float *
 	*vret = v;
 
 	return true;
+}
+
+// BVH traversal using bitstacks
+inline bool bvh_intersect(Ray *r, Hit *hit, global Triangle *tris, global GPUNode *nodes, global uint *indices)
+{
+    bool found = false;
+
+    int top = 0;
+    int lstack = 0;
+    int rstack = 0;
+
+    while(top != -1)
+    {
+    	GPUNode node = nodes[top];
+    	bool trackback = false;
+
+    	if (node.nPrims != 0) // leaf node
+    	{
+    		for (int i = node.iStart; i < node.iStart + node.nPrims; i++)
+    		{
+    			const uint k = indices[i];
+    			global Triangle *triangle = &(tris[k]);
+
+                float t, u, v;
+    			if (intersectTriangle(r, triangle, &t, &u, &v) && t < hit->t) // add t checking into intersection routine?
+    			{
+                    hit->t = t;
+                    hit->i = 0; // FOR TESTING!
+                    hit->P = r->orig + hit->t * r->dir;
+                    hit->N = tris[i].v0.n; // interpolate!
+                    found = true;
+    			}
+    		}
+    		trackback = true;
+    	}
+
+    	else // internal node
+    	{
+    		GPUNode lNode = nodes[top + 1]; // left child is right after current
+    		GPUNode rNode = nodes[node.rightChild];
+
+    		float t1, t2;
+    		bool r1 = box_intersect(r, &(lNode.box), &(hit->t), &t1);
+    		bool r2 = box_intersect(r, &(rNode.box), &(hit->t), &t2);
+
+    		if (r1 && r2)
+    		{
+    			if (t1 <= t2)
+    			{
+    				// first left
+    				top = top + 1;
+    				lstack = (lstack|1)<<1;
+    				rstack <<= 1;
+    			}
+    			else
+    			{
+    				// first right
+    				top = node.rightChild;
+    				rstack = (rstack|1)<<1;
+    				lstack <<= 1;
+    			}
+    		}
+    		else if(r1)
+    		{
+    			top = top + 1;
+    			lstack <<= 1;
+    			rstack <<= 1;
+    		}
+    		else if(r2)
+    		{
+    			top = node.rightChild;
+    			lstack <<= 1;
+    			rstack <<= 1;
+    		}
+    		else
+    		{
+    			trackback = true;
+    		}
+
+    	}
+
+    	if (trackback)
+    	{
+    		bool f = false;
+
+    		while(lstack != 0 || rstack != 0)
+    		{
+    			node = nodes[top];
+    			if ((lstack & 1) != 0)
+    			{
+    				// visit right node
+    				top = top +1;
+    				lstack &= ~1;
+    				lstack <<= 1;
+    				rstack <<= 1;
+    				f = true;
+    				break;
+    			}
+    			else if((rstack & 1) != 0)
+    			{
+    				// visit left node
+    				top = node.rightChild;
+    				rstack &= ~1;
+    				lstack <<= 1;
+    				rstack <<= 1;
+    				f = true;
+    				break;
+    			}
+
+    			top = node.parent; // go to parent
+    			lstack >>= 1;
+    			rstack >>= 1;
+    		}
+
+    		if (!f) break;
+
+    	}
+
+    }
+
+    return found;
 }
 
 inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
@@ -215,7 +353,7 @@ inline void calcNormalSphere(global Sphere *scene, Hit *hit)
 
 // Will be replaced with a BVH in the future...
 // The ray length encodes the maximum intersection distance!
-inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tris, global RenderParams *params)
+inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
 {
     Hit hit = { (float3)(0.0f), (float3)(0.0f), tMax, -1 };
 
@@ -251,6 +389,9 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
     }
 
     // Triangles
+    bvh_intersect(r, &hit, tris, nodes, indices);
+
+    /*
     for(uint i = 0; i < params->n_tris; i++)
     {
       float t, u, v;
@@ -263,11 +404,12 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
           hit.N = tris[i].v0.n; // interpolate!
       }
     }
+    */
 
     return hit;
 }
 
-inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global Light *lights, global RenderParams *params)
+inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global Light *lights, global RenderParams *params)
 {
     float3 res = (float3)(0.0f);
     float3 lifted = hit->P + 1e-3f * hit->N;
@@ -281,7 +423,7 @@ inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tr
         L = normalize(L);
 
         Ray shadowRay = { lifted, L };
-        Hit shdw = raycast(&shadowRay, dist, scene, tris, params);
+        Hit shdw = raycast(&shadowRay, dist, scene, tris, nodes, indices, params);
         float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
 
         // Blinn-Phong
@@ -310,11 +452,13 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
 
     if(x >= params->width || y >= params->height) return;
 
-    Ray r = getCameraRay(x, y, params);
-    Hit hit = raycast(&r, FLT_MAX, scene, tris, params);
+    //dbg(printf("nodes[1].parent = %d\n", nodes[2].parent));
 
-    float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, tris, lights, params);
-    //float3 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float3)(0.0f);
+    Ray r = getCameraRay(x, y, params);
+    Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
+
+    //float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, tris, nodes, indices, lights, params);
+    float3 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float3)(0.0f);
 
     //float3 prev = vload4((y * width + x), out);
     //float3 newCol = 0.005f * pixelColor + prev;

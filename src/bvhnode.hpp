@@ -11,15 +11,17 @@ struct BuildNode
 	AABB_t box;								// Axis-aligned bounding box
 	U32 iStart, iEnd;						// Indices in the index list
 	S32 rightChild = -1;					// Index into node vector (left child always current + 1)
+    S32 parent;                             // -1 for root
 
 	void computeBB(std::vector<U32> &indices, std::vector<RTTriangle> *tris);
 	inline U32 spannedTris() const { return iEnd - iStart + 1; }
 };
 
 /* Small node used in BVH traversal */
-struct alignas(32) Node
+struct Node
 {
 	AABB_t box;
+	S32 parent;
 	union {
 		U32 iStart;		// leaf node, indiex into index list
 		U32 rightChild; // internal node, index into node vector (left child always current + 1)

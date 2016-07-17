@@ -13,6 +13,7 @@ BVH::BVH(std::vector<RTTriangle>* tris, SplitMode mode) {
 	BuildNode root = BuildNode();
 	root.iStart = 0;
 	root.iEnd = (U32)m_triangles->size() - 1;
+    root.parent = -1;
 	m_build_nodes.push_back(root);
 	nodes++;
 	
@@ -38,6 +39,7 @@ void BVH::createSmallNodes() {
 	for (BuildNode bn : m_build_nodes) {
 		Node n;
 		n.box = bn.box;
+        n.parent = (S32)bn.parent;
 		if (bn.rightChild == -1) { // leaf node
 			n.iStart = bn.iStart;
 			U32 sp = bn.spannedTris();
@@ -149,6 +151,7 @@ void BVH::build(U32 nInd, U32 depth) {
 		BuildNode leftChild = BuildNode();
 		leftChild.iStart = m_build_nodes[nInd].iStart;
 		leftChild.iEnd = split - 1;
+		leftChild.parent = nInd;
 		m_build_nodes.push_back(leftChild);
 		nodes++;
 		build(nodes - 1, ++depth); // last pushed
@@ -157,6 +160,7 @@ void BVH::build(U32 nInd, U32 depth) {
 		BuildNode rightChild = BuildNode();
 		rightChild.iStart = split;
 		rightChild.iEnd = m_build_nodes[nInd].iEnd;
+		rightChild.parent = nInd;
 		m_build_nodes.push_back(rightChild);
 		m_build_nodes[nInd].rightChild = nodes++;
 		build(nodes - 1, ++depth);
