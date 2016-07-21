@@ -5,6 +5,8 @@
 #define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
 //#define dbg(expr) if(false) { expr; }
 
+#define swap_m(a, b, t) { t tmp = a; a = b; b = tmp; }
+
 inline void swap(float *a, float *b)
 {
   float tmp = *b;
@@ -49,7 +51,7 @@ inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
 #define NORMAL_Z ((float3)(0, 0, -1))
 
 // Assign normal according to face hit
-inline bool intersectSlab(Ray *r, AABB *box, float *tminRet, float *tMaxRet, float3 *N)
+inline bool intersectSlab(Ray *r, global AABB *box, float *tminRet, float *tMaxRet, float3 *N)
 {
 	float3 n;
 	float3 dinv = 1.0f / r->dir;
@@ -195,8 +197,103 @@ inline bool intersectTriangle(Ray *r, global Triangle *tri, float *tret, float *
 	return true;
 }
 
+// BVH traversal using simulated stack
+inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global GPUNode *nodes, global uint *indices)
+{
+    float lnear, lfar, rnear, rfar; //AABB limits
+	uint closer, farther;
+
+    bool found = false;
+
+	// Stack state
+	SimStackNode stack[64];
+	int stackptr = 0;
+
+	// Root node
+	stack[stackptr].i = 0;
+	stack[stackptr].mint = -FLT_MAX;
+
+	while (stackptr >= 0)
+	{
+		// Next node
+		int ni = stack[stackptr].i;
+		float tnear = stack[stackptr].mint;
+		stackptr--;
+		const GPUNode n = nodes[ni];
+
+		// Closer intersection found already
+		if (tnear > hit->t)
+			continue;
+
+		if (n.nPrims != 0) // Leaf node
+		{
+			float3 dir = r->dir;
+			float tmin = FLT_MAX, umin = 0.0f, vmin = 0.0f;
+			int imin = -1;
+			for (uint i = n.iStart; i < n.iStart + n.nPrims; i++)
+			{
+				float t, u, v;
+				if (intersectTriangle(r, &(tris[indices[i]]), &t, &u, &v)) //tri.intersect_woop(orig, dir, t, u, v)
+				{
+					if (t > 0.0f && t < tmin)
+					{
+						imin = i;
+						tmin = t;
+						umin = u;
+						vmin = v;
+					}
+				}
+			}
+			if (imin != -1 && tmin < hit->t)
+			{
+				found = true;
+				hit->i = 0; //indices[imin];
+                hit->t = tmin;
+                hit->P = r->orig + tmin * r->dir;
+                hit->N = tris[imin].v0.n; // interpolate!
+			}
+		}
+		else // Internal node
+		{
+		    float3 N_tmp;
+			bool leftWasHit = intersectSlab(r, &(nodes[ni + 1].box), &lnear, &lfar, &N_tmp);
+			bool rightWasHit = intersectSlab(r, &(nodes[n.rightChild].box), &rnear, &rfar, &N_tmp);
+
+			if (leftWasHit && rightWasHit)
+			{
+				closer = ni + 1;
+				farther = n.rightChild;
+
+				// Right child was closer -> swap
+				if (rnear < lnear)
+				{
+					swap_m(lnear, rnear, float);
+					swap_m(lfar, rfar, float);
+					swap_m(closer, farther, uint);
+				}
+
+				// Farther node pushed first
+				stack[++stackptr] = (SimStackNode){farther, rnear};
+				stack[++stackptr] = (SimStackNode){closer, lnear};
+			}
+
+			else if (leftWasHit)
+			{
+				stack[++stackptr] = (SimStackNode){ni + 1, lnear};
+			}
+
+			else if (rightWasHit)
+			{
+				stack[++stackptr] = (SimStackNode){n.rightChild, rnear};
+			}
+		}
+	}
+
+	return found;
+}
+
 // BVH traversal using bitstacks
-inline bool bvh_intersect(Ray *r, Hit *hit, global Triangle *tris, global GPUNode *nodes, global uint *indices)
+inline bool bvh_intersect_bitstack(Ray *r, Hit *hit, global Triangle *tris, global GPUNode *nodes, global uint *indices)
 {
     bool found = false;
 
@@ -358,6 +455,7 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
     Hit hit = { (float3)(0.0f), (float3)(0.0f), tMax, -1 };
 
     // Spheres
+    /*
     for(uint i = 0; i < params->n_objects; i++)
     {
         float t;
@@ -369,51 +467,24 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
             hit.P = r->orig + hit.t * r->dir;
             calcNormalSphere(scene, &hit);
         }
-    }
-
-    // AABBs
-    AABB boxes[] = { {(float3)(-3, 1, -3), (float3)(-2, 2, -2)} };
-    const uint n_boxes = 1;
-    for(uint i = 0; i < n_boxes; i++)
-    {
-      float tmin, tmax;
-      float3 N;
-      bool found = intersectSlab(r, &(boxes[i]), &tmin, &tmax, &N); // fills in normal
-      if(found && tmin < hit.t)
-      {
-          hit.t = tmin;
-          hit.i = 2; // FOR TESTING ONLY!
-          hit.P = r->orig + hit.t * r->dir;
-          hit.N = N;
-      }
-    }
+    }*/
 
     // Triangles
-    bvh_intersect(r, &hit, tris, nodes, indices);
-
-    /*
-    for(uint i = 0; i < params->n_tris; i++)
-    {
-      float t, u, v;
-      bool found = intersectTriangle(r, &(tris[i]), &t, &u, &v);
-      if(found && t < hit.t)
-      {
-          hit.t = t;
-          hit.i = 4; // FOR TESTING!
-          hit.P = r->orig + hit.t * r->dir;
-          hit.N = tris[i].v0.n; // interpolate!
-      }
-    }
-    */
+    bvh_intersect_stack(r, &hit, tris, nodes, indices);
 
     return hit;
 }
 
 inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global Light *lights, global RenderParams *params)
 {
+    float3 V = normalize(params->camera.pos - hit->P);
+    if(dot(V, hit->N) < 0)
+    {
+        hit->N *= -1.0f;
+    }
+
     float3 res = (float3)(0.0f);
     float3 lifted = hit->P + 1e-3f * hit->N;
-    float3 V = normalize(params->camera.pos - hit->P);
 
     // Point light assumed for now
     for(uint i = 0; i < params->n_lights; i++)
@@ -457,8 +528,8 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
     Ray r = getCameraRay(x, y, params);
     Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
 
-    //float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, tris, nodes, indices, lights, params);
-    float3 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float3)(0.0f);
+    float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, tris, nodes, indices, lights, params);
+    //float3 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float3)(0.0f);
 
     //float3 prev = vload4((y * width + x), out);
     //float3 newCol = 0.005f * pixelColor + prev;

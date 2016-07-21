@@ -43,6 +43,13 @@ typedef struct
     cl_uchar nPrims;	    // 0 for interior nodes
 } GPUNode;
 
+// Node for a simulated stack on the GPU
+typedef struct
+{
+    uint i; // index of node
+    float mint;
+} SimStackNode;
+
 typedef struct
 {
     float3 p;
