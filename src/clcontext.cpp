@@ -1,5 +1,7 @@
 #include "clcontext.hpp"
 
+#define CPU_DEBUGGING
+
 CLContext::CLContext(GLuint gl_PBO)
 {
     printDevices();
@@ -7,41 +9,45 @@ CLContext::CLContext(GLuint gl_PBO)
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
 
-    cl::Platform platform = platforms[0];
-    std::cout << "Using platform 0" << std::endl;
+	#ifdef CPU_DEBUGGING
+		cl::Platform platform = platforms[2];
+		std::cout << "Using experimental OpenCL 2.1 platform for CPU debugging!" << std::endl;
+	#else
+		cl::Platform platform = platforms[1];
+		std::cout << "Using platform 1" << std::endl;
+	#endif
 
-    platform.getDevices(CL_DEVICE_TYPE_GPU, &clDevices); //CL_DEVICE_TYPE_ALL?
-    std::cout << "Forcing GPU device" << std::endl;
+    platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
 
     // Macbook pro 15 fix
     #ifdef __APPLE__
     clDevices.erase(clDevices.begin());
     #endif
 
-    // Init shared context
-    #ifdef __APPLE__
-        CGLContextObj kCGLContext = CGLGetCurrentContext();
-        CGLShareGroupObj kCGLShareGroup = CGLGetShareGroup(kCGLContext);
-        cl_context_properties props[] =
-        {
-            CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
-            (cl_context_properties)kCGLShareGroup, 0
-        };
-    #else
-        cl_context_properties props[] = {
-            CL_CONTEXT_PLATFORM, (cl_context_properties) platform(),
-        #if defined(__linux__)
-            CL_GL_CONTEXT_KHR, (cl_context_properties) glXGetCurrentContext(),
-            CL_GLX_DISPLAY_KHR, (cl_context_properties) glXGetCurrentDisplay(),
-        #elif defined(WIN32)
-            CL_GL_CONTEXT_KHR, (cl_context_properties) wglGetCurrentContext(),
-            CL_WGL_HDC_KHR, (cl_context_properties) wglGetCurrentDC(), 
-        #endif
-            0
-        };
-    #endif
-        
-    context = cl::Context(clDevices, props, NULL, NULL, &err); //CL_DEVICE_TYPE_GPU instead of clDevices?
+	// Init shared context
+	#ifdef __APPLE__
+		CGLContextObj kCGLContext = CGLGetCurrentContext();
+		CGLShareGroupObj kCGLShareGroup = CGLGetShareGroup(kCGLContext);
+		cl_context_properties props[] =
+		{
+			CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
+				(cl_context_properties)kCGLShareGroup, 0
+		};
+	#else
+		cl_context_properties props[] = {
+			CL_CONTEXT_PLATFORM, (cl_context_properties)platform(),
+		#if defined(__linux__)
+			CL_GL_CONTEXT_KHR, (cl_context_properties)glXGetCurrentContext(),
+			CL_GLX_DISPLAY_KHR, (cl_context_properties)glXGetCurrentDisplay(),
+		#elif defined(_WIN32)
+			CL_GL_CONTEXT_KHR, (cl_context_properties)wglGetCurrentContext(),
+			CL_WGL_HDC_KHR, (cl_context_properties)wglGetCurrentDC(),
+		#endif
+			0
+		};
+	#endif
+
+	context = cl::Context(clDevices, props, NULL, NULL, &err);
     if(err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to create shared context" << std::endl;
@@ -72,7 +78,11 @@ CLContext::CLContext(GLuint gl_PBO)
 
     // Build kernel source (create compute program)
     // Define "GPU" to disable cl-prefixed types in shared headers (cl_float4 => float4 etc.)
-    err = program.build(clDevices, "-I./src -DGPU");
+	#ifdef CPU_DEBUGGING
+		err = program.build(clDevices, "-DGPU -g -s \"C:\\Users\\Erik\\code\\cltrace\\src\\kernel.cl\"");
+	#else
+		err = program.build(clDevices, "-I./src -DGPU");
+	#endif
     std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
     if (err != CL_SUCCESS)
     {
@@ -101,15 +111,6 @@ CLContext::CLContext(GLuint gl_PBO)
 CLContext::~CLContext()
 {
     std::cout << "Calling CLContext destructor!" << std::endl;
-
-    // TODO: CPP-destructors????
-
-    /* Shutdown and cleanup
-    clReleaseMemObject(pixels);
-    clReleaseProgram(program);
-    clReleaseKernel(kernel);
-    clReleaseCommandQueue(commands);
-    clReleaseContext(context);*/
 }
 
 void CLContext::createPBO(GLuint gl_PBO)
@@ -248,6 +249,7 @@ void CLContext::executeKernel(const RenderParams &params)
     err |= pt_kernel.setArg(i++, nodeBuffer);
     err |= pt_kernel.setArg(i++, indexBuffer);
     err |= pt_kernel.setArg(i++, renderParams);
+
     if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
@@ -276,7 +278,18 @@ void CLContext::executeKernel(const RenderParams &params)
     // Enqueue commands to be executed in order
     glFinish();
     cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
-    cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
+
+	#ifdef CPU_DEBUGGING
+		cmdQueue.enqueueNDRangeKernel(
+			pt_kernel,
+			cl::NullRange,                 // offset
+			cl::NDRange(params.width, 5),  // global
+			cl::NullRange                  // local
+		);
+	#else
+		cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
+	#endif
+
     cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
     cmdQueue.finish();
 }

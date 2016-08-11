@@ -66,9 +66,9 @@ typedef struct
 
 enum lightType
 {
-    POINT,
-    AREA,
-    DIRECTIONAL
+    L_POINT,
+    L_AREA,
+    L_DIRECTIONAL
 };
 
 typedef struct

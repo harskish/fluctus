@@ -2,7 +2,7 @@
 
 #define printVec3(title, v) printf("%s: { %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z)
 #define printVec4(title, v) printf("%s: { %.4f, %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z, (v).w)
-#define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
+//#define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
 //#define dbg(expr) if(false) { expr; }
 
 #define swap_m(a, b, t) { t tmp = a; a = b; b = tmp; }
@@ -516,6 +516,15 @@ inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tr
     return res;
 }
 
+/* 
+OPENCL MEMORY SPACES:
+| OpenCL   | OpenCL keyword | Scope           | CUDA	 | CUDA keyword |
+|----------+----------------+-----------------+----------+--------------+
+| Global   | __global       | Kernel-wide     | Global   |              |
+| Constant | __constant     | Kernel-wide     | Constant | __constant__ |
+| Local    | __local        | Work-group-wide | Shared   | __shared__   |
+| Private  | __private      | Work-item-wide  | Local    |              |
+*/
 kernel void trace(global float *out, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
 {
     const uint x = get_global_id(0); // left to right

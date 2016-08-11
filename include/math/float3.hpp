@@ -19,6 +19,8 @@ THE SOFTWARE.
 #ifndef FLOAT3_H
 #define FLOAT3_H
 
+#define M_PI 3.14159265358979323846f
+
 #include <cmath>
 #include <algorithm>
 
