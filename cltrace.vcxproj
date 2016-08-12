@@ -121,9 +121,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\bvh.cpp" />
+    <ClCompile Include="src\bvhnode.cpp" />
     <ClCompile Include="src\clcontext.cpp" />
     <ClCompile Include="src\kernelreader.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\scene.cpp" />
     <ClCompile Include="src\tracer.cpp" />
     <ClCompile Include="src\window.cpp" />
   </ItemGroup>
@@ -132,10 +135,15 @@
     <ClInclude Include="include\math\float2.hpp" />
     <ClInclude Include="include\math\float3.hpp" />
     <ClInclude Include="include\math\matrix.hpp" />
+    <ClInclude Include="src\bvh.hpp" />
+    <ClInclude Include="src\bvhnode.hpp" />
     <ClInclude Include="src\clcontext.hpp" />
     <ClInclude Include="src\geom.h" />
     <ClInclude Include="src\kernelreader.hpp" />
+    <ClInclude Include="src\rtutil.hpp" />
+    <ClInclude Include="src\scene.hpp" />
     <ClInclude Include="src\tracer.hpp" />
+    <ClInclude Include="src\triangle.hpp" />
     <ClInclude Include="src\window.hpp" />
   </ItemGroup>
   <ItemGroup>

@@ -537,8 +537,8 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
     Ray r = getCameraRay(x, y, params);
     Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
 
-    float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, tris, nodes, indices, lights, params);
-    //float3 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float3)(0.0f);
+    //float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, tris, nodes, indices, lights, params);
+    float3 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float3)(0.0f);
 
     //float3 prev = vload4((y * width + x), out);
     //float3 newCol = 0.005f * pixelColor + prev;

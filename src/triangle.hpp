@@ -19,7 +19,8 @@ struct RTTriangle {
 
     VertexPNT v0, v1, v2;
 
-    RTTriangle(const VertexPNT v0i, const VertexPNT v1i, const VertexPNT v2i) {
+	// TODO: Fix alignment issues!
+    RTTriangle(const VertexPNT &v0i, const VertexPNT &v1i, const VertexPNT &v2i) {
         v0 = v0i;
         v1 = v1i;
         v2 = v2i;

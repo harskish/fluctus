@@ -46,7 +46,7 @@ typedef struct
 // Node for a simulated stack on the GPU
 typedef struct
 {
-    uint i; // index of node
+    cl_uint i; // index of node
     float mint;
 } SimStackNode;
 
