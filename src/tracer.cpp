@@ -3,7 +3,7 @@
 
 Tracer::Tracer(int width, int height)
 {
-    scene = new Scene("assets/icosahedron.obj");
+    scene = new Scene("assets/cube.obj");
 
     std::cout << "Building BVH..." << std::endl;
     this->constructHierarchy(scene->getTriangles(), SplitMode_Sah);
@@ -62,6 +62,62 @@ void Tracer::update()
 
     // Draw progress to screen
     window->repaint();
+}
+
+inline void writeVec(std::ofstream &out, FireRays::float3 &vec)
+{
+	write(out, vec.x);
+	write(out, vec.y);
+	write(out, vec.z);
+}
+
+void Tracer::saveCameraState()
+{
+	std::ofstream out("camera.dat", std::ios::binary);
+
+	// Write camera state to file
+	if (out.good())
+	{
+		write(out, cameraRotation.x);
+		write(out, cameraRotation.y);
+		write(out, params.camera.fov);
+		writeVec(out, params.camera.dir);
+		writeVec(out, params.camera.pos);
+		writeVec(out, params.camera.right);
+		writeVec(out, params.camera.up);
+		std::cout << "Camera state exported" << std::endl;
+	}
+	else
+	{
+		std::cout << "Could not create camera state file" << std::endl;
+	}
+}
+
+inline void readVec(std::ifstream &in, FireRays::float3 &vec)
+{
+	read(in, vec.x);
+	read(in, vec.y);
+	read(in, vec.z);
+}
+
+void Tracer::loadCameraState()
+{
+	std::ifstream in("camera.dat");
+	if (in.good())
+	{
+		read(in, cameraRotation.x);
+		read(in, cameraRotation.y);
+		read(in, params.camera.fov);
+		readVec(in, params.camera.dir);
+		readVec(in, params.camera.pos);
+		readVec(in, params.camera.right);
+		readVec(in, params.camera.up);
+		std::cout << "Camera state imported" << std::endl;
+	}
+	else
+	{
+		std::cout << "Camera state file not found" << std::endl;
+	}
 }
 
 void Tracer::loadHierarchy(const char* filename, std::vector<RTTriangle>& triangles)
@@ -132,6 +188,8 @@ void Tracer::pollKeys()
     check(GLFW_KEY_LEFT,        cameraRotation.x -= 1.0f);
     check(GLFW_KEY_RIGHT,       cameraRotation.x += 1.0f);
     check(GLFW_KEY_F1,          initCamera());
+	check(GLFW_KEY_F2,			saveCameraState());
+	check(GLFW_KEY_F3,          loadCameraState());
     check(GLFW_KEY_ESCAPE,      window->requestClose());
 
     if(paramsUpdatePending)

@@ -29,6 +29,8 @@ public:
     void pollKeys();
     void updateCamera();
     void initCamera();
+	void saveCameraState();
+	void loadCameraState();
 
     // Create/load/export BVH
     void loadHierarchy(const char* filename, std::vector<RTTriangle> &triangles);
