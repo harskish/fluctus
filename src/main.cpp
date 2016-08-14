@@ -14,6 +14,11 @@ int main(int argc, char* argv[])
     int width = (argc > 1) ? atoi(argv[1]) : 800;
     int height = (argc > 2) ? atoi(argv[2]) : 600;
 
+#ifdef _DEBUG
+	width = 320;
+	height = 240;
+#endif
+
     if (!glfwInit())
     {
         exit(EXIT_FAILURE);

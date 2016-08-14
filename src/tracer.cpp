@@ -3,7 +3,7 @@
 
 Tracer::Tracer(int width, int height)
 {
-    scene = new Scene("assets/cube.obj");
+    scene = new Scene("assets/icosahedron.obj");
 
     std::cout << "Building BVH..." << std::endl;
     this->constructHierarchy(scene->getTriangles(), SplitMode_Sah);
@@ -19,6 +19,7 @@ Tracer::Tracer(int width, int height)
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
 
     initCamera();
+	//loadCameraState(); // useful when debugging
 }
 
 Tracer::~Tracer()

@@ -1,6 +1,8 @@
 #include "clcontext.hpp"
 
-//#define CPU_DEBUGGING
+#ifdef _DEBUG
+#define CPU_DEBUGGING
+#endif
 
 CLContext::CLContext(GLuint gl_PBO)
 {
@@ -10,7 +12,7 @@ CLContext::CLContext(GLuint gl_PBO)
     cl::Platform::get(&platforms);
 
 	#ifdef CPU_DEBUGGING
-		cl::Platform platform = platforms[1];
+		cl::Platform platform = platforms[2];
 		std::cout << "Using experimental OpenCL 2.1 platform for CPU debugging!" << std::endl;
 	#else
 		cl::Platform platform = platforms[1];
