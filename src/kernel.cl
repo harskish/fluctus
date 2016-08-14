@@ -250,7 +250,7 @@ inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
 				hit->i = 0; //indices[imin];
                 hit->t = tmin;
                 hit->P = r->orig + tmin * r->dir;
-                hit->N = tris[imin].v0.n; // interpolate!
+                hit->N = tris[indices[imin]].v0.n; // interpolate!
 			}
 		}
 		else // Internal node
@@ -290,127 +290,6 @@ inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
 	}
 
 	return found;
-}
-
-// BVH traversal using bitstacks
-inline bool bvh_intersect_bitstack(Ray *r, Hit *hit, global Triangle *tris, global GPUNode *nodes, global uint *indices)
-{
-    bool found = false;
-
-    int top = 0;
-    int lstack = 0;
-    int rstack = 0;
-
-    while(top != -1)
-    {
-    	GPUNode node = nodes[top];
-    	bool trackback = false;
-
-    	if (node.nPrims != 0) // leaf node
-    	{
-    		for (int i = node.iStart; i < node.iStart + node.nPrims; i++)
-    		{
-    			const uint k = indices[i];
-    			global Triangle *triangle = &(tris[k]);
-
-                float t, u, v;
-    			if (intersectTriangle(r, triangle, &t, &u, &v) && t < hit->t) // add t checking into intersection routine?
-    			{
-                    hit->t = t;
-                    hit->i = 0; // FOR TESTING!
-                    hit->P = r->orig + hit->t * r->dir;
-                    hit->N = tris[i].v0.n; // interpolate!
-                    found = true;
-    			}
-    		}
-    		trackback = true;
-    	}
-
-    	else // internal node
-    	{
-    		GPUNode lNode = nodes[top + 1]; // left child is right after current
-    		GPUNode rNode = nodes[node.rightChild];
-
-    		float t1, t2;
-    		bool r1 = box_intersect(r, &(lNode.box), &(hit->t), &t1);
-    		bool r2 = box_intersect(r, &(rNode.box), &(hit->t), &t2);
-
-    		if (r1 && r2)
-    		{
-    			if (t1 <= t2)
-    			{
-    				// first left
-    				top = top + 1;
-    				lstack = (lstack|1)<<1;
-    				rstack <<= 1;
-    			}
-    			else
-    			{
-    				// first right
-    				top = node.rightChild;
-    				rstack = (rstack|1)<<1;
-    				lstack <<= 1;
-    			}
-    		}
-    		else if(r1)
-    		{
-    			top = top + 1;
-    			lstack <<= 1;
-    			rstack <<= 1;
-    		}
-    		else if(r2)
-    		{
-    			top = node.rightChild;
-    			lstack <<= 1;
-    			rstack <<= 1;
-    		}
-    		else
-    		{
-    			trackback = true;
-    		}
-
-    	}
-
-    	if (trackback)
-    	{
-    		bool f = false;
-
-    		while(lstack != 0 || rstack != 0)
-    		{
-    			node = nodes[top];
-    			if ((lstack & 1) != 0)
-    			{
-    				// visit right node
-    				top = top +1;
-    				lstack &= ~1;
-    				lstack <<= 1;
-    				rstack <<= 1;
-    				f = true;
-    				break;
-    			}
-    			else if((rstack & 1) != 0)
-    			{
-    				// visit left node
-    				top = node.rightChild;
-    				rstack &= ~1;
-    				lstack <<= 1;
-    				rstack <<= 1;
-    				f = true;
-    				break;
-    			}
-
-    			top = node.parent; // go to parent
-    			lstack >>= 1;
-    			rstack >>= 1;
-    		}
-
-    		if (!f) break;
-
-    	}
-
-    }
-
-    return found;
 }
 
 inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
@@ -455,7 +334,7 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
     Hit hit = { (float3)(0.0f), (float3)(0.0f), tMax, -1 };
 
     // Spheres
-    /*
+    
     for(uint i = 0; i < params->n_objects; i++)
     {
         float t;
@@ -467,7 +346,7 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
             hit.P = r->orig + hit.t * r->dir;
             calcNormalSphere(scene, &hit);
         }
-    }*/
+    }
 
     // Triangles
     bvh_intersect_stack(r, &hit, tris, nodes, indices);
@@ -477,8 +356,9 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
 
 inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global Light *lights, global RenderParams *params)
 {
-    float3 V = normalize(params->camera.pos - hit->P);
-    if(dot(V, hit->N) < 0)
+    float3 V = normalize(params->camera.pos - hit->P); // P to eye
+    float vDotN = dot(V, hit->N);
+	if(vDotN < 0)
     {
         hit->N *= -1.0f;
     }
@@ -537,8 +417,13 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
     Ray r = getCameraRay(x, y, params);
     Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
 
-    //float3 pixelColor = (hit.i == -1) ? (float3)(0.0f) : whittedShading(&hit, scene, tris, nodes, indices, lights, params);
-    float3 pixelColor = (hit.i != -1) ? scene[hit.i].Kd : (float3)(0.0f);
+	float3 pixelColor = (float3)(0.0f);
+	if(hit.i > -1)
+	{
+		pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
+		//pixelColor = (float3)(hit.t / 8.0f);
+		//pixelColor = scene[hit.i].Kd;
+	}
 
     //float3 prev = vload4((y * width + x), out);
     //float3 newCol = 0.005f * pixelColor + prev;
