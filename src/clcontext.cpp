@@ -49,33 +49,19 @@ CLContext::CLContext(GLuint gl_PBO)
 	#endif
 
 	context = cl::Context(clDevices, props, NULL, NULL, &err);
-    if(err != CL_SUCCESS)
-    {
-        std::cout << "Error: Failed to create shared context" << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Failed to create shared context");
+
     device = context.getInfo<CL_CONTEXT_DEVICES>()[0];
     std::cout << "Using device nr. 0 of context" << std::endl;
 
     // Create command queue for context
     cmdQueue = cl::CommandQueue(context, device, 0, &err);
-    if(err != CL_SUCCESS)
-    {
-        std::cout << "Error: Failed to create command queue!" << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Failed to create command queue!");
 
     // Read kenel source from file
     cl::Program program;
     kernelFromFile("src/kernel.cl", context, program, err);
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: Failed to create compute program! " << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Failed to create compute program!");
 
     // Build kernel source (create compute program)
     // Define "GPU" to disable cl-prefixed types in shared headers (cl_float4 => float4 etc.)
@@ -85,7 +71,7 @@ CLContext::CLContext(GLuint gl_PBO)
 		err = program.build(clDevices, "-I./src -DGPU");
 	#endif
     std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-    if (err != CL_SUCCESS)
+	if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to build compute program!" << std::endl;
         std::cout << "Build log: " << buildLog << std::endl;
@@ -94,12 +80,7 @@ CLContext::CLContext(GLuint gl_PBO)
 
     // Creating compute kernel from program
     pt_kernel = cl::Kernel(program, "trace", &err);
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: Failed to create compute kernel!" << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Failed to create compute kernel!");
 
     // Create OpenCL buffer from OpenGL PBO
     createPBO(gl_PBO);
@@ -124,13 +105,8 @@ void CLContext::createPBO(GLuint gl_PBO)
     // CL_MEM_WRITE_ONLY is faster, but we need accumulation...
     sharedMemory.push_back(cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err));
 
-    if(err != CL_SUCCESS)
-    {
-        std::cout << "Error: CL-PBO creation failed!" << std::endl;
-        exit(1);
-    } else {
-        std::cout << "Created CL-PBO at " << (sharedMemory.back())() << std::endl;
-    }
+	verify("CL-PBO creation failed!");
+    std::cout << "Created CL-PBO at " << (sharedMemory.back())() << std::endl;
 }
 
 void CLContext::setupScene()
@@ -139,43 +115,19 @@ void CLContext::setupScene()
 
     // READ_WRITE due to Apple's OpenCL bug...?
     sphereBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, s_bytes, NULL, &err);
-
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: sphere buffer creation failed!" << err << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Sphere buffer creation failed!");
 
     // Blocking write!
     err = cmdQueue.enqueueWriteBuffer(sphereBuffer, CL_TRUE, 0, s_bytes, test_spheres);
-
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: scene buffer writing failed!" << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Sphere buffer writing failed!");
 
     // Lights
     size_t l_bytes = sizeof(test_lights);
     lightBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, l_bytes, NULL, &err);
-
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: light buffer creation failed!" << err << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Light buffer creation failed!");
 
     err = cmdQueue.enqueueWriteBuffer(lightBuffer, CL_TRUE, 0, l_bytes, test_lights);
-
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: light buffer writing failed!" << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Light buffer writing failed!");
 
     std::cout << "Scene initialization succeeded!" << std::endl;
 }
@@ -213,13 +165,7 @@ void CLContext::createBVHBuffers(std::vector<RTTriangle> *tris, std::vector<cl_u
 void CLContext::setupParams()
 {
     renderParams = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(RenderParams), NULL, &err);
-
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: test buffer creation failed!" << err << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Params buffer creation failed!");
 
     std::cout << "RenderParam allocation succeeded!" << std::endl;
 }
@@ -228,13 +174,7 @@ void CLContext::updateParams(const RenderParams &params)
 {
     // Blocking write!
     err = cmdQueue.enqueueWriteBuffer(renderParams, CL_TRUE, 0, sizeof(RenderParams), &params);
-
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: RenderParam writing failed!" << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("RenderParam writing failed");
 
     // std::cout << "RenderParams updated!" << std::endl;
 }
@@ -250,21 +190,11 @@ void CLContext::executeKernel(const RenderParams &params)
     err |= pt_kernel.setArg(i++, nodeBuffer);
     err |= pt_kernel.setArg(i++, indexBuffer);
     err |= pt_kernel.setArg(i++, renderParams);
-
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: Failed to set kernel arguments! " << err << std::endl;
-        exit(1);
-    }
+	verify("Failed to set kernel arguments!");
 
     size_t max_gw_size;
     err = device.getInfo(CL_DEVICE_MAX_WORK_GROUP_SIZE, &max_gw_size);
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: Failed to retrieve kernel work group info! " << err << std::endl;
-        std::cout << errorString() << std::endl;
-        exit(1);
-    }
+	verify("Failed to retrieve kernel work group info!");
 
     ndRangeSizes[0] = 32; //TODO: 32 might be too large
     ndRangeSizes[1] = max_gw_size / ndRangeSizes[0];
@@ -278,7 +208,8 @@ void CLContext::executeKernel(const RenderParams &params)
 
     // Enqueue commands to be executed in order
     glFinish();
-    cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
+    err = cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
+	verify("Failed to enqueue GL object acquisition!");
 
 	#ifdef CPU_DEBUGGING
 		cmdQueue.enqueueNDRangeKernel(
@@ -288,11 +219,15 @@ void CLContext::executeKernel(const RenderParams &params)
 			cl::NullRange                  // local
 		);
 	#else
-		cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
+		err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
+		verify("Failed to enqueue kernel!");
 	#endif
 
-    cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
-    cmdQueue.finish();
+    err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
+	verify("Failed to enqueue GL object release!");
+    
+	err = cmdQueue.finish();
+	verify("Failed to finish command queue!");
 }
 
 // Return info about error
