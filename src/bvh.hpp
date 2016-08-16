@@ -16,14 +16,14 @@ friend class Tracer;
 
 public:
     BVH(std::vector<RTTriangle> *tris, SplitMode mode);
-    BVH(std::vector<RTTriangle> *tris, const char *filename);
+    BVH(std::vector<RTTriangle> *tris, const std::string filename);
     ~BVH() { }
 
-    void exportTo(const char *filename) const;
+    void exportTo(const std::string filename) const;
 
 private:
     void build(U32 nInd, U32 depth);
-    void importFrom(const char *filename);
+    void importFrom(const std::string filename);
 
     // Convert build nodes to small nodes
     void createSmallNodes();

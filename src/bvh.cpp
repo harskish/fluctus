@@ -30,7 +30,7 @@ BVH::BVH(std::vector<RTTriangle>* tris, SplitMode mode) {
 		<< "======================" << std::endl;
 }
 
-BVH::BVH(std::vector<RTTriangle>* tris, const char* filename) {
+BVH::BVH(std::vector<RTTriangle>* tris, const std::string filename) {
 	m_triangles = tris;
 	importFrom(filename);
 }
@@ -88,6 +88,7 @@ std::vector<BuildNode> importNodes(std::ifstream &in) {
 		read(in, n.iStart);
 		read(in, n.iEnd);
 		read(in, n.rightChild);
+		read(in, n.parent);
 		vec[i] = n;
 	}
 
@@ -96,7 +97,7 @@ std::vector<BuildNode> importNodes(std::ifstream &in) {
 }
 
 
-void BVH::importFrom(const char* filename) {
+void BVH::importFrom(const std::string filename) {
 	std::ifstream infile(filename, std::ios::binary);
 	m_indices = importIndices(infile);
 	m_build_nodes = importNodes(infile);
@@ -119,19 +120,27 @@ void exportNode(std::ofstream &out, const BuildNode &n) {
 	write(out, (U32)n.iStart);
 	write(out, (U32)n.iEnd);
 	write(out, (S32)n.rightChild);
+	write(out, (S32)n.parent);
 }
 
 /** Write BVH to file for later importing **/
-void BVH::exportTo(const char* filename) const {
+void BVH::exportTo(const std::string filename) const {
 	std::ofstream out(filename, std::ios::binary);
 
-	// Index list
-	write(out, (U32)m_indices.size());
-	for_each(m_indices.begin(), m_indices.end(), [&out](U32 index) { write(out, index); });
+	if (out.good())
+	{
+		// Index list
+		write(out, (U32)m_indices.size());
+		for_each(m_indices.begin(), m_indices.end(), [&out](U32 index) { write(out, index); });
 
-	// Node list
-	write(out, (U32)m_nodes.size());
-	for_each(m_build_nodes.begin(), m_build_nodes.end(), [&out](const BuildNode &n) { exportNode(out, n); });
+		// Node list
+		write(out, (U32)m_nodes.size());
+		for_each(m_build_nodes.begin(), m_build_nodes.end(), [&out](const BuildNode &n) { exportNode(out, n); });
+	}
+	else
+	{
+		std::cout << "Could not create create file for BVH export!" << std::endl;
+	}
 }
 
 void BVH::build(U32 nInd, U32 depth) {

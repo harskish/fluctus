@@ -14,6 +14,11 @@ inline void swap(float *a, float *b)
   *a = tmp;
 }
 
+inline float3 lerp(float u, float v, float3 v1, float3 v2, float3 v3)
+{
+	return (1.0f - u - v) * v1 + u * v2 + v * v3;
+}
+
 inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
 {
     float t0, t1;
@@ -250,7 +255,7 @@ inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
 				hit->i = 0; //indices[imin];
                 hit->t = tmin;
                 hit->P = r->orig + tmin * r->dir;
-                hit->N = tris[indices[imin]].v0.n; // interpolate!
+                hit->N = lerp(umin, vmin, tris[indices[imin]].v0.n, tris[indices[imin]].v1.n, tris[indices[imin]].v2.n);
 			}
 		}
 		else // Internal node

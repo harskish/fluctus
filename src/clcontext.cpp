@@ -6,19 +6,18 @@
 
 CLContext::CLContext(GLuint gl_PBO)
 {
-    printDevices();
+    //printDevices();
 
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
 
 	#ifdef CPU_DEBUGGING
 		cl::Platform platform = platforms[2];
-		std::cout << "Using experimental OpenCL 2.1 platform for CPU debugging!" << std::endl;
 	#else
 		cl::Platform platform = platforms[1];
-		std::cout << "Using platform 1" << std::endl;
 	#endif
 
+	std::cout << "PLATFORM: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
     platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
 
     // Macbook pro 15 fix

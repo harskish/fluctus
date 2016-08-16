@@ -5,12 +5,41 @@ Scene::Scene(const std::string filename)
     loadModel(filename); // Assume file is a model, not a scene. Just for now ;)
 }
 
-inline bool endsWith(const std::string s, const std::string end) {
-    size_t len = end.size();
-    if (len > s.size()) return false;
+void Scene::computeHash(const std::string filename)
+{
+	this->hash = (size_t)0;
+	std::ifstream input(filename, std::ios::in);
 
-    std::string substr = s.substr(s.size() - len, len);
-    return end == substr;
+	if (!input)
+	{
+		std::cout << "Could not open file " << filename << " for hashing, exiting..." << std::endl;
+		exit(1);
+	}
+
+	// Read the file line by line.
+	std::string line;
+	while (getline(input, line))
+	{
+		size_t h = std::hash<std::string>()(line);
+		this->hash ^= h + 0x9e3779b9 + (this->hash << 6) + (this->hash >> 2); // combine hashes
+	}
+
+	std::cout << "Hash for " << filename << ": " << this->hash << std::endl;
+}
+
+std::string Scene::hashString()
+{
+	std::stringstream ss;
+	ss << this->hash;
+	return ss.str();
+}
+
+inline bool endsWith(const std::string s, const std::string end) {
+	size_t len = end.size();
+	if (len > s.size()) return false;
+
+	std::string substr = s.substr(s.size() - len, len);
+	return end == substr;
 }
 
 void Scene::loadModel(const std::string filename)
@@ -18,12 +47,14 @@ void Scene::loadModel(const std::string filename)
     if (endsWith(filename, "obj"))
     {
         std::cout << "Loading OBJ file: " << filename << std::endl;
-        this->loadObjModel(filename);
+		computeHash(filename);
+        loadObjModel(filename);
     }
     else if (endsWith(filename, "ply"))
     {
         std::cout << "Loading PLY file: " << filename << std::endl;
-        this->loadPlyModel(filename);
+		computeHash(filename);
+		loadPlyModel(filename);
     }
     else
     {

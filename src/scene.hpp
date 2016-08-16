@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <functional>
 #include "triangle.hpp"
 #include "math/float3.hpp"
 
@@ -19,6 +20,8 @@ public:
 
     std::vector<RTTriangle> &getTriangles() { return triangles; }
 
+	std::string hashString();
+
 private:
     void loadModel(const std::string filename); // load .obj or .ply model
     void loadObjModel(const std::string filename);
@@ -29,5 +32,8 @@ private:
                            const std::vector<std::array<unsigned, 6>>& faces,
                            bool type_ply);
 
+	void computeHash(const std::string filename);
+
     std::vector<RTTriangle> triangles;
+	size_t hash;
 };

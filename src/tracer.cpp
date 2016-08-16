@@ -3,10 +3,8 @@
 
 Tracer::Tracer(int width, int height)
 {
-    scene = new Scene("assets/icosahedron.obj");
-
-    std::cout << "Building BVH..." << std::endl;
-    this->constructHierarchy(scene->getTriangles(), SplitMode_Sah);
+    scene = new Scene("assets/garg.obj");
+	initHierarchy();
 
     window = new PTWindow(width, height, this);
     window->setShowFPS(true);
@@ -19,7 +17,26 @@ Tracer::Tracer(int width, int height)
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
 
     initCamera();
-	//loadCameraState(); // useful when debugging
+	loadCameraState(); // useful when debugging
+}
+
+// Check if old hierarchy can be reused
+void Tracer::initHierarchy()
+{
+	std::string hashFile = "hierarchy-" + scene->hashString() + ".bin" ;
+	std::ifstream input(hashFile, std::ios::in);
+
+	if (input.good())
+	{
+		std::cout << "Reusing BVH..." << std::endl;
+		loadHierarchy(hashFile.c_str(), scene->getTriangles());
+	}
+	else
+	{
+		std::cout << "Building BVH..." << std::endl;
+		constructHierarchy(scene->getTriangles(), SplitMode_Sah);
+		saveHierarchy(hashFile);
+	}
 }
 
 Tracer::~Tracer()
@@ -121,14 +138,14 @@ void Tracer::loadCameraState()
 	}
 }
 
-void Tracer::loadHierarchy(const char* filename, std::vector<RTTriangle>& triangles)
+void Tracer::loadHierarchy(const std::string filename, std::vector<RTTriangle>& triangles)
 {
     m_triangles = &triangles;
     params.n_tris = (cl_uint)m_triangles->size();
     bvh = new BVH(m_triangles, filename);
 }
 
-void Tracer::saveHierarchy(const char* filename)
+void Tracer::saveHierarchy(const std::string filename)
 {
     bvh->exportTo(filename);
 }

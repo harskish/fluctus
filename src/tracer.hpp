@@ -33,8 +33,9 @@ public:
 	void loadCameraState();
 
     // Create/load/export BVH
-    void loadHierarchy(const char* filename, std::vector<RTTriangle> &triangles);
-    void saveHierarchy(const char* filename);
+	void initHierarchy();
+    void loadHierarchy(const std::string filename, std::vector<RTTriangle> &triangles);
+    void saveHierarchy(const std::string filename);
     void constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode);
 
 private:
