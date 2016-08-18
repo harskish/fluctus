@@ -3,7 +3,7 @@
 
 Tracer::Tracer(int width, int height)
 {
-    scene = new Scene("assets/garg.obj");
+	selectScene();
 	initHierarchy();
 
     window = new PTWindow(width, height, this);
@@ -20,6 +20,15 @@ Tracer::Tracer(int width, int height)
 	loadCameraState(); // useful when debugging
 }
 
+void Tracer::selectScene()
+{
+	char const * pattern[] = { "*.obj", "*.ply" };
+	char const *files = tinyfd_openFileDialog("Select a scene file", "assets/", 2, pattern, NULL, 0); // allow only single selection
+
+	std::string selected = (files) ? std::string(files) : "assets/teapot.ply";
+	scene = new Scene(selected);
+}
+
 // Check if old hierarchy can be reused
 void Tracer::initHierarchy()
 {
@@ -29,7 +38,7 @@ void Tracer::initHierarchy()
 	if (input.good())
 	{
 		std::cout << "Reusing BVH..." << std::endl;
-		loadHierarchy(hashFile.c_str(), scene->getTriangles());
+		loadHierarchy(hashFile, scene->getTriangles());
 	}
 	else
 	{

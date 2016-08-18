@@ -127,6 +127,7 @@
     <ClCompile Include="src\kernelreader.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\scene.cpp" />
+    <ClCompile Include="src\tinyfiledialogs.c" />
     <ClCompile Include="src\tracer.cpp" />
     <ClCompile Include="src\window.cpp" />
   </ItemGroup>
@@ -142,6 +143,7 @@
     <ClInclude Include="src\kernelreader.hpp" />
     <ClInclude Include="src\rtutil.hpp" />
     <ClInclude Include="src\scene.hpp" />
+    <ClInclude Include="src\tinyfiledialogs.h" />
     <ClInclude Include="src\tracer.hpp" />
     <ClInclude Include="src\triangle.hpp" />
     <ClInclude Include="src\window.hpp" />

@@ -11,6 +11,7 @@
 #include "math/matrix.hpp"
 #include "bvh.hpp"
 #include "scene.hpp"
+#include "tinyfiledialogs.h"
 
 using namespace FireRays;
 
@@ -31,6 +32,8 @@ public:
     void initCamera();
 	void saveCameraState();
 	void loadCameraState();
+
+	void selectScene();
 
     // Create/load/export BVH
 	void initHierarchy();
