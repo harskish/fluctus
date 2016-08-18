@@ -44,6 +44,9 @@ inline bool endsWith(const std::string s, const std::string end) {
 
 void Scene::loadModel(const std::string filename)
 {
+	// Starting time for model loading
+	auto time1 = std::chrono::high_resolution_clock::now();
+
     if (endsWith(filename, "obj"))
     {
         std::cout << "Loading OBJ file: " << filename << std::endl;
@@ -61,6 +64,12 @@ void Scene::loadModel(const std::string filename)
         std::cout << "Cannot load file " << filename << ": unknown file format" << std::endl;
         exit(1);
     }
+
+	// Print elapsed time
+	auto time2 = std::chrono::high_resolution_clock::now();
+	std::cout << "Mesh loaded in: "
+		<< std::chrono::duration<double, std::milli>(time2 - time1).count()
+		<< " ms" << std::endl;
 }
 
 void Scene::loadObjModel(const std::string filename)
@@ -96,16 +105,23 @@ void Scene::loadObjModel(const std::string filename)
         // Read object type into s
         iss >> s;
 
+		// MSVCCompiler has a float cast performance bug
+		//   => patch: read into string, cast with atof
+		std::string s1, s2, s3;
         if (s == "v")
         {
-            float x, y, z;
-            iss >> x >> y >> z;
+            iss >> s1 >> s2 >> s3;
+			float x = (float)atof(s1.c_str());
+			float y = (float)atof(s2.c_str());
+			float z = (float)atof(s3.c_str());
             positions.push_back(float3(x, y, z));
         }
         else if (s == "vn")
         {
-            float nx, ny, nz;
-            iss >> nx >> ny >> nz;
+			iss >> s1 >> s2 >> s3;
+			float nx = (float)atof(s1.c_str());
+			float ny = (float)atof(s2.c_str());
+			float nz = (float)atof(s3.c_str());
             normals.push_back(float3(nx, ny, nz));
         }
         else if (s == "f")
@@ -193,16 +209,18 @@ void Scene::loadPlyModel(const std::string filename)
                 getline(input, line);
                 std::istringstream iss(line);
 
+				// MSVCCompiler has a float cast performance bug
+				//   => patch: read into string, cast with atof
                 std::map<std::string, float> map;
-                float bucket;
+                std::string bucket;
                 for (std::string name : e.props)
                 {
                     iss >> bucket;
-                    map[name] = bucket;
+					map[name] = (float)atof(bucket.c_str());
                 }
 
                 positions.push_back(float3(map["x"], map["y"], map["z"]));
-                if (map.find("nx") != map.end()) //contains normals
+                if (map.find("nx") != map.end()) // contains normals
                     normals.push_back(float3(map["nx"], map["ny"], map["nz"]));
             }
         }
@@ -240,6 +258,11 @@ void Scene::loadPlyModel(const std::string filename)
                     f[0] = i2; f[2] = i3; f[4] = i0;
                     faces.push_back(f);
                 }
+				else
+				{
+					std::cout << "Unknown polygon type!" << std::endl;
+					exit(1);
+				}
             }
         }
         else
