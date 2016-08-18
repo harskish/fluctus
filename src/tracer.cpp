@@ -3,8 +3,8 @@
 
 Tracer::Tracer(int width, int height)
 {
-	selectScene();
-	initHierarchy();
+    selectScene();
+    initHierarchy();
 
     window = new PTWindow(width, height, this);
     window->setShowFPS(true);
@@ -17,35 +17,35 @@ Tracer::Tracer(int width, int height)
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
 
     initCamera();
-	loadCameraState(); // useful when debugging
+    loadCameraState(); // useful when debugging
 }
 
 void Tracer::selectScene()
 {
-	char const * pattern[] = { "*.obj", "*.ply" };
-	char const *files = tinyfd_openFileDialog("Select a scene file", "assets/", 2, pattern, NULL, 0); // allow only single selection
+    char const * pattern[] = { "*.obj", "*.ply" };
+    char const *files = tinyfd_openFileDialog("Select a scene file", "assets/", 2, pattern, NULL, 0); // allow only single selection
 
-	std::string selected = (files) ? std::string(files) : "assets/teapot.ply";
-	scene = new Scene(selected);
+    std::string selected = (files) ? std::string(files) : "assets/teapot.ply";
+    scene = new Scene(selected);
 }
 
 // Check if old hierarchy can be reused
 void Tracer::initHierarchy()
 {
-	std::string hashFile = "hierarchy-" + scene->hashString() + ".bin" ;
-	std::ifstream input(hashFile, std::ios::in);
+    std::string hashFile = "hierarchy-" + scene->hashString() + ".bin" ;
+    std::ifstream input(hashFile, std::ios::in);
 
-	if (input.good())
-	{
-		std::cout << "Reusing BVH..." << std::endl;
-		loadHierarchy(hashFile, scene->getTriangles());
-	}
-	else
-	{
-		std::cout << "Building BVH..." << std::endl;
-		constructHierarchy(scene->getTriangles(), SplitMode_Sah);
-		saveHierarchy(hashFile);
-	}
+    if (input.good())
+    {
+        std::cout << "Reusing BVH..." << std::endl;
+        loadHierarchy(hashFile, scene->getTriangles());
+    }
+    else
+    {
+        std::cout << "Building BVH..." << std::endl;
+        constructHierarchy(scene->getTriangles(), SplitMode_Sah);
+        saveHierarchy(hashFile);
+    }
 }
 
 Tracer::~Tracer()
@@ -93,58 +93,58 @@ void Tracer::update()
 
 inline void writeVec(std::ofstream &out, FireRays::float3 &vec)
 {
-	write(out, vec.x);
-	write(out, vec.y);
-	write(out, vec.z);
+    write(out, vec.x);
+    write(out, vec.y);
+    write(out, vec.z);
 }
 
 void Tracer::saveCameraState()
 {
-	std::ofstream out("camera.dat", std::ios::binary);
+    std::ofstream out("camera.dat", std::ios::binary);
 
-	// Write camera state to file
-	if (out.good())
-	{
-		write(out, cameraRotation.x);
-		write(out, cameraRotation.y);
-		write(out, params.camera.fov);
-		writeVec(out, params.camera.dir);
-		writeVec(out, params.camera.pos);
-		writeVec(out, params.camera.right);
-		writeVec(out, params.camera.up);
-		std::cout << "Camera state exported" << std::endl;
-	}
-	else
-	{
-		std::cout << "Could not create camera state file" << std::endl;
-	}
+    // Write camera state to file
+    if (out.good())
+    {
+        write(out, cameraRotation.x);
+        write(out, cameraRotation.y);
+        write(out, params.camera.fov);
+        writeVec(out, params.camera.dir);
+        writeVec(out, params.camera.pos);
+        writeVec(out, params.camera.right);
+        writeVec(out, params.camera.up);
+        std::cout << "Camera state exported" << std::endl;
+    }
+    else
+    {
+        std::cout << "Could not create camera state file" << std::endl;
+    }
 }
 
 inline void readVec(std::ifstream &in, FireRays::float3 &vec)
 {
-	read(in, vec.x);
-	read(in, vec.y);
-	read(in, vec.z);
+    read(in, vec.x);
+    read(in, vec.y);
+    read(in, vec.z);
 }
 
 void Tracer::loadCameraState()
 {
-	std::ifstream in("camera.dat");
-	if (in.good())
-	{
-		read(in, cameraRotation.x);
-		read(in, cameraRotation.y);
-		read(in, params.camera.fov);
-		readVec(in, params.camera.dir);
-		readVec(in, params.camera.pos);
-		readVec(in, params.camera.right);
-		readVec(in, params.camera.up);
-		std::cout << "Camera state imported" << std::endl;
-	}
-	else
-	{
-		std::cout << "Camera state file not found" << std::endl;
-	}
+    std::ifstream in("camera.dat");
+    if (in.good())
+    {
+        read(in, cameraRotation.x);
+        read(in, cameraRotation.y);
+        read(in, params.camera.fov);
+        readVec(in, params.camera.dir);
+        readVec(in, params.camera.pos);
+        readVec(in, params.camera.right);
+        readVec(in, params.camera.up);
+        std::cout << "Camera state imported" << std::endl;
+    }
+    else
+    {
+        std::cout << "Camera state file not found" << std::endl;
+    }
 }
 
 void Tracer::loadHierarchy(const std::string filename, std::vector<RTTriangle>& triangles)
@@ -202,21 +202,23 @@ void Tracer::pollKeys()
 {
     Camera &cam = params.camera;
 
-    check(GLFW_KEY_W,           cam.pos += 0.07f * cam.dir);
-    check(GLFW_KEY_A,           cam.pos -= 0.07f * cam.right);
-    check(GLFW_KEY_S,           cam.pos -= 0.07f * cam.dir);
-    check(GLFW_KEY_D,           cam.pos += 0.07f * cam.right);
-    check(GLFW_KEY_R,           cam.pos += 0.07f * cam.up);
-    check(GLFW_KEY_F,           cam.pos -= 0.07f * cam.up);
-    check(GLFW_KEY_KP_ADD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
-    check(GLFW_KEY_KP_SUBTRACT, cam.fov = std::max(cam.fov - 1.0f, 5.0f));
+    check(GLFW_KEY_W,           cam.pos += cameraSpeed * 0.07f * cam.dir);
+    check(GLFW_KEY_A,           cam.pos -= cameraSpeed * 0.07f * cam.right);
+    check(GLFW_KEY_S,           cam.pos -= cameraSpeed * 0.07f * cam.dir);
+    check(GLFW_KEY_D,           cam.pos += cameraSpeed * 0.07f * cam.right);
+    check(GLFW_KEY_R,           cam.pos += cameraSpeed * 0.07f * cam.up);
+    check(GLFW_KEY_F,           cam.pos -= cameraSpeed * 0.07f * cam.up);
+    check(GLFW_KEY_PERIOD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
+    check(GLFW_KEY_SEMICOLON,   cam.fov = std::max(cam.fov - 1.0f, 5.0f));
     check(GLFW_KEY_UP,          cameraRotation.y -= 1.0f);
     check(GLFW_KEY_DOWN,        cameraRotation.y += 1.0f);
     check(GLFW_KEY_LEFT,        cameraRotation.x -= 1.0f);
     check(GLFW_KEY_RIGHT,       cameraRotation.x += 1.0f);
+    check(GLFW_KEY_KP_ADD,      cameraSpeed += 0.1f);
+    check(GLFW_KEY_KP_SUBTRACT, cameraSpeed = std::max(0.05f, cameraSpeed - 0.05f));
     check(GLFW_KEY_F1,          initCamera());
-	check(GLFW_KEY_F2,			saveCameraState());
-	check(GLFW_KEY_F3,          loadCameraState());
+    check(GLFW_KEY_F2,          saveCameraState());
+    check(GLFW_KEY_F3,          loadCameraState());
     check(GLFW_KEY_ESCAPE,      window->requestClose());
 
     if(paramsUpdatePending)

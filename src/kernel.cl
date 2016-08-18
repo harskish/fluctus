@@ -16,7 +16,7 @@ inline void swap(float *a, float *b)
 
 inline float3 lerp(float u, float v, float3 v1, float3 v2, float3 v3)
 {
-	return (1.0f - u - v) * v1 + u * v2 + v * v3;
+    return (1.0f - u - v) * v1 + u * v2 + v * v3;
 }
 
 inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
@@ -58,99 +58,99 @@ inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
 // Assign normal according to face hit
 inline bool intersectSlab(Ray *r, global AABB *box, float *tminRet, float *tMaxRet, float3 *N)
 {
-	float3 n;
-	float3 dinv = 1.0f / r->dir;
+    float3 n;
+    float3 dinv = 1.0f / r->dir;
 
     // X-axis
-	n = NORMAL_X;
-	float dinvx = dinv.x;
-	float tmin = (box->min.x - r->orig.x) * dinvx;
-	float tmax = (box->max.x - r->orig.x) * dinvx;
+    n = NORMAL_X;
+    float dinvx = dinv.x;
+    float tmin = (box->min.x - r->orig.x) * dinvx;
+    float tmax = (box->max.x - r->orig.x) * dinvx;
 
-	if (dinvx < 0)
-	{
-		swap(&tmin, &tmax);
-		n *= -1.0f;
-	}
+    if (dinvx < 0)
+    {
+        swap(&tmin, &tmax);
+        n *= -1.0f;
+    }
 
-	if (tmax < 0)
-	{
-		return false;
-	}
+    if (tmax < 0)
+    {
+        return false;
+    }
 
-	*N = n;
+    *N = n;
 
     // Y-axis
-	n = NORMAL_Y;
-	float dinvy = dinv.y;
-	float tminy = (box->min.y - r->orig.y) * dinvy;
-	float tmaxy = (box->max.y - r->orig.y) * dinvy;
+    n = NORMAL_Y;
+    float dinvy = dinv.y;
+    float tminy = (box->min.y - r->orig.y) * dinvy;
+    float tmaxy = (box->max.y - r->orig.y) * dinvy;
 
-	if (dinvy < 0)
-	{
-		swap(&tminy, &tmaxy);
-		n *= -1.0f;
-	}
+    if (dinvy < 0)
+    {
+        swap(&tminy, &tmaxy);
+        n *= -1.0f;
+    }
 
-	if (tmin > tmaxy || tmax < tminy)
-	{
-		return false;
-	}
+    if (tmin > tmaxy || tmax < tminy)
+    {
+        return false;
+    }
 
-	if (tminy > tmin)
-	{
-		tmin = tminy;
-		*N = n;
-	}
+    if (tminy > tmin)
+    {
+        tmin = tminy;
+        *N = n;
+    }
 
-	if (tmaxy < tmax)
-	{
-		tmax = tmaxy;
-	}
+    if (tmaxy < tmax)
+    {
+        tmax = tmaxy;
+    }
 
-	if (tmax < 0)
-	{
-		return false;
-	}
+    if (tmax < 0)
+    {
+        return false;
+    }
 
     // Z-axis
-	n = NORMAL_Z;
-	float dinvz = dinv.z;
-	float tminz = (box->min.z - r->orig.z) * dinvz;
-	float tmaxz = (box->max.z - r->orig.z) * dinvz;
+    n = NORMAL_Z;
+    float dinvz = dinv.z;
+    float tminz = (box->min.z - r->orig.z) * dinvz;
+    float tmaxz = (box->max.z - r->orig.z) * dinvz;
 
-	if (dinvz < 0)
-	{
-		swap(&tminz, &tmaxz);
-		n *= -1.0f;
-	}
+    if (dinvz < 0)
+    {
+        swap(&tminz, &tmaxz);
+        n *= -1.0f;
+    }
 
-	if (tmin > tmaxz || tmax < tminz)
-	{
-		return false;
-	}
+    if (tmin > tmaxz || tmax < tminz)
+    {
+        return false;
+    }
 
-	if (tminz > tmin)
-	{
-		tmin = tminz;
-		*N = n;
-	}
+    if (tminz > tmin)
+    {
+        tmin = tminz;
+        *N = n;
+    }
 
-	if (tmaxz < tmax)
-	{
-		tmax = tmaxz;
-	}
+    if (tmaxz < tmax)
+    {
+        tmax = tmaxz;
+    }
 
-	if (tmax < 0)
-	{
-		return false;
-	}
+    if (tmax < 0)
+    {
+        return false;
+    }
 
-	// Assign output variables
-	*tminRet = tmin;
-	*tMaxRet = tmax;
-	
-	return true;
+    // Assign output variables
+    *tminRet = tmin;
+    *tMaxRet = tmax;
+    
+    return true;
 }
 
 inline bool box_intersect(Ray *r, AABB *box, float *tcurr, float *tminRet)
@@ -173,128 +173,128 @@ inline bool box_intersect(Ray *r, AABB *box, float *tcurr, float *tminRet)
 // Möller-Trumbore
 inline bool intersectTriangle(Ray *r, global Triangle *tri, float *tret, float *uret, float *vret)
 {
-	float3 s1 = tri->v1.p - tri->v0.p;;
-	float3 s2 = tri->v2.p - tri->v0.p;
-	float3 pvec = cross(r->dir, s2); // order matters!
-	float det = dot(s1, pvec);
+    float3 s1 = tri->v1.p - tri->v0.p;;
+    float3 s2 = tri->v2.p - tri->v0.p;
+    float3 pvec = cross(r->dir, s2); // order matters!
+    float det = dot(s1, pvec);
 
-	// miss if det close to 0
-	if (fabs(det) < FLT_EPSILON) return false;
-	float iDet = 1.0f / det;
+    // miss if det close to 0
+    if (fabs(det) < FLT_EPSILON) return false;
+    float iDet = 1.0f / det;
 
-	float3 tvec = r->orig - tri->v0.p;
-	float u = dot(tvec, pvec) * iDet;
-	if (u < 0.0f || u > 1.0f) return false;
+    float3 tvec = r->orig - tri->v0.p;
+    float u = dot(tvec, pvec) * iDet;
+    if (u < 0.0f || u > 1.0f) return false;
 
-	float3 qvec = cross(tvec, s1); // order matters!
-	float v = dot(r->dir, qvec) * iDet;
-	if (v < 0.0f || u + v > 1.0f) return false;
+    float3 qvec = cross(tvec, s1); // order matters!
+    float v = dot(r->dir, qvec) * iDet;
+    if (v < 0.0f || u + v > 1.0f) return false;
 
-	//float t = s2.dot(qvec) * iDet;
-	float t = dot(s2, qvec) * iDet;
+    //float t = s2.dot(qvec) * iDet;
+    float t = dot(s2, qvec) * iDet;
 
-	if(t < 0.0f) return false;
+    if(t < 0.0f) return false;
 
-	*tret = t;
-	*uret = u;
-	*vret = v;
+    *tret = t;
+    *uret = u;
+    *vret = v;
 
-	return true;
+    return true;
 }
 
 // BVH traversal using simulated stack
 inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global GPUNode *nodes, global uint *indices)
 {
     float lnear, lfar, rnear, rfar; //AABB limits
-	uint closer, farther;
+    uint closer, farther;
 
     bool found = false;
 
-	// Stack state
-	SimStackNode stack[64];
-	int stackptr = 0;
+    // Stack state
+    SimStackNode stack[64];
+    int stackptr = 0;
 
-	// Root node
-	stack[stackptr].i = 0;
-	stack[stackptr].mint = -FLT_MAX;
+    // Root node
+    stack[stackptr].i = 0;
+    stack[stackptr].mint = -FLT_MAX;
 
-	while (stackptr >= 0)
-	{
-		// Next node
-		int ni = stack[stackptr].i;
-		float tnear = stack[stackptr].mint;
-		stackptr--;
-		const GPUNode n = nodes[ni];
+    while (stackptr >= 0)
+    {
+        // Next node
+        int ni = stack[stackptr].i;
+        float tnear = stack[stackptr].mint;
+        stackptr--;
+        const GPUNode n = nodes[ni];
 
-		// Closer intersection found already
-		if (tnear > hit->t)
-			continue;
+        // Closer intersection found already
+        if (tnear > hit->t)
+            continue;
 
-		if (n.nPrims != 0) // Leaf node
-		{
-			float3 dir = r->dir;
-			float tmin = FLT_MAX, umin = 0.0f, vmin = 0.0f;
-			int imin = -1;
-			for (uint i = n.iStart; i < n.iStart + n.nPrims; i++)
-			{
-				float t, u, v;
-				if (intersectTriangle(r, &(tris[indices[i]]), &t, &u, &v)) //tri.intersect_woop(orig, dir, t, u, v)
-				{
-					if (t > 0.0f && t < tmin)
-					{
-						imin = i;
-						tmin = t;
-						umin = u;
-						vmin = v;
-					}
-				}
-			}
-			if (imin != -1 && tmin < hit->t)
-			{
-				found = true;
-				hit->i = 0; //indices[imin];
+        if (n.nPrims != 0) // Leaf node
+        {
+            float3 dir = r->dir;
+            float tmin = FLT_MAX, umin = 0.0f, vmin = 0.0f;
+            int imin = -1;
+            for (uint i = n.iStart; i < n.iStart + n.nPrims; i++)
+            {
+                float t, u, v;
+                if (intersectTriangle(r, &(tris[indices[i]]), &t, &u, &v)) //tri.intersect_woop(orig, dir, t, u, v)
+                {
+                    if (t > 0.0f && t < tmin)
+                    {
+                        imin = i;
+                        tmin = t;
+                        umin = u;
+                        vmin = v;
+                    }
+                }
+            }
+            if (imin != -1 && tmin < hit->t)
+            {
+                found = true;
+                hit->i = 0; //indices[imin];
                 hit->t = tmin;
                 hit->P = r->orig + tmin * r->dir;
                 hit->N = lerp(umin, vmin, tris[indices[imin]].v0.n, tris[indices[imin]].v1.n, tris[indices[imin]].v2.n);
-			}
-		}
-		else // Internal node
-		{
-		    float3 N_tmp;
-			bool leftWasHit = intersectSlab(r, &(nodes[ni + 1].box), &lnear, &lfar, &N_tmp);
-			bool rightWasHit = intersectSlab(r, &(nodes[n.rightChild].box), &rnear, &rfar, &N_tmp);
+            }
+        }
+        else // Internal node
+        {
+            float3 N_tmp;
+            bool leftWasHit = intersectSlab(r, &(nodes[ni + 1].box), &lnear, &lfar, &N_tmp);
+            bool rightWasHit = intersectSlab(r, &(nodes[n.rightChild].box), &rnear, &rfar, &N_tmp);
 
-			if (leftWasHit && rightWasHit)
-			{
-				closer = ni + 1;
-				farther = n.rightChild;
+            if (leftWasHit && rightWasHit)
+            {
+                closer = ni + 1;
+                farther = n.rightChild;
 
-				// Right child was closer -> swap
-				if (rnear < lnear)
-				{
-					swap_m(lnear, rnear, float);
-					swap_m(lfar, rfar, float);
-					swap_m(closer, farther, uint);
-				}
+                // Right child was closer -> swap
+                if (rnear < lnear)
+                {
+                    swap_m(lnear, rnear, float);
+                    swap_m(lfar, rfar, float);
+                    swap_m(closer, farther, uint);
+                }
 
-				// Farther node pushed first
-				stack[++stackptr] = (SimStackNode){farther, rnear};
-				stack[++stackptr] = (SimStackNode){closer, lnear};
-			}
+                // Farther node pushed first
+                stack[++stackptr] = (SimStackNode){farther, rnear};
+                stack[++stackptr] = (SimStackNode){closer, lnear};
+            }
 
-			else if (leftWasHit)
-			{
-				stack[++stackptr] = (SimStackNode){ni + 1, lnear};
-			}
+            else if (leftWasHit)
+            {
+                stack[++stackptr] = (SimStackNode){ni + 1, lnear};
+            }
 
-			else if (rightWasHit)
-			{
-				stack[++stackptr] = (SimStackNode){n.rightChild, rnear};
-			}
-		}
-	}
+            else if (rightWasHit)
+            {
+                stack[++stackptr] = (SimStackNode){n.rightChild, rnear};
+            }
+        }
+    }
 
-	return found;
+    return found;
 }
 
 inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
@@ -359,51 +359,57 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
     return hit;
 }
 
+// Blinn-Phong
+inline float3 calcLighting(global Light *light, float3 V, Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
+{
+    float3 L = light->pos - hit->P;
+    float dist = length(L);
+    L = normalize(L);
+
+    Ray shadowRay = { (hit->P + 1e-3f * hit->N), L };
+    Hit shdw = raycast(&shadowRay, dist, scene, tris, nodes, indices, params);
+    float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
+
+    // Testing material:
+    float3 Ks = (float3)(1.0f);
+    float glossiness = 0.025f; // probably not the right name...
+
+    float3 H = normalize(L + V);
+    float3 diffuse = scene[hit->i].Kd * max(0.0f, dot(L, hit->N));
+    float3 specular = Ks * pow(max(0.0f, dot(hit->N, H)), 1.0f / glossiness);
+
+    if(dot(hit->N, L) < 0) specular = (float3)(0.0f);
+
+    float falloff = 1.0f / (dist * dist + 1e-5f);
+    return visibility * light->intensity * falloff * (diffuse + specular);
+}
+
 inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global Light *lights, global RenderParams *params)
 {
     float3 V = normalize(params->camera.pos - hit->P); // P to eye
     float vDotN = dot(V, hit->N);
-	if(vDotN < 0)
+    if(vDotN < 0)
     {
         hit->N *= -1.0f;
     }
 
     float3 res = (float3)(0.0f);
-    float3 lifted = hit->P + 1e-3f * hit->N;
 
     // Point light assumed for now
     for(uint i = 0; i < params->n_lights; i++)
     {
-        float3 L = lights[i].pos - hit->P;
-        float dist = length(L);
-        L = normalize(L);
-
-        Ray shadowRay = { lifted, L };
-        Hit shdw = raycast(&shadowRay, dist, scene, tris, nodes, indices, params);
-        float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
-
-        // Blinn-Phong
-
-        // Testing material:
-        float3 Ks = (float3)(1.0f);
-        float glossiness = 0.025f; // probably not the right name...
-
-        float3 H = normalize(L + V);
-        float3 diffuse = scene[hit->i].Kd * max(0.0f, dot(L, hit->N));
-        float3 specular = Ks * pow(max(0.0f, dot(hit->N, H)), 1.0f / glossiness);
-
-        if(dot(hit->N, L) < 0) specular = (float3)(0.0f);
-
-        float falloff = 1.0f / (dist * dist + 1e-5f);
-        res += visibility * lights[i].intensity * falloff * (diffuse + specular);
+        res += calcLighting(&(lights[i]), V, hit, scene, tris, nodes, indices, params);
     }
+
+    // Optional light at camera pos
+    
 
     return res;
 }
 
 /* 
 OPENCL MEMORY SPACES:
-| OpenCL   | OpenCL keyword | Scope           | CUDA	 | CUDA keyword |
+| OpenCL   | OpenCL keyword | Scope           | CUDA     | CUDA keyword |
 |----------+----------------+-----------------+----------+--------------+
 | Global   | __global       | Kernel-wide     | Global   |              |
 | Constant | __constant     | Kernel-wide     | Constant | __constant__ |
@@ -422,13 +428,18 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
     Ray r = getCameraRay(x, y, params);
     Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
 
-	float3 pixelColor = (float3)(0.0f);
-	if(hit.i > -1)
-	{
-		pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
-		//pixelColor = (float3)(hit.t / 8.0f);
-		//pixelColor = scene[hit.i].Kd;
-	}
+    float3 pixelColor = (float3)(0.0f);
+    if(hit.i > -1)
+    {
+        // Whitted shading
+        pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
+        
+        // Depth shading
+        //pixelColor = (float3)(hit.t / 8.0f);
+
+        // Intersection shading
+        //pixelColor = scene[hit.i].Kd;
+    }
 
     //float3 prev = vload4((y * width + x), out);
     //float3 newCol = 0.005f * pixelColor + prev;

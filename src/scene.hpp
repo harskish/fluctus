@@ -21,7 +21,7 @@ public:
 
     std::vector<RTTriangle> &getTriangles() { return triangles; }
 
-	std::string hashString();
+  std::string hashString();
 
 private:
     void loadModel(const std::string filename); // load .obj or .ply model
@@ -33,8 +33,8 @@ private:
                            const std::vector<std::array<unsigned, 6>>& faces,
                            bool type_ply);
 
-	void computeHash(const std::string filename);
+  void computeHash(const std::string filename);
 
     std::vector<RTTriangle> triangles;
-	size_t hash;
+  size_t hash;
 };

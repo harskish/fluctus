@@ -30,13 +30,13 @@ public:
     void pollKeys();
     void updateCamera();
     void initCamera();
-	void saveCameraState();
-	void loadCameraState();
+    void saveCameraState();
+    void loadCameraState();
 
-	void selectScene();
+    void selectScene();
 
     // Create/load/export BVH
-	void initHierarchy();
+    void initHierarchy();
     void loadHierarchy(const std::string filename, std::vector<RTTriangle> &triangles);
     void saveHierarchy(const std::string filename);
     void constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode);
@@ -47,6 +47,7 @@ private:
     RenderParams params;    // copied into GPU memory
     float2 cameraRotation;  // not passed to GPU but needed for camera basis vectors
     float2 lastCursorPos;
+    float cameraSpeed = 1.0f;
     bool mouseButtonState[3] = { false, false, false };
     bool paramsUpdatePending = true; // force initial param update
 

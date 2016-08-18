@@ -7,57 +7,57 @@ Scene::Scene(const std::string filename)
 
 void Scene::computeHash(const std::string filename)
 {
-	this->hash = (size_t)0;
-	std::ifstream input(filename, std::ios::in);
+    this->hash = (size_t)0;
+    std::ifstream input(filename, std::ios::in);
 
-	if (!input)
-	{
-		std::cout << "Could not open file " << filename << " for hashing, exiting..." << std::endl;
-		exit(1);
-	}
+    if (!input)
+    {
+        std::cout << "Could not open file " << filename << " for hashing, exiting..." << std::endl;
+        exit(1);
+    }
 
-	// Read the file line by line.
-	std::string line;
-	while (getline(input, line))
-	{
-		size_t h = std::hash<std::string>()(line);
-		this->hash ^= h + 0x9e3779b9 + (this->hash << 6) + (this->hash >> 2); // combine hashes
-	}
+    // Read the file line by line.
+    std::string line;
+    while (getline(input, line))
+    {
+        size_t h = std::hash<std::string>()(line);
+        this->hash ^= h + 0x9e3779b9 + (this->hash << 6) + (this->hash >> 2); // combine hashes
+    }
 
-	std::cout << "Hash for " << filename << ": " << this->hash << std::endl;
+    std::cout << "Hash for " << filename << ": " << this->hash << std::endl;
 }
 
 std::string Scene::hashString()
 {
-	std::stringstream ss;
-	ss << this->hash;
-	return ss.str();
+    std::stringstream ss;
+    ss << this->hash;
+    return ss.str();
 }
 
 inline bool endsWith(const std::string s, const std::string end) {
-	size_t len = end.size();
-	if (len > s.size()) return false;
+    size_t len = end.size();
+    if (len > s.size()) return false;
 
-	std::string substr = s.substr(s.size() - len, len);
-	return end == substr;
+    std::string substr = s.substr(s.size() - len, len);
+    return end == substr;
 }
 
 void Scene::loadModel(const std::string filename)
 {
-	// Starting time for model loading
-	auto time1 = std::chrono::high_resolution_clock::now();
+    // Starting time for model loading
+    auto time1 = std::chrono::high_resolution_clock::now();
 
     if (endsWith(filename, "obj"))
     {
         std::cout << "Loading OBJ file: " << filename << std::endl;
-		computeHash(filename);
+        computeHash(filename);
         loadObjModel(filename);
     }
     else if (endsWith(filename, "ply"))
     {
         std::cout << "Loading PLY file: " << filename << std::endl;
-		computeHash(filename);
-		loadPlyModel(filename);
+        computeHash(filename);
+        loadPlyModel(filename);
     }
     else
     {
@@ -65,11 +65,11 @@ void Scene::loadModel(const std::string filename)
         exit(1);
     }
 
-	// Print elapsed time
-	auto time2 = std::chrono::high_resolution_clock::now();
-	std::cout << "Mesh loaded in: "
-		<< std::chrono::duration<double, std::milli>(time2 - time1).count()
-		<< " ms" << std::endl;
+    // Print elapsed time
+    auto time2 = std::chrono::high_resolution_clock::now();
+    std::cout << "Mesh loaded in: "
+        << std::chrono::duration<double, std::milli>(time2 - time1).count()
+        << " ms" << std::endl;
 }
 
 void Scene::loadObjModel(const std::string filename)
@@ -105,23 +105,23 @@ void Scene::loadObjModel(const std::string filename)
         // Read object type into s
         iss >> s;
 
-		// MSVCCompiler has a float cast performance bug
-		//   => patch: read into string, cast with atof
-		std::string s1, s2, s3;
+        // MSVCCompiler has a float cast performance bug
+        //   => patch: read into string, cast with atof
+        std::string s1, s2, s3;
         if (s == "v")
         {
             iss >> s1 >> s2 >> s3;
-			float x = (float)atof(s1.c_str());
-			float y = (float)atof(s2.c_str());
-			float z = (float)atof(s3.c_str());
+            float x = (float)atof(s1.c_str());
+            float y = (float)atof(s2.c_str());
+            float z = (float)atof(s3.c_str());
             positions.push_back(float3(x, y, z));
         }
         else if (s == "vn")
         {
-			iss >> s1 >> s2 >> s3;
-			float nx = (float)atof(s1.c_str());
-			float ny = (float)atof(s2.c_str());
-			float nz = (float)atof(s3.c_str());
+            iss >> s1 >> s2 >> s3;
+            float nx = (float)atof(s1.c_str());
+            float ny = (float)atof(s2.c_str());
+            float nz = (float)atof(s3.c_str());
             normals.push_back(float3(nx, ny, nz));
         }
         else if (s == "f")
@@ -150,8 +150,8 @@ void Scene::loadPlyModel(const std::string filename)
 {
     struct Element
     {
-        std::string name;			     // e.g. vertex
-        int lines;				         // e.g. 1300
+        std::string name;                // e.g. vertex
+        int lines;                       // e.g. 1300
         std::vector<std::string> props;  // e.g. [x, y, z, nx, ny, nz]
     };
 
@@ -209,14 +209,14 @@ void Scene::loadPlyModel(const std::string filename)
                 getline(input, line);
                 std::istringstream iss(line);
 
-				// MSVCCompiler has a float cast performance bug
-				//   => patch: read into string, cast with atof
+                // MSVCCompiler has a float cast performance bug
+                //   => patch: read into string, cast with atof
                 std::map<std::string, float> map;
                 std::string bucket;
                 for (std::string name : e.props)
                 {
                     iss >> bucket;
-					map[name] = (float)atof(bucket.c_str());
+                    map[name] = (float)atof(bucket.c_str());
                 }
 
                 positions.push_back(float3(map["x"], map["y"], map["z"]));
@@ -258,11 +258,11 @@ void Scene::loadPlyModel(const std::string filename)
                     f[0] = i2; f[2] = i3; f[4] = i0;
                     faces.push_back(f);
                 }
-				else
-				{
-					std::cout << "Unknown polygon type!" << std::endl;
-					exit(1);
-				}
+                else
+                {
+                    std::cout << "Unknown polygon type!" << std::endl;
+                    exit(1);
+                }
             }
         }
         else

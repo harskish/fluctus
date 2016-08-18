@@ -11,13 +11,13 @@ CLContext::CLContext(GLuint gl_PBO)
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
 
-	#ifdef CPU_DEBUGGING
-		cl::Platform platform = platforms[2];
-	#else
-		cl::Platform platform = platforms[1];
-	#endif
+    #ifdef CPU_DEBUGGING
+        cl::Platform platform = platforms[2];
+    #else
+        cl::Platform platform = platforms[1];
+    #endif
 
-	std::cout << "PLATFORM: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
+    std::cout << "PLATFORM: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
     platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
 
     // Macbook pro 15 fix
@@ -25,53 +25,53 @@ CLContext::CLContext(GLuint gl_PBO)
     clDevices.erase(clDevices.begin());
     #endif
 
-	// Init shared context
-	#ifdef __APPLE__
-		CGLContextObj kCGLContext = CGLGetCurrentContext();
-		CGLShareGroupObj kCGLShareGroup = CGLGetShareGroup(kCGLContext);
-		cl_context_properties props[] =
-		{
-			CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
-				(cl_context_properties)kCGLShareGroup, 0
-		};
-	#else
-		cl_context_properties props[] = {
-			CL_CONTEXT_PLATFORM, (cl_context_properties)platform(),
-		#if defined(__linux__)
-			CL_GL_CONTEXT_KHR, (cl_context_properties)glXGetCurrentContext(),
-			CL_GLX_DISPLAY_KHR, (cl_context_properties)glXGetCurrentDisplay(),
-		#elif defined(_WIN32)
-			CL_GL_CONTEXT_KHR, (cl_context_properties)wglGetCurrentContext(),
-			CL_WGL_HDC_KHR, (cl_context_properties)wglGetCurrentDC(),
-		#endif
-			0
-		};
-	#endif
+    // Init shared context
+    #ifdef __APPLE__
+        CGLContextObj kCGLContext = CGLGetCurrentContext();
+        CGLShareGroupObj kCGLShareGroup = CGLGetShareGroup(kCGLContext);
+        cl_context_properties props[] =
+        {
+            CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
+                (cl_context_properties)kCGLShareGroup, 0
+        };
+    #else
+        cl_context_properties props[] = {
+            CL_CONTEXT_PLATFORM, (cl_context_properties)platform(),
+        #if defined(__linux__)
+            CL_GL_CONTEXT_KHR, (cl_context_properties)glXGetCurrentContext(),
+            CL_GLX_DISPLAY_KHR, (cl_context_properties)glXGetCurrentDisplay(),
+        #elif defined(_WIN32)
+            CL_GL_CONTEXT_KHR, (cl_context_properties)wglGetCurrentContext(),
+            CL_WGL_HDC_KHR, (cl_context_properties)wglGetCurrentDC(),
+        #endif
+            0
+        };
+    #endif
 
-	context = cl::Context(clDevices, props, NULL, NULL, &err);
-	verify("Failed to create shared context");
+    context = cl::Context(clDevices, props, NULL, NULL, &err);
+    verify("Failed to create shared context");
 
     device = context.getInfo<CL_CONTEXT_DEVICES>()[0];
     std::cout << "Using device nr. 0 of context" << std::endl;
 
     // Create command queue for context
     cmdQueue = cl::CommandQueue(context, device, 0, &err);
-	verify("Failed to create command queue!");
+    verify("Failed to create command queue!");
 
     // Read kenel source from file
     cl::Program program;
     kernelFromFile("src/kernel.cl", context, program, err);
-	verify("Failed to create compute program!");
+    verify("Failed to create compute program!");
 
     // Build kernel source (create compute program)
     // Define "GPU" to disable cl-prefixed types in shared headers (cl_float4 => float4 etc.)
-	#ifdef CPU_DEBUGGING
-		err = program.build(clDevices, "-DGPU -g -s \"C:\\Users\\Erik\\code\\cltrace\\src\\kernel.cl\"");
-	#else
-		err = program.build(clDevices, "-I./src -DGPU");
-	#endif
+    #ifdef CPU_DEBUGGING
+        err = program.build(clDevices, "-DGPU -g -s \"C:\\Users\\Erik\\code\\cltrace\\src\\kernel.cl\"");
+    #else
+        err = program.build(clDevices, "-I./src -DGPU");
+    #endif
     std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-	if (err != CL_SUCCESS)
+    if (err != CL_SUCCESS)
     {
         std::cout << "Error: Failed to build compute program!" << std::endl;
         std::cout << "Build log: " << buildLog << std::endl;
@@ -80,7 +80,7 @@ CLContext::CLContext(GLuint gl_PBO)
 
     // Creating compute kernel from program
     pt_kernel = cl::Kernel(program, "trace", &err);
-	verify("Failed to create compute kernel!");
+    verify("Failed to create compute kernel!");
 
     // Create OpenCL buffer from OpenGL PBO
     createPBO(gl_PBO);
@@ -105,7 +105,7 @@ void CLContext::createPBO(GLuint gl_PBO)
     // CL_MEM_WRITE_ONLY is faster, but we need accumulation...
     sharedMemory.push_back(cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err));
 
-	verify("CL-PBO creation failed!");
+    verify("CL-PBO creation failed!");
     std::cout << "Created CL-PBO at " << (sharedMemory.back())() << std::endl;
 }
 
@@ -115,19 +115,19 @@ void CLContext::setupScene()
 
     // READ_WRITE due to Apple's OpenCL bug...?
     sphereBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, s_bytes, NULL, &err);
-	verify("Sphere buffer creation failed!");
+    verify("Sphere buffer creation failed!");
 
     // Blocking write!
     err = cmdQueue.enqueueWriteBuffer(sphereBuffer, CL_TRUE, 0, s_bytes, test_spheres);
-	verify("Sphere buffer writing failed!");
+    verify("Sphere buffer writing failed!");
 
     // Lights
     size_t l_bytes = sizeof(test_lights);
     lightBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, l_bytes, NULL, &err);
-	verify("Light buffer creation failed!");
+    verify("Light buffer creation failed!");
 
     err = cmdQueue.enqueueWriteBuffer(lightBuffer, CL_TRUE, 0, l_bytes, test_lights);
-	verify("Light buffer writing failed!");
+    verify("Light buffer writing failed!");
 
     std::cout << "Scene initialization succeeded!" << std::endl;
 }
@@ -165,7 +165,7 @@ void CLContext::createBVHBuffers(std::vector<RTTriangle> *tris, std::vector<cl_u
 void CLContext::setupParams()
 {
     renderParams = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(RenderParams), NULL, &err);
-	verify("Params buffer creation failed!");
+    verify("Params buffer creation failed!");
 
     std::cout << "RenderParam allocation succeeded!" << std::endl;
 }
@@ -174,7 +174,7 @@ void CLContext::updateParams(const RenderParams &params)
 {
     // Blocking write!
     err = cmdQueue.enqueueWriteBuffer(renderParams, CL_TRUE, 0, sizeof(RenderParams), &params);
-	verify("RenderParam writing failed");
+    verify("RenderParam writing failed");
 
     // std::cout << "RenderParams updated!" << std::endl;
 }
@@ -190,11 +190,11 @@ void CLContext::executeKernel(const RenderParams &params)
     err |= pt_kernel.setArg(i++, nodeBuffer);
     err |= pt_kernel.setArg(i++, indexBuffer);
     err |= pt_kernel.setArg(i++, renderParams);
-	verify("Failed to set kernel arguments!");
+    verify("Failed to set kernel arguments!");
 
     size_t max_gw_size;
     err = device.getInfo(CL_DEVICE_MAX_WORK_GROUP_SIZE, &max_gw_size);
-	verify("Failed to retrieve kernel work group info!");
+    verify("Failed to retrieve kernel work group info!");
 
     ndRangeSizes[0] = 32; //TODO: 32 might be too large
     ndRangeSizes[1] = max_gw_size / ndRangeSizes[0];
@@ -209,25 +209,25 @@ void CLContext::executeKernel(const RenderParams &params)
     // Enqueue commands to be executed in order
     glFinish();
     err = cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
-	verify("Failed to enqueue GL object acquisition!");
+    verify("Failed to enqueue GL object acquisition!");
 
-	#ifdef CPU_DEBUGGING
-		cmdQueue.enqueueNDRangeKernel(
-			pt_kernel,
-			cl::NullRange,                 // offset
-			cl::NDRange(params.width, 5),  // global
-			cl::NullRange                  // local
-		);
-	#else
-		err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
-		verify("Failed to enqueue kernel!");
-	#endif
+    #ifdef CPU_DEBUGGING
+        cmdQueue.enqueueNDRangeKernel(
+            pt_kernel,
+            cl::NullRange,                 // offset
+            cl::NDRange(params.width, 5),  // global
+            cl::NullRange                  // local
+        );
+    #else
+        err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
+        verify("Failed to enqueue kernel!");
+    #endif
 
     err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
-	verify("Failed to enqueue GL object release!");
+    verify("Failed to enqueue GL object release!");
     
-	err = cmdQueue.finish();
-	verify("Failed to finish command queue!");
+    err = cmdQueue.finish();
+    verify("Failed to finish command queue!");
 }
 
 // Return info about error
