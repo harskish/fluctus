@@ -5,6 +5,7 @@ typedef float cl_float;
 typedef int cl_int;
 typedef unsigned int cl_uint;
 typedef char cl_uchar;
+typedef bool cl_bool;
 #else
 #include "math/float3.hpp"
 using FireRays::float3;
@@ -108,5 +109,6 @@ typedef struct
     cl_uint n_objects;     // number of objects in scene
     cl_uint n_tris;
     cl_uint n_lights;      // number of lights in scene
+    cl_bool flashlight;
     Camera camera;         // camera struct
 } RenderParams;

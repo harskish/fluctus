@@ -212,16 +212,17 @@ void CLContext::executeKernel(const RenderParams &params)
     verify("Failed to enqueue GL object acquisition!");
 
     #ifdef CPU_DEBUGGING
-        cmdQueue.enqueueNDRangeKernel(
+        err = cmdQueue.enqueueNDRangeKernel(
             pt_kernel,
             cl::NullRange,                 // offset
             cl::NDRange(params.width, 5),  // global
             cl::NullRange                  // local
         );
     #else
-        err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
-        verify("Failed to enqueue kernel!");
+        //err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
+        err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     #endif
+    verify("Failed to enqueue kernel!");
 
     err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
     verify("Failed to enqueue GL object release!");
@@ -266,7 +267,8 @@ void CLContext::verify(std::string msg)
 {
     if(err != CL_SUCCESS)
     {
-        std::cout << msg << std::endl << errorString() << std::endl;
+        std::string message = msg + " (" + errorString() + ")";
+        std::cout << message << std::endl;
         exit(1);
     }
 }

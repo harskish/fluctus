@@ -9,6 +9,7 @@
 #include <sstream>
 #include <ctime>
 #include <chrono>
+
 #include "triangle.hpp"
 #include "math/float3.hpp"
 

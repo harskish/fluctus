@@ -15,6 +15,7 @@ Tracer::Tracer(int width, int height)
     params.height = (unsigned int)height;
     params.n_lights = sizeof(test_lights) / sizeof(Light);
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
+    params.flashlight = false;
 
     initCamera();
     loadCameraState(); // useful when debugging
@@ -208,6 +209,7 @@ void Tracer::pollKeys()
     check(GLFW_KEY_D,           cam.pos += cameraSpeed * 0.07f * cam.right);
     check(GLFW_KEY_R,           cam.pos += cameraSpeed * 0.07f * cam.up);
     check(GLFW_KEY_F,           cam.pos -= cameraSpeed * 0.07f * cam.up);
+    check(GLFW_KEY_H,           params.flashlight = !params.flashlight);
     check(GLFW_KEY_PERIOD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
     check(GLFW_KEY_SEMICOLON,   cam.fov = std::max(cam.fov - 1.0f, 5.0f));
     check(GLFW_KEY_UP,          cameraRotation.y -= 1.0f);

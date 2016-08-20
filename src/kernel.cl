@@ -360,9 +360,9 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
 }
 
 // Blinn-Phong
-inline float3 calcLighting(global Light *light, float3 V, Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
+inline float3 calcLighting(Light light, float3 V, Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
 {
-    float3 L = light->pos - hit->P;
+    float3 L = light.pos - hit->P;
     float dist = length(L);
     L = normalize(L);
 
@@ -381,7 +381,7 @@ inline float3 calcLighting(global Light *light, float3 V, Hit *hit, global Spher
     if(dot(hit->N, L) < 0) specular = (float3)(0.0f);
 
     float falloff = 1.0f / (dist * dist + 1e-5f);
-    return visibility * light->intensity * falloff * (diffuse + specular);
+    return visibility * light.intensity * falloff * (diffuse + specular);
 }
 
 inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global Light *lights, global RenderParams *params)
@@ -398,11 +398,17 @@ inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tr
     // Point light assumed for now
     for(uint i = 0; i < params->n_lights; i++)
     {
-        res += calcLighting(&(lights[i]), V, hit, scene, tris, nodes, indices, params);
+        Light light = lights[i];
+        res += calcLighting(light, V, hit, scene, tris, nodes, indices, params);
     }
 
     // Optional light at camera pos
-    
+    if(params->flashlight)
+    {
+        float3 lPos = params->camera.pos + 0.1f * params->camera.dir;
+        Light flashlight = { L_POINT, (float3)(1.0f), 10.0f, .pos={lPos} };
+        res += calcLighting(flashlight, V, hit, scene, tris, nodes, indices, params);
+    }
 
     return res;
 }
@@ -423,8 +429,6 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
 
     if(x >= params->width || y >= params->height) return;
 
-    //dbg(printf("nodes[1].parent = %d\n", nodes[2].parent));
-
     Ray r = getCameraRay(x, y, params);
     Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
 
@@ -441,8 +445,8 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
         //pixelColor = scene[hit.i].Kd;
     }
 
-    //float3 prev = vload4((y * width + x), out);
-    //float3 newCol = 0.005f * pixelColor + prev;
+    //float4 prev = vload4((y * params->width + x), out);
+    //pixelColor = 0.005f * pixelColor + prev.xyz;
 
     vstore4((float4)(pixelColor, 0.0f), (y * params->width + x), out); // (value, offset, ptr)
 }
