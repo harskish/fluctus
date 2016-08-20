@@ -72,10 +72,51 @@ void Scene::loadModel(const std::string filename)
         << " ms" << std::endl;
 }
 
+
+// Possible face data formats include:
+//  `f v1/vt1/vn1 v2/vt2/vn2 ...`
+//  `f v1//vn1 v2//vn2 ...`
+//  `f v1 v2 ...`
+inline void setFaceFormat(int &format, std::istringstream &line)
+{
+    if (format > -1) return; // Only set once
+    
+    std::string block1;
+    line >> block1;
+
+    bool textures = false;
+    bool normals = false;
+    int ind = 0;
+    for (char c : block1)
+    {
+        if (c == '/')
+            ind++;
+        else if (ind == 0)
+            continue;
+        else if (ind == 1)
+            textures = true;
+        else if (ind == 2)
+            normals = true;
+        else
+            std::cout << "Unknown OBJ face format, too many indices!" << std::endl;
+    }
+
+    if (textures && normals)
+        format = 0; // "f %u/%u/%u %u/%u/%u %u/%u/%u";
+    else if (!textures && normals)
+        format = 1; // "f %u//%u %u//%u %u//%u";
+    else if (textures && !normals)
+        format = 2; // "f %u/%u %u/%u %u/%u";
+    else
+        format = 3; // "f %u %u %u";
+}
+
 void Scene::loadObjModel(const std::string filename)
 {
     std::vector<float3> positions, normals;
     std::vector<std::array<unsigned, 6>> faces;
+    
+    int face_format = -1;
 
     // Open input file stream for reading.
     std::ifstream input(filename, std::ios::in);
@@ -90,12 +131,6 @@ void Scene::loadObjModel(const std::string filename)
     std::string line;
     while(getline(input, line))
     {
-        // Use space as separator
-        for (auto& c : line)
-        {
-            if (c == '/') c = ' ';
-        }
-
         // Temporary objects to read data into
         std::array<unsigned, 6>  f; // Face index array
         std::string              s;
@@ -126,11 +161,24 @@ void Scene::loadObjModel(const std::string filename)
         }
         else if (s == "f")
         {
-            // Face data is in the format `f v1/vt1/vn1 v2/vt2/vn2 ...`
-            // (vertex index, texture index, normal index)
+            setFaceFormat(face_format, iss);
+
             unsigned sink; // Texture indices ignored for now
 
-            iss >> f[0] >> sink >> f[1] >> f[2] >> sink >> f[3] >> f[4] >> sink >> f[5];
+            switch (face_format) {
+            case 0:
+                sscanf_s(line.c_str(), "f %u/%u/%u %u/%u/%u %u/%u/%u", &f[0], &sink, &f[1], &f[2], &sink, &f[3], &f[4], &sink, &f[5]);
+                break;
+            case 1:
+                sscanf_s(line.c_str(), "f %u//%u %u//%u %u//%u", &f[0], &f[1], &f[2], &f[3], &f[4], &f[5]);
+                break;
+            case 2:
+                sscanf_s(line.c_str(), "f %u/%u %u/%u %u/%u", &f[0], &sink, &f[2], &sink, &f[4], &sink);
+                break;
+            case 3:
+                sscanf_s(line.c_str(), "f %u %u %u", &f[0], &f[2], &f[4]);
+                break;
+            }
 
             // Obj indices start from 1, need to be shifted
             for (unsigned& v : f)
