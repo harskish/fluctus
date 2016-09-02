@@ -171,15 +171,16 @@ inline bool box_intersect(Ray *r, AABB *box, float *tcurr, float *tminRet)
 }
 
 // Möller-Trumbore
+#define EPSILON 1e-12f
 inline bool intersectTriangle(Ray *r, global Triangle *tri, float *tret, float *uret, float *vret)
 {
-    float3 s1 = tri->v1.p - tri->v0.p;;
+    float3 s1 = tri->v1.p - tri->v0.p;
     float3 s2 = tri->v2.p - tri->v0.p;
     float3 pvec = cross(r->dir, s2); // order matters!
     float det = dot(s1, pvec);
 
     // miss if det close to 0
-    if (fabs(det) < FLT_EPSILON) return false;
+    if (fabs(det) < EPSILON) return false;
     float iDet = 1.0f / det;
 
     float3 tvec = r->orig - tri->v0.p;
@@ -442,7 +443,7 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
         //pixelColor = (float3)(hit.t / 8.0f);
 
         // Intersection shading
-        //pixelColor = scene[hit.i].Kd;
+        // pixelColor = scene[hit.i].Kd;
     }
 
     //float4 prev = vload4((y * params->width + x), out);
