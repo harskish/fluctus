@@ -167,16 +167,16 @@ void Scene::loadObjModel(const std::string filename)
 
             switch (face_format) {
             case 0:
-                sscanf_s(line.c_str(), "f %u/%u/%u %u/%u/%u %u/%u/%u", &f[0], &sink, &f[1], &f[2], &sink, &f[3], &f[4], &sink, &f[5]);
+                sscanf(line.c_str(), "f %u/%u/%u %u/%u/%u %u/%u/%u", &f[0], &sink, &f[1], &f[2], &sink, &f[3], &f[4], &sink, &f[5]);
                 break;
             case 1:
-                sscanf_s(line.c_str(), "f %u//%u %u//%u %u//%u", &f[0], &f[1], &f[2], &f[3], &f[4], &f[5]);
+                sscanf(line.c_str(), "f %u//%u %u//%u %u//%u", &f[0], &f[1], &f[2], &f[3], &f[4], &f[5]);
                 break;
             case 2:
-                sscanf_s(line.c_str(), "f %u/%u %u/%u %u/%u", &f[0], &sink, &f[2], &sink, &f[4], &sink);
+                sscanf(line.c_str(), "f %u/%u %u/%u %u/%u", &f[0], &sink, &f[2], &sink, &f[4], &sink);
                 break;
             case 3:
-                sscanf_s(line.c_str(), "f %u %u %u", &f[0], &f[2], &f[4]);
+                sscanf(line.c_str(), "f %u %u %u", &f[0], &f[2], &f[4]);
                 break;
             }
 
