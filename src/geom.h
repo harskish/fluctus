@@ -38,10 +38,10 @@ typedef struct
     AABB box;
     cl_int parent;
     union {
-        cl_uint iStart;		// leaf node, index into index list
+        cl_uint iStart;     // leaf node, index into index list
         cl_uint rightChild; // internal node, index into node vector (left child always current + 1)
     };
-    cl_uchar nPrims;	    // 0 for interior nodes
+    cl_uchar nPrims;        // 0 for interior nodes
 } GPUNode;
 
 // Node for a simulated stack on the GPU
@@ -95,20 +95,21 @@ typedef struct
 
 typedef struct
 {
-    float3 pos;
-    float3 dir;
-    float3 up;
-    float3 right;
-    cl_float fov;
+    float3 pos;     // 16B
+    float3 dir;     // 16B
+    float3 up;      // 16B
+    float3 right;   // 16B
+    cl_float fov;   // 4B
 } Camera;
 
 typedef struct
 {
+    Camera camera;         // camera struct
     cl_uint width;         // window width
     cl_uint height;        // window height
     cl_uint n_objects;     // number of objects in scene
     cl_uint n_tris;
     cl_uint n_lights;      // number of lights in scene
-    cl_bool flashlight;
-    Camera camera;         // camera struct
-} RenderParams;
+    cl_uint useEnvMap;
+    cl_uint flashlight;
+} RenderParams; //

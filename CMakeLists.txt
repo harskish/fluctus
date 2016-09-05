@@ -8,7 +8,7 @@ find_package(GLEW REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_search_module(GLFW REQUIRED glfw3)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-writable-strings")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 include_directories(
@@ -41,6 +41,10 @@ set(SOURCE_FILES
     src/scene.hpp
     src/tinyfiledialogs.c
     src/tinyfiledialogs.h
+    src/envmap.hpp
+    src/envmap.cpp
+    src/rgbe/rgbe.hpp
+    src/rgbe/rgbe.cpp
 )
 
 add_executable(CL_TRACE ${SOURCE_FILES})

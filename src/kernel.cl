@@ -2,11 +2,16 @@
 
 #define printVec3(title, v) printf("%s: { %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z)
 #define printVec4(title, v) printf("%s: { %.4f, %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z, (v).w)
-//#define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
+#define dbg(expr) if(get_global_id(0) == 0 && get_global_id(1) == 0) { expr; }
 //#define dbg(expr) if(false) { expr; }
 
-#define swap_m(a, b, t) { t tmp = a; a = b; b = tmp; }
+// For reading the environment map texture
+constant sampler_t sampler =
+    CLK_NORMALIZED_COORDS_FALSE |
+    CLK_ADDRESS_CLAMP_TO_EDGE |
+    CLK_FILTER_NEAREST; //CLK_FILTER_LINEAR
 
+#define swap_m(a, b, t) { t tmp = a; a = b; b = tmp; }
 inline void swap(float *a, float *b)
 {
   float tmp = *b;
@@ -203,6 +208,17 @@ inline bool intersectTriangle(Ray *r, global Triangle *tri, float *tret, float *
     return true;
 }
 
+inline float3 evalEnvMap(read_only image2d_t envMap, float3 dir)
+{
+    int2 envMapDim = get_image_dim(envMap);
+    float u = 1.0f + atan2(dir.x, -dir.z) / M_PI_F;
+    float v = acos(dir.y) / M_PI_F;
+    int x = min(envMapDim.x - 1, (int)(envMapDim.x * u / 2.0f));
+    int y = min(envMapDim.y - 1, (int)(envMapDim.y * v));
+
+    return read_imagef(envMap, sampler, (int2)(x, y)).xyz;
+}
+
 // BVH traversal using simulated stack
 inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global GPUNode *nodes, global uint *indices)
 {
@@ -233,13 +249,12 @@ inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
 
         if (n.nPrims != 0) // Leaf node
         {
-            float3 dir = r->dir;
             float tmin = FLT_MAX, umin = 0.0f, vmin = 0.0f;
             int imin = -1;
             for (uint i = n.iStart; i < n.iStart + n.nPrims; i++)
             {
                 float t, u, v;
-                if (intersectTriangle(r, &(tris[indices[i]]), &t, &u, &v)) //tri.intersect_woop(orig, dir, t, u, v)
+                if (intersectTriangle(r, &(tris[indices[i]]), &t, &u, &v))
                 {
                     if (t > 0.0f && t < tmin)
                     {
@@ -423,7 +438,7 @@ OPENCL MEMORY SPACES:
 | Local    | __local        | Work-group-wide | Shared   | __shared__   |
 | Private  | __private      | Work-item-wide  | Local    |              |
 */
-kernel void trace(global float *out, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
+kernel void trace(global float *out, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
@@ -444,6 +459,11 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
 
         // Intersection shading
         // pixelColor = scene[hit.i].Kd;
+    }
+    else if(params->useEnvMap)
+    {
+        // Ambient lighting
+        pixelColor = evalEnvMap(envMap, r.dir);
     }
 
     //float4 prev = vload4((y * params->width + x), out);

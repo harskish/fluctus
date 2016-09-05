@@ -34,6 +34,7 @@ public:
     void loadCameraState();
 
     void selectScene();
+    void initEnvMap();
 
     // Create/load/export BVH
     void initHierarchy();

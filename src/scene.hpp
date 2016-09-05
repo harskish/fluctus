@@ -16,6 +16,7 @@
 #include <chrono>
 
 #include "triangle.hpp"
+#include "envmap.hpp"
 #include "math/float3.hpp"
 
 using FireRays::float3;
@@ -23,11 +24,12 @@ using FireRays::float3;
 class Scene {
 public:
     Scene(const std::string filename);
-    ~Scene() = default;
+    ~Scene();
 
     std::vector<RTTriangle> &getTriangles() { return triangles; }
+    EnvironmentMap *getEnvMap() { return envmap; }
 
-  std::string hashString();
+    std::string hashString();
 
 private:
     void loadModel(const std::string filename); // load .obj or .ply model
@@ -41,6 +43,7 @@ private:
 
   void computeHash(const std::string filename);
 
-    std::vector<RTTriangle> triangles;
+  EnvironmentMap *envmap = nullptr;
+  std::vector<RTTriangle> triangles;
   size_t hash;
 };

@@ -15,9 +15,11 @@ Tracer::Tracer(int width, int height)
     params.height = (unsigned int)height;
     params.n_lights = sizeof(test_lights) / sizeof(Light);
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
-    params.flashlight = false;
+    params.useEnvMap = 0;
+    params.flashlight = 0;
 
     initCamera();
+    initEnvMap();
     loadCameraState(); // useful when debugging
 }
 
@@ -28,6 +30,22 @@ void Tracer::selectScene()
 
     std::string selected = (files) ? std::string(files) : "assets/teapot.ply";
     scene = new Scene(selected);
+}
+
+void Tracer::initEnvMap()
+{
+    EnvironmentMap *envMap = scene->getEnvMap();
+    if (envMap)
+    {
+        params.useEnvMap = 1;
+        clctx->createEnvMap(envMap->getData(), envMap->getWidth(), envMap->getHeight());
+    }
+    else
+    {
+        // Create dummy image (kernel arguments cannot be left unitialized)
+        float rgb[3] = { 0.0f, 0.0f, 0.0f };
+        clctx->createEnvMap(rgb, 1, 1);
+    }
 }
 
 // Check if old hierarchy can be reused
@@ -182,7 +200,7 @@ void Tracer::initCamera()
 }
 
 // "The rows of R represent the coordinates in the original space of unit vectors along the
-// coordinate axes of the rotated space." (https://www.fastgraph.com/makegames/3drotation/)
+//  coordinate axes of the rotated space." (https://www.fastgraph.com/makegames/3drotation/)
 void Tracer::updateCamera()
 {
     if(cameraRotation.x < 0) cameraRotation.x += 360.0f;

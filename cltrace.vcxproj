@@ -124,8 +124,10 @@
     <ClCompile Include="src\bvh.cpp" />
     <ClCompile Include="src\bvhnode.cpp" />
     <ClCompile Include="src\clcontext.cpp" />
+    <ClCompile Include="src\envmap.cpp" />
     <ClCompile Include="src\kernelreader.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\rgbe\rgbe.cpp" />
     <ClCompile Include="src\scene.cpp" />
     <ClCompile Include="src\tinyfiledialogs.c" />
     <ClCompile Include="src\tracer.cpp" />
@@ -139,8 +141,10 @@
     <ClInclude Include="src\bvh.hpp" />
     <ClInclude Include="src\bvhnode.hpp" />
     <ClInclude Include="src\clcontext.hpp" />
+    <ClInclude Include="src\envmap.hpp" />
     <ClInclude Include="src\geom.h" />
     <ClInclude Include="src\kernelreader.hpp" />
+    <ClInclude Include="src\rgbe\rgbe.hpp" />
     <ClInclude Include="src\rtutil.hpp" />
     <ClInclude Include="src\scene.hpp" />
     <ClInclude Include="src\tinyfiledialogs.h" />

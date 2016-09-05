@@ -6,7 +6,7 @@
 
 CLContext::CLContext(GLuint gl_PBO)
 {
-    //printDevices();
+    printDevices();
 
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
@@ -22,7 +22,7 @@ CLContext::CLContext(GLuint gl_PBO)
 
     // Macbook pro 15 fix
     #ifdef __APPLE__
-    clDevices.erase(clDevices.begin());
+    //clDevices.erase(clDevices.begin());
     #endif
 
     // Init shared context
@@ -109,6 +109,31 @@ void CLContext::createPBO(GLuint gl_PBO)
     std::cout << "Created CL-PBO at " << (sharedMemory.back())() << std::endl;
 }
 
+void CLContext::createEnvMap(float *data, int width, int height)
+{
+    // Convert rgb to rgba (OpenCL doesn't support floats for RGB-images)
+    float *rgba = new float[width * height * 4];
+    for (int h = 0; h < height; h++)
+    {
+        for (int w = 0; w < width; w++)
+        {
+            // RGB
+            for (int c = 0; c < 3; c++) // color channels
+            {
+                rgba[(h * width + w) * 4 + c] = data[(h * width + w) * 3 + c];
+            }
+            // Alpha
+            rgba[(h * width + w) * 4 + 3] = 1.0f;
+        }
+    }
+
+    const cl::ImageFormat format(CL_RGBA, CL_FLOAT);
+    environmentMap = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, format, width, height, 0, rgba, &err);
+    verify("Environment map creation failed!");
+
+    delete [] rgba;
+}
+
 void CLContext::setupScene()
 {
     size_t s_bytes = sizeof(test_spheres);
@@ -189,6 +214,7 @@ void CLContext::executeKernel(const RenderParams &params)
     err |= pt_kernel.setArg(i++, triangleBuffer);
     err |= pt_kernel.setArg(i++, nodeBuffer);
     err |= pt_kernel.setArg(i++, indexBuffer);
+    err |= pt_kernel.setArg(i++, environmentMap);
     err |= pt_kernel.setArg(i++, renderParams);
     verify("Failed to set kernel arguments!");
 
