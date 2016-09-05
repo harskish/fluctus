@@ -5,7 +5,7 @@ Scene::Scene(const std::string filename)
     loadModel(filename); // Assume file is a model, not a scene. Just for now ;)
 
     // Test
-    envmap = new EnvironmentMap("assets/glacier.hdr");
+    envmap = new EnvironmentMap("assets/dawn.hdr");
 }
 
 Scene::~Scene()

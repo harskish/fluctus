@@ -24,6 +24,11 @@ inline float3 lerp(float u, float v, float3 v1, float3 v2, float3 v3)
     return (1.0f - u - v) * v1 + u * v2 + v * v3;
 }
 
+inline float3 reflect(float3 dir, float3 n)
+{
+    return dir - 2.0f * dot(dir, n) * n;
+}
+
 inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
 {
     float t0, t1;
@@ -313,14 +318,15 @@ inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
     return found;
 }
 
-inline Ray getCameraRay(const uint x, const uint y, global RenderParams *params)
+// x and y include offsets when supersampling
+inline Ray getCameraRay(const float2 pos, global RenderParams *params)
 {
     // Camera plane is 1 unit away, by convention
     // Camera points in the negative z-direction
 
     // NDC-space, [0,1]x[0,1]
-    float NDCx = (x + 0.5f) / params->width;
-    float NDCy = (y + 0.5f) / params->height;
+    float NDCx = pos.x / params->width;
+    float NDCy = pos.y / params->height;
 
     // Screen space, [-1,1]x[-1,1]
     float SCRx = 2.0f * NDCx - 1.0f;
@@ -429,6 +435,38 @@ inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tr
     return res;
 }
 
+// Return a sample through the center of the Nth subpixel
+inline float2 sampleRegular(int n, int dim)
+{
+    float d = 1.0f / dim;
+	int x = n % dim;
+	int y = n / dim;
+
+    float xm1 = d * (x + 0.5f);
+    float ym1 = d * (y + 0.5f);
+
+    return (float2)(xm1, ym1);
+}
+
+inline float3 reflectionShading(Hit *hit, read_only image2d_t envMap, global RenderParams *params)
+{
+    float3 V = normalize(params->camera.pos - hit->P); // P to eye
+    float vDotN = dot(V, hit->N);
+    if(vDotN < 0)
+    {
+        hit->N *= -1.0f;
+    }
+
+    /*
+    float3 refl = reflect(-V, hit->N);
+    Ray secondary = { (hit->P + 1e-3f * hit->N), refl };
+    Hit shdw = raycast(&secondary, FLT_MAX, scene, tris, nodes, indices, params);
+    float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
+    */
+
+    return evalEnvMap(envMap, reflect(-V, hit->N)) - (float3)(0.1f);
+}
+
 /* 
 OPENCL MEMORY SPACES:
 | OpenCL   | OpenCL keyword | Scope           | CUDA     | CUDA keyword |
@@ -445,26 +483,39 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
 
     if(x >= params->width || y >= params->height) return;
 
-    Ray r = getCameraRay(x, y, params);
-    Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
-
     float3 pixelColor = (float3)(0.0f);
-    if(hit.i > -1)
-    {
-        // Whitted shading
-        pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
-        
-        // Depth shading
-        //pixelColor = (float3)(hit.t / 8.0f);
 
-        // Intersection shading
-        // pixelColor = scene[hit.i].Kd;
-    }
-    else if(params->useEnvMap)
+    // Supersampling
+    const int SAMPLES = 16;
+    const int dim = (int)sqrt((float)SAMPLES);
+    for(int n = 0; n < SAMPLES; n++)
     {
-        // Ambient lighting
-        pixelColor = evalEnvMap(envMap, r.dir);
+        float2 pos = (float2)(x, y) + sampleRegular(n, dim);
+        Ray r = getCameraRay(pos, params);
+        Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
+
+        if(hit.i > -1)
+        {
+            // Whitted shading
+            //pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
+
+            // Reflections + environment map
+            pixelColor += reflectionShading(&hit, envMap, params);
+
+            // Depth shading
+            //pixelColor = (float3)(hit.t / 8.0f);
+
+            // Intersection shading
+            // pixelColor = scene[hit.i].Kd;
+        }
+        else if(params->useEnvMap)
+        {
+            // Ambient lighting
+            pixelColor += evalEnvMap(envMap, r.dir);
+        }
     }
+    
+    pixelColor /= (float)SAMPLES;
 
     //float4 prev = vload4((y * params->width + x), out);
     //pixelColor = 0.005f * pixelColor + prev.xyz;

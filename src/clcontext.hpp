@@ -36,7 +36,7 @@ static Sphere test_spheres[] =
 {
     // radius, position, Kd
     //{ 1.0f, float4(0.0f, 0.0f, 0.0f, 0.0f), RGB2f4(255, 0, 0) },             // big sphere
-    { 0.5f, float4(0.0f, 1.5f, 0.0f, 0.0f), RGB2f4(0, 255, 0) },             // small sphere
+    { 0.0f, float4(0.0f, 1.5f, 0.0f, 0.0f), RGB2f4(0, 255, 0) },             // small sphere
     //{ 1000.0f, float4(0.0f, -1005.0f, 0.0f, 0.0f), RGB2f4(0, 0, 255) },      // floor
     //{ 1000.0f, float4(0.0f, 0.0f, -1008.0f, 0.0f), RGB2f4(180, 190, 180) },  // front (visible) wall
     //{ 1000.0f, float4(-1008.0f, 0.0f, 0.0f, 0.0f), RGB2f4(205, 110, 15) },   // left wall
