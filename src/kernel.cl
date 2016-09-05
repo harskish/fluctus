@@ -7,9 +7,9 @@
 
 // For reading the environment map texture
 constant sampler_t sampler =
-    CLK_NORMALIZED_COORDS_FALSE |
+    CLK_NORMALIZED_COORDS_TRUE | // use UVs directly
     CLK_ADDRESS_CLAMP_TO_EDGE |
-    CLK_FILTER_NEAREST; //CLK_FILTER_LINEAR
+    CLK_FILTER_LINEAR;
 
 #define swap_m(a, b, t) { t tmp = a; a = b; b = tmp; }
 inline void swap(float *a, float *b)
@@ -218,10 +218,8 @@ inline float3 evalEnvMap(read_only image2d_t envMap, float3 dir)
     int2 envMapDim = get_image_dim(envMap);
     float u = 1.0f + atan2(dir.x, -dir.z) / M_PI_F;
     float v = acos(dir.y) / M_PI_F;
-    int x = min(envMapDim.x - 1, (int)(envMapDim.x * u / 2.0f));
-    int y = min(envMapDim.y - 1, (int)(envMapDim.y * v));
 
-    return read_imagef(envMap, sampler, (int2)(x, y)).xyz;
+    return read_imagef(envMap, sampler, (float2)(u / 2.0f, v)).xyz;
 }
 
 // BVH traversal using simulated stack
@@ -486,7 +484,7 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
     float3 pixelColor = (float3)(0.0f);
 
     // Supersampling
-    const int SAMPLES = 16;
+    const int SAMPLES = 4;
     const int dim = (int)sqrt((float)SAMPLES);
     for(int n = 0; n < SAMPLES; n++)
     {
