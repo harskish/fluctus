@@ -5,7 +5,7 @@ Scene::Scene(const std::string filename)
     loadModel(filename); // Assume file is a model, not a scene. Just for now ;)
 
     // Test
-    envmap = new EnvironmentMap("assets/glacier.hdr");
+    envmap = new EnvironmentMap("assets/env_maps/glacier.hdr");
 }
 
 Scene::~Scene()
@@ -85,7 +85,8 @@ void Scene::loadModel(const std::string filename)
 //  `f v1/vt1/vn1 v2/vt2/vn2 ...`
 //  `f v1//vn1 v2//vn2 ...`
 //  `f v1 v2 ...`
-inline void setFaceFormat(int &format, std::istringstream &line)
+//  `f -v1 -v2 ...`
+inline void setFaceFormat(int &format, std::string &format_string, bool &negatives, std::istringstream &line)
 {
     if (format > -1) return; // Only set once
     
@@ -97,6 +98,8 @@ inline void setFaceFormat(int &format, std::istringstream &line)
     int ind = 0;
     for (char c : block1)
     {
+        if (c == '-')
+            negatives = true;
         if (c == '/')
             ind++;
         else if (ind == 0)
@@ -110,13 +113,37 @@ inline void setFaceFormat(int &format, std::istringstream &line)
     }
 
     if (textures && normals)
-        format = 0; // "f %u/%u/%u %u/%u/%u %u/%u/%u";
+    {
+        format = 0;
+        format_string = "f %u/%u/%u %u/%u/%u %u/%u/%u";
+    }
     else if (!textures && normals)
-        format = 1; // "f %u//%u %u//%u %u//%u";
+    {
+        format = 1;
+        format_string = "f %u//%u %u//%u %u//%u";
+    }
     else if (textures && !normals)
-        format = 2; // "f %u/%u %u/%u %u/%u";
+    {
+        format = 2;
+        format_string = "f %u/%u %u/%u %u/%u";
+    }
     else
-        format = 3; // "f %u %u %u";
+    {
+        format = 3;
+        format_string = "f %u %u %u";
+    }
+
+    // Replace "%u" with "-%u"
+    if (negatives)
+    {
+        std::stringstream res;
+        for (char c : format_string)
+        {
+            if (c == '%') res << '-';
+            res << c;
+        }
+        format_string = res.str();
+    }
 }
 
 void Scene::loadObjModel(const std::string filename)
@@ -125,6 +152,8 @@ void Scene::loadObjModel(const std::string filename)
     std::vector<std::array<unsigned, 6>> faces;
     
     int face_format = -1;
+    std::string format_string = "";
+    bool negative_indices = false;
 
     // Open input file stream for reading.
     std::ifstream input(filename, std::ios::in);
@@ -169,29 +198,44 @@ void Scene::loadObjModel(const std::string filename)
         }
         else if (s == "f")
         {
-            setFaceFormat(face_format, iss);
+            setFaceFormat(face_format, format_string, negative_indices, iss);
 
             unsigned sink; // Texture indices ignored for now
 
             switch (face_format) {
             case 0:
-                sscanf(line.c_str(), "f %u/%u/%u %u/%u/%u %u/%u/%u", &f[0], &sink, &f[1], &f[2], &sink, &f[3], &f[4], &sink, &f[5]);
+                sscanf(line.c_str(), format_string.c_str(), &f[0], &sink, &f[1], &f[2], &sink, &f[3], &f[4], &sink, &f[5]);
                 break;
             case 1:
-                sscanf(line.c_str(), "f %u//%u %u//%u %u//%u", &f[0], &f[1], &f[2], &f[3], &f[4], &f[5]);
+                sscanf(line.c_str(), format_string.c_str(), &f[0], &f[1], &f[2], &f[3], &f[4], &f[5]);
                 break;
             case 2:
-                sscanf(line.c_str(), "f %u/%u %u/%u %u/%u", &f[0], &sink, &f[2], &sink, &f[4], &sink);
+                sscanf(line.c_str(), format_string.c_str(), &f[0], &sink, &f[2], &sink, &f[4], &sink);
                 break;
             case 3:
-                sscanf(line.c_str(), "f %u %u %u", &f[0], &f[2], &f[4]);
+                sscanf(line.c_str(), format_string.c_str(), &f[0], &f[2], &f[4]);
                 break;
             }
 
-            // Obj indices start from 1, need to be shifted
-            for (unsigned& v : f)
+            if (negative_indices)
             {
-                v -= 1;
+                // Calculate indices from offsets
+                int p = positions.size();
+                int n = normals.size();
+                f[0] = p - f[0];
+                f[1] = n - f[1];
+                f[2] = p - f[2];
+                f[3] = n - f[3];
+                f[4] = p - f[4];
+                f[5] = n - f[5];
+            }
+            else
+            {
+                // Obj indices start from 1, need to be shifted
+                for (unsigned& v : f)
+                {
+                    v -= 1;
+                }
             }
 
             faces.push_back(f);
