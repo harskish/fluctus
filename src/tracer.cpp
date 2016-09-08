@@ -1,7 +1,7 @@
 #include "tracer.hpp"
 #include "geom.h"
 
-Tracer::Tracer(int width, int height): scene(NULL), bvh(NULL), clctx(NULL)
+Tracer::Tracer(int width, int height)
 {
     // done only once (VS debugging stops working if context is recreated)
     window = new PTWindow(width, height, this);
