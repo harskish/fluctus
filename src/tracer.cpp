@@ -1,16 +1,22 @@
 #include "tracer.hpp"
 #include "geom.h"
 
-Tracer::Tracer(int width, int height)
+Tracer::Tracer(int width, int height): scene(NULL), bvh(NULL), clctx(NULL)
 {
-    selectScene();
-    initHierarchy();
-
+    // done only once (VS debugging stops working if context is recreated)
     window = new PTWindow(width, height, this);
     window->setShowFPS(true);
     clctx = new CLContext(window->getPBO());
-    clctx->createBVHBuffers(bvh->m_triangles, &bvh->m_indices, &bvh->m_nodes);
+    initCamera();
+    loadCameraState(); // useful when debugging
+    
+    // done whenever a new scene is selected
+    init(width, height);
+}
 
+// Run whenever a scene is laoded
+void Tracer::init(int width, int height)
+{
     params.width = (unsigned int)width;
     params.height = (unsigned int)height;
     params.n_lights = sizeof(test_lights) / sizeof(Light);
@@ -18,9 +24,15 @@ Tracer::Tracer(int width, int height)
     params.useEnvMap = 0;
     params.flashlight = 0;
 
-    initCamera();
+    selectScene();
     initEnvMap();
-    loadCameraState(); // useful when debugging
+    initHierarchy();
+
+    clctx->createBVHBuffers(bvh->m_triangles, &bvh->m_indices, &bvh->m_nodes);
+
+    // Data uploaded to GPU => no longer needed
+    delete scene;
+    delete bvh;
 }
 
 void Tracer::selectScene()
@@ -71,8 +83,6 @@ Tracer::~Tracer()
 {
     delete window;
     delete clctx;
-    delete scene;
-    delete bvh;
 }
 
 bool Tracer::running()
@@ -215,7 +225,22 @@ void Tracer::updateCamera()
     params.camera.dir =  -float3(rot.m20, rot.m21, rot.m22); // camera points in the negative z-direction
 }
 
-// Polling enables instant and simultaneous key presses (callbacks less so)
+// Functional keys that need to be triggered only once per press
+#define match(key, expr) case key: expr; paramsUpdatePending = true; break;
+void Tracer::handleKeypress(int key)
+{
+    switch (key)
+    {
+        match(GLFW_KEY_M, init(params.width, params.height));
+        match(GLFW_KEY_H, params.flashlight = !params.flashlight);
+        match(GLFW_KEY_F1, initCamera());
+        match(GLFW_KEY_F2, saveCameraState());
+        match(GLFW_KEY_F3, loadCameraState());
+    }
+}
+#undef match
+
+// Instant and simultaneous key presses (movement etc.)
 #define check(key, expr) if(window->keyPressed(key)) { expr; paramsUpdatePending = true; }
 void Tracer::pollKeys()
 {
@@ -227,19 +252,14 @@ void Tracer::pollKeys()
     check(GLFW_KEY_D,           cam.pos += cameraSpeed * 0.07f * cam.right);
     check(GLFW_KEY_R,           cam.pos += cameraSpeed * 0.07f * cam.up);
     check(GLFW_KEY_F,           cam.pos -= cameraSpeed * 0.07f * cam.up);
-    check(GLFW_KEY_H,           params.flashlight = !params.flashlight);
-    check(GLFW_KEY_PERIOD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
-    check(GLFW_KEY_SEMICOLON,   cam.fov = std::max(cam.fov - 1.0f, 5.0f));
     check(GLFW_KEY_UP,          cameraRotation.y -= 1.0f);
     check(GLFW_KEY_DOWN,        cameraRotation.y += 1.0f);
     check(GLFW_KEY_LEFT,        cameraRotation.x -= 1.0f);
     check(GLFW_KEY_RIGHT,       cameraRotation.x += 1.0f);
+    check(GLFW_KEY_PERIOD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
+    check(GLFW_KEY_SEMICOLON,   cam.fov = std::max(cam.fov - 1.0f, 5.0f));
     check(GLFW_KEY_KP_ADD,      cameraSpeed += 0.1f);
     check(GLFW_KEY_KP_SUBTRACT, cameraSpeed = std::max(0.05f, cameraSpeed - 0.05f));
-    check(GLFW_KEY_F1,          initCamera());
-    check(GLFW_KEY_F2,          saveCameraState());
-    check(GLFW_KEY_F3,          loadCameraState());
-    check(GLFW_KEY_ESCAPE,      window->requestClose());
 
     if(paramsUpdatePending)
     {

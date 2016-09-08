@@ -27,7 +27,8 @@ public:
     void handleMouseButton(int key, int action);
     void handleCursorPos(double x, double y);
 
-    void pollKeys();
+    void pollKeys();              // movement keys
+    void handleKeypress(int key); // function keys
     void updateCamera();
     void initCamera();
     void saveCameraState();
@@ -35,6 +36,7 @@ public:
 
     void selectScene();
     void initEnvMap();
+    void init(int width, int height);
 
     // Create/load/export BVH
     void initHierarchy();

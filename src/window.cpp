@@ -1,6 +1,21 @@
 #include "window.hpp"
 #include "tracer.hpp"
 
+// For keys that need to be registered only once per press
+void keyPressCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    if (action == GLFW_RELEASE)
+        return;
+
+    if (key == GLFW_KEY_ESCAPE)
+        glfwSetWindowShouldClose(window, GL_TRUE);
+
+    // Pass keypress to tracer
+    void *ptr = glfwGetWindowUserPointer(window);
+    Tracer *instance = reinterpret_cast<Tracer*>(ptr);
+    instance->handleKeypress(key);
+}
+
 void errorCallback(int error, const char *desc)
 {
     std::cerr << desc << " (error " << error << ")" << std::endl;
@@ -46,6 +61,7 @@ PTWindow::PTWindow(int width, int height, void *tracer)
 
     glfwMakeContextCurrent(window);
     glfwSetErrorCallback(errorCallback);
+    glfwSetKeyCallback(window, keyPressCallback);
     glfwSetWindowCloseCallback(window, windowCloseCallback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
