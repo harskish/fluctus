@@ -3,7 +3,7 @@
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
 #define CL_HPP_TARGET_OPENCL_VERSION 120
 
-#define RGB2f4(r,g,b) float4(r / 255.0f, g / 255.0f, b / 255.0f, 0.0f)
+#define RGB2f3(r,g,b) float4(r / 255.0f, g / 255.0f, b / 255.0f)
 
 #include "cl2.hpp" // first due to conflicts with X.h (included by glxew)
 
@@ -36,7 +36,7 @@ static Sphere test_spheres[] =
 {
     // radius, position, Kd
     //{ 1.0f, float4(0.0f, 0.0f, 0.0f, 0.0f), RGB2f4(255, 0, 0) },             // big sphere
-    { 0.0f, float4(0.0f, 1.5f, 0.0f, 0.0f), RGB2f4(0, 255, 0) },             // small sphere
+    { 0.0f, float4(0.0f, 1.5f, 0.0f, 0.0f), RGB2f3(0, 255, 0) },             // small sphere
     //{ 1000.0f, float4(0.0f, -1005.0f, 0.0f, 0.0f), RGB2f4(0, 0, 255) },      // floor
     //{ 1000.0f, float4(0.0f, 0.0f, -1008.0f, 0.0f), RGB2f4(180, 190, 180) },  // front (visible) wall
     //{ 1000.0f, float4(-1008.0f, 0.0f, 0.0f, 0.0f), RGB2f4(205, 110, 15) },   // left wall
@@ -47,9 +47,8 @@ static Sphere test_spheres[] =
 
 static Light test_lights[] =
 {
-    { L_POINT, RGB2f4(255, 255, 255), 40.0f, { float3(0.0f, 16.5f, 0.0f) } },
-    { L_POINT, RGB2f4(255, 255, 255), 30.0f, { float3(2.0f, 4.0f, 0.0f) } },
-    //{ L_POINT, RGB2f4(255, 255, 255), 30.0f, { float3(7.5f, 19.0f, -7.0f) } }
+    { RGB2f3(255, 255, 255) * 40.0f, {float3(0.0f, 16.5f, 0.0f)}, {float3(0.0f)}, L_POINT },
+    { RGB2f3(255, 255, 255) * 30.0f, {float3(2.0f, 4.0f, 0.0f)}, {float3(0.0f)}, L_POINT },
 };
 
 class CLContext

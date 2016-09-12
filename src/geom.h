@@ -74,15 +74,14 @@ enum lightType
 
 typedef struct
 {
-    enum lightType type;
-    float3 color;
-    cl_float intensity;
+    float3 E;   // [A,D,P] Diffuse emission (W/m^2), ~'color * intensity'?
+    float3 pos; // [A,P]
     union
     {
-        float3 pos; // P/A
-        float3 dir; // D
+        float3 N;   // [A] normal, no rotation in xy-plane assumed for square area lights
+        float3 dir; // [D]
     };
-    // more params needed for area lights...
+    enum lightType type;
 } Light;
 
 typedef struct

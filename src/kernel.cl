@@ -24,9 +24,21 @@ inline float3 lerp(float u, float v, float3 v1, float3 v2, float3 v3)
     return (1.0f - u - v) * v1 + u * v2 + v * v3;
 }
 
-inline float3 reflect(float3 dir, float3 n)
+inline float3 reflect(float3 dir, float3 n) // dir normalized?
 {
     return dir - 2.0f * dot(dir, n) * n;
+}
+
+inline float3 refract(float3 dir, float3 n, float n1, float n2) // n1 = current, n2 = new
+{
+    float cosI = dot(-normalize(dir), n);
+    float cosT = 1.0f - pow(n1 / n2, 2.0f) * (1.0f - pow(cosI, 2.0f));
+	float raylen = length(dir);
+
+	if (cosT < 0.0f)
+		return raylen * reflect(normalize(dir), n); // Total internal reflection
+	else
+        return raylen * (normalize(dir) * (n1 / n2) + n * ((n1 / n2) * cosI - sqrt(cosT)));
 }
 
 inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
@@ -391,7 +403,7 @@ inline float3 calcLighting(Light light, float3 V, Hit *hit, global Sphere *scene
     float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
 
     // Testing material:
-    float3 Ks = (float3)(1.0f);
+    float3 Ks = (float3)(1.0f); // fraction of light reflected, per color channel
     float glossiness = 0.025f; // probably not the right name...
 
     float3 H = normalize(L + V);
@@ -401,7 +413,7 @@ inline float3 calcLighting(Light light, float3 V, Hit *hit, global Sphere *scene
     if(dot(hit->N, L) < 0) specular = (float3)(0.0f);
 
     float falloff = 1.0f / (dist * dist + 1e-5f);
-    return visibility * light.intensity * falloff * (diffuse + specular);
+    return visibility * light.E * falloff * (diffuse + specular);
 }
 
 inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global Light *lights, global RenderParams *params)
@@ -426,7 +438,7 @@ inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tr
     if(params->flashlight)
     {
         float3 lPos = params->camera.pos + 0.1f * params->camera.dir;
-        Light flashlight = { L_POINT, (float3)(1.0f), 10.0f, .pos={lPos} };
+        Light flashlight = { (float3)(10.0f), lPos, .N={(float3)(0.0f)}, L_POINT };
         res += calcLighting(flashlight, V, hit, scene, tris, nodes, indices, params);
     }
 
@@ -455,14 +467,67 @@ inline float3 reflectionShading(Hit *hit, read_only image2d_t envMap, global Ren
         hit->N *= -1.0f;
     }
 
-    /*
-    float3 refl = reflect(-V, hit->N);
-    Ray secondary = { (hit->P + 1e-3f * hit->N), refl };
-    Hit shdw = raycast(&secondary, FLT_MAX, scene, tris, nodes, indices, params);
-    float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
-    */
-
     return evalEnvMap(envMap, reflect(-V, hit->N)) - (float3)(0.1f);
+}
+
+// Ray tracing!
+inline float3 traceRay(float2 pos, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+{
+    float3 pixelColor = (float3)(0.0f);
+
+    // Supersampling
+    const int SAMPLES = 1;
+    const int dim = (int)sqrt((float)SAMPLES);
+    for (int n = 0; n < SAMPLES; n++)
+    {
+        pos += sampleRegular(n, dim);
+        Ray r = getCameraRay(pos, params);
+        Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
+
+        if (hit.i > -1)
+        {
+            // Whitted shading
+            //pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
+
+            // Reflections + environment map
+            pixelColor += reflectionShading(&hit, envMap, params);
+
+            // Depth shading
+            //pixelColor = (float3)(hit.t / 8.0f);
+
+            // Intersection shading
+            // pixelColor = scene[hit.i].Kd;
+        }
+        else if (params->useEnvMap)
+        {
+            // Ambient lighting
+            pixelColor += evalEnvMap(envMap, r.dir);
+        }
+    }
+
+    pixelColor /= (float)SAMPLES;
+    return pixelColor;
+}
+
+// Path tracing!
+inline float3 tracePath(float2 pos, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+{
+    float3 Ei = (float3)(0.0f);         // Irradiance
+    float3 throughput = (float3)(1.0f); // BRDF
+    float prob = 1.0f;                  // PDF
+
+    Ray r = getCameraRay(pos, params);
+    Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
+
+    // Arealight for testing
+
+
+    if(hit.i > -1)
+    {
+        
+    }
+
+    return Ei;
 }
 
 /* 
@@ -481,39 +546,9 @@ kernel void trace(global float *out, global Sphere *scene, global Light *lights,
 
     if(x >= params->width || y >= params->height) return;
 
-    float3 pixelColor = (float3)(0.0f);
-
-    // Supersampling
-    const int SAMPLES = 4;
-    const int dim = (int)sqrt((float)SAMPLES);
-    for(int n = 0; n < SAMPLES; n++)
-    {
-        float2 pos = (float2)(x, y) + sampleRegular(n, dim);
-        Ray r = getCameraRay(pos, params);
-        Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
-
-        if(hit.i > -1)
-        {
-            // Whitted shading
-            //pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
-
-            // Reflections + environment map
-            pixelColor += reflectionShading(&hit, envMap, params);
-
-            // Depth shading
-            //pixelColor = (float3)(hit.t / 8.0f);
-
-            // Intersection shading
-            // pixelColor = scene[hit.i].Kd;
-        }
-        else if(params->useEnvMap)
-        {
-            // Ambient lighting
-            pixelColor += evalEnvMap(envMap, r.dir);
-        }
-    }
+    float3 pixelColor = traceRay((float2)(x, y), scene, lights, tris, nodes, indices, envMap, params);
+    //float3 pixelColor = tracePath((float2)(x, y), scene, lights, tris, nodes, indices, envMap, params);
     
-    pixelColor /= (float)SAMPLES;
 
     //float4 prev = vload4((y * params->width + x), out);
     //pixelColor = 0.005f * pixelColor + prev.xyz;
