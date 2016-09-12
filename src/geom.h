@@ -81,6 +81,7 @@ typedef struct
         float3 N;   // [A] normal, no rotation in xy-plane assumed for square area lights
         float3 dir; // [D]
     };
+    float size; // [A] half of the total width/height, measured from center
     enum lightType type;
 } Light;
 
