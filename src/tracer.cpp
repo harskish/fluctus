@@ -111,10 +111,12 @@ void Tracer::update()
     {
         clctx->updateParams(params);
         paramsUpdatePending = false;
+        iteration = 0; // accumulation reset
     }
 
     // Advance render state
-    clctx->executeKernel(params);
+    clctx->executeKernel(params, iteration++);
+    if (iteration % 50 == 0) std::cout << "\r" << iteration << " spp" << std::flush;
 
     // Draw progress to screen
     window->repaint();

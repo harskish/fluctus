@@ -204,7 +204,7 @@ void CLContext::updateParams(const RenderParams &params)
     // std::cout << "RenderParams updated!" << std::endl;
 }
 
-void CLContext::executeKernel(const RenderParams &params)
+void CLContext::executeKernel(const RenderParams &params, const cl_uint iteration)
 {
     int i = 0;
     err = 0;
@@ -216,6 +216,7 @@ void CLContext::executeKernel(const RenderParams &params)
     err |= pt_kernel.setArg(i++, indexBuffer);
     err |= pt_kernel.setArg(i++, environmentMap);
     err |= pt_kernel.setArg(i++, renderParams);
+    err |= pt_kernel.setArg(i++, iteration);
     verify("Failed to set kernel arguments!");
 
     size_t max_gw_size;

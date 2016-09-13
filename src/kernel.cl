@@ -478,12 +478,20 @@ inline float rand(uint *seed)
 
 inline void sampleAreaLight(Light light, float *pdf, float3 *p, uint *seed)
 {
-    *pdf = 1.0f / (4.0f * light.size * light.size); // square
+    const float2 size = (float2)(light.size, light.size); // square for now
+    
+    *pdf = 1.0f / (4.0f * size.x * size.y);
     *p = light.pos;
     float r1 = 2.0f * rand(seed) - 1.0f;
     float r2 = 2.0f * rand(seed) - 1.0f;
-    *p += r1 * light.size * (float3)(0.0f, 0.0f, -1.0f); // FOR TESTING ONLY!
-    *p += r2 * light.size * normalize((float3)(-1.0f, -1.0f, 0.0f)); // FOR TESTING ONLY!
+
+    // FOR TESTING ONLY!
+    const float3 right = (float3)(0.0f, 0.0f, -1.0f);
+    const float3 up = normalize((float3)(-1.0f, -1.0f, 0.0f));
+    // FOR TESTING ONLY!
+
+    *p += r1 * size.x * right;
+    *p += r2 * size.y * up;
 }
 
 inline void sampleHemisphere(float3 *pos, float3 *n, float *costh, uint *seed, float *p, float3 *dir)
@@ -508,30 +516,18 @@ inline void sampleHemisphere(float3 *pos, float3 *n, float *costh, uint *seed, f
     float3 v = cross(w, u);
     
     u *= (cos(r1) * r2s);
-    //vsmul(u, cos(r1) * r2s, u);
-    
     v *= (sin(r1) * r2s);
-    //vsmul(v, sin(r1) * r2s, v);
-    
-    float3 newDir = u + v;
-
-    //vadd(newDir, u, v);
-
     w *= (sqrt(1 - r2));
-    //vsmul(w, sqrt(1 - r2), w);
-    
-    newDir += w;
-    //vadd(newDir, newDir, w);
 
-    *dir = newDir; // normalized?
+    *dir = u + v + w;
     *costh = dot(*n, *dir);
     *p = *costh / M_PI_F; //pdf
 }
 
-inline void getTextureParameters(Hit hit, float3 *Kd, float3 *N, float3 *Ks)
+inline void getTextureParameters(Hit hit, global Sphere *scene, float3 *Kd, float3 *N, float3 *Ks)
 {
     // Dummy method for now, should read from textures (if available)
-    *Kd = (float3)(1.0f, 0.0f, 1.0f);
+    *Kd = scene[hit.i].Kd;
     *N = hit.N;
     *Ks = (float3)(1.0f);
 }
@@ -588,7 +584,7 @@ inline float3 traceRay(float2 pos, global Sphere *scene, global Light *lights, g
 }
 
 // Path tracing!
-inline float3 tracePath(float2 pos, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
 {
     float3 Ei = (float3)(0.0f);         // Irradiance
     float3 throughput = (float3)(1.0f); // BRDF
@@ -600,26 +596,27 @@ inline float3 tracePath(float2 pos, global Sphere *scene, global Light *lights, 
 
     // Arealight for testing
     // Should be passed from host and rendered as a white square
-    Light areaLight = { (float3)(10.0f), {(float3)(3.0f, 6.0f, 0.0f)}, .N = {normalize((float3)(-3.0f, -6.0f, -0.0f))}, 1.5f, L_AREA };
+    //Light areaLight = { (float3)(30.0f), {(float3)(3.0f, 6.0f, 0.0f)}, .N = {normalize((float3)(-3.0f, -6.0f, -0.0f))}, 0.5f, L_AREA };
+    Light areaLight;
+    areaLight.E = (float3)(30.0f); //lights[0].E;
+    areaLight.pos = lights[0].pos;
+    areaLight.N = normalize((float3)(0.0f) - areaLight.pos);
+    areaLight.size = 1.5f;
+
     float3 emission = areaLight.E;
     float3 nLight = areaLight.N;
 
     // State
-    const int MAX_BOUNCES = 2;
-    
     /* LordCRC: move seed to local store?? */
-    uint seed = get_global_id(1) * params->width + get_global_id(0)/* + params->iteration*/; // unique for each pixel
-
+    uint seed = get_global_id(1) * params->width + get_global_id(0) + iter * params->width * params->height; // unique for each pixel
+    const int MAX_BOUNCES = 4;
     float3 dir = r.dir; // updated at each bounce
-
-    // Also update hit at each iteration? (pos + normal)
-
     int i = 0;
     
     while(i < MAX_BOUNCES && prob > 0.0f)
     {
         float3 Kd, Ks, n; // fetched from texture/material
-        getTextureParameters(hit, &Kd, &n, &Ks);
+        getTextureParameters(hit, scene, &Kd, &n, &Ks);
 
         // Backside of triangle hit
         bool backside = (dot(n, dir) > 0.0f);
@@ -650,7 +647,7 @@ inline float3 tracePath(float2 pos, global Sphere *scene, global Light *lights, 
         Ray rLight = { orig, L };
         Hit hitLight = raycast(&rLight, lenL, scene, tris, nodes, indices, params);
         
-        if(hitLight.i > -1) // light not obstructed
+        if(hitLight.i == -1) // light not obstructed
         {
             float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
             float costh = max(dot(n, normalize(L)), 0.0f);
@@ -660,7 +657,6 @@ inline float3 tracePath(float2 pos, global Sphere *scene, global Light *lights, 
         // Indirect
         float pdf, costh;
         sampleHemisphere(&(hit.P), &n, &costh, &seed, &pdf, &dir); // direction updated
-        dir *= 100.0f; // max length for ray?
 
         float3 brdf = Kd / M_PI_F;
         throughput *= brdf * costh;
@@ -687,19 +683,20 @@ OPENCL MEMORY SPACES:
 | Local    | __local        | Work-group-wide | Shared   | __shared__   |
 | Private  | __private      | Work-item-wide  | Local    |              |
 */
-kernel void trace(global float *out, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+kernel void trace(global float *out, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, uint iteration)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
 
     if(x >= params->width || y >= params->height) return;
 
+    // Trace
     //float3 pixelColor = traceRay((float2)(x, y), scene, lights, tris, nodes, indices, envMap, params);
-    float3 pixelColor = tracePath((float2)(x, y), scene, lights, tris, nodes, indices, envMap, params);
+    float3 pixelColor = tracePath((float2)(x, y), iteration, scene, lights, tris, nodes, indices, envMap, params);
     
-
-    //float4 prev = vload4((y * params->width + x), out);
-    //pixelColor = 0.005f * pixelColor + prev.xyz;
+    // Accumulate
+    float4 prev = vload4((y * params->width + x), out);
+    pixelColor = (pixelColor + iteration * prev.xyz) / (iteration + 1);
 
     vstore4((float4)(pixelColor, 0.0f), (y * params->width + x), out); // (value, offset, ptr)
 }

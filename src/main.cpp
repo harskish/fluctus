@@ -11,8 +11,8 @@
 int main(int argc, char* argv[])
 {
     // Initial size of window
-    int width = (argc > 1) ? atoi(argv[1]) : 1280;
-    int height = (argc > 2) ? atoi(argv[2]) : 720;
+    int width = (argc > 1) ? atoi(argv[1]) : 1000;
+    int height = (argc > 2) ? atoi(argv[2]) : 600;
 
 #ifdef _DEBUG
     width = 320;
@@ -35,14 +35,11 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
      */
 
-    int iter = 0;
-
     // Main loop
     while(tracer.running())
     {
         // Do stuff
         tracer.update();
-        if(++iter % 50 == 0) std::cout << "\rIteration " << iter << std::flush;
         //std::cout << "Press any key to continue..." << std::endl; system("read");
     }
 

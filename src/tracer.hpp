@@ -57,4 +57,5 @@ private:
     Scene *scene;
     BVH *bvh;
     std::vector<RTTriangle>* m_triangles;
+    cl_uint iteration;
 };
