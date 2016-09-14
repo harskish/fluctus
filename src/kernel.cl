@@ -392,7 +392,7 @@ inline Hit raycast(Ray *r, float tMax, global Sphere *scene, global Triangle *tr
 }
 
 // Blinn-Phong
-inline float3 calcLighting(Light light, float3 V, Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
+inline float3 calcLighting(PointLight light, float3 V, Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
 {
     float3 L = light.pos - hit->P;
     float dist = length(L);
@@ -416,7 +416,7 @@ inline float3 calcLighting(Light light, float3 V, Hit *hit, global Sphere *scene
     return visibility * light.E * falloff * (diffuse + specular);
 }
 
-inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global Light *lights, global RenderParams *params)
+inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tris, global GPUNode *nodes, global uint *indices, global PointLight *lights, global RenderParams *params)
 {
     float3 V = normalize(params->camera.pos - hit->P); // P to eye
     float vDotN = dot(V, hit->N);
@@ -430,7 +430,7 @@ inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tr
     // Point light assumed for now
     for(uint i = 0; i < params->n_lights; i++)
     {
-        Light light = lights[i];
+        PointLight light = lights[i];
         res += calcLighting(light, V, hit, scene, tris, nodes, indices, params);
     }
 
@@ -438,7 +438,7 @@ inline float3 whittedShading(Hit *hit, global Sphere *scene, global Triangle *tr
     if(params->flashlight)
     {
         float3 lPos = params->camera.pos + 0.1f * params->camera.dir;
-        Light flashlight = { (float3)(10.0f), lPos, .N={(float3)(0.0f)}, L_POINT };
+        PointLight flashlight = { (float3)(10.0f), lPos };
         res += calcLighting(flashlight, V, hit, scene, tris, nodes, indices, params);
     }
 
@@ -476,22 +476,14 @@ inline float rand(uint *seed)
     return (float)(*seed) * (1.0f / 4294967296.0f); // 1.0f / 2^32
 }
 
-inline void sampleAreaLight(Light light, float *pdf, float3 *p, uint *seed)
+inline void sampleAreaLight(AreaLight light, float *pdf, float3 *p, uint *seed)
 {
-    const float2 size = (float2)(light.size, light.size); // square for now
-    
-    *pdf = 1.0f / (4.0f * size.x * size.y);
+    *pdf = 1.0f / (4.0f * light.size.x * light.size.y);
     *p = light.pos;
     float r1 = 2.0f * rand(seed) - 1.0f;
     float r2 = 2.0f * rand(seed) - 1.0f;
-
-    // FOR TESTING ONLY!
-    const float3 right = (float3)(0.0f, 0.0f, -1.0f);
-    const float3 up = normalize((float3)(-1.0f, -1.0f, 0.0f));
-    // FOR TESTING ONLY!
-
-    *p += r1 * size.x * right;
-    *p += r2 * size.y * up;
+    *p += r1 * light.size.x * light.right;
+    *p += r2 * light.size.y * light.up;
 }
 
 inline void sampleHemisphere(float3 *pos, float3 *n, float *costh, uint *seed, float *p, float3 *dir)
@@ -545,12 +537,12 @@ inline float3 reflectionShading(Hit *hit, read_only image2d_t envMap, global Ren
 }
 
 // Ray tracing!
-inline float3 traceRay(float2 pos, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+inline float3 traceRay(float2 pos, global Sphere *scene, global PointLight *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
 {
     float3 pixelColor = (float3)(0.0f);
 
     // Supersampling
-    const int SAMPLES = 1;
+    const int SAMPLES = 9;
     const int dim = (int)sqrt((float)SAMPLES);
     for (int n = 0; n < SAMPLES; n++)
     {
@@ -561,10 +553,10 @@ inline float3 traceRay(float2 pos, global Sphere *scene, global Light *lights, g
         if (hit.i > -1)
         {
             // Whitted shading
-            pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
+            //pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
 
             // Reflections + environment map
-            //pixelColor += reflectionShading(&hit, envMap, params);
+            pixelColor += reflectionShading(&hit, envMap, params);
 
             // Depth shading
             //pixelColor = (float3)(hit.t / 8.0f);
@@ -584,7 +576,7 @@ inline float3 traceRay(float2 pos, global Sphere *scene, global Light *lights, g
 }
 
 // Path tracing!
-inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global PointLight *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
 {
     float3 Ei = (float3)(0.0f);         // Irradiance
     float3 throughput = (float3)(1.0f); // BRDF
@@ -594,15 +586,7 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Ligh
     Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
     if (hit.i < 0) return Ei;
 
-    // Arealight for testing
-    // Should be passed from host and rendered as a white square
-    //Light areaLight = { (float3)(30.0f), {(float3)(3.0f, 6.0f, 0.0f)}, .N = {normalize((float3)(-3.0f, -6.0f, -0.0f))}, 0.5f, L_AREA };
-    Light areaLight;
-    areaLight.E = (float3)(30.0f); //lights[0].E;
-    areaLight.pos = lights[0].pos;
-    areaLight.N = normalize((float3)(0.0f) - areaLight.pos);
-    areaLight.size = 1.5f;
-
+    AreaLight areaLight = params->areaLight;
     float3 emission = areaLight.E;
     float3 nLight = areaLight.N;
 
@@ -683,7 +667,7 @@ OPENCL MEMORY SPACES:
 | Local    | __local        | Work-group-wide | Shared   | __shared__   |
 | Private  | __private      | Work-item-wide  | Local    |              |
 */
-kernel void trace(global float *out, global Sphere *scene, global Light *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, uint iteration)
+kernel void trace(global float *out, global Sphere *scene, global PointLight *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, uint iteration)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top

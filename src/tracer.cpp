@@ -8,6 +8,7 @@ Tracer::Tracer(int width, int height)
     window->setShowFPS(true);
     clctx = new CLContext(window->getPBO());
     initCamera();
+    initAreaLight();
     loadCameraState(); // useful when debugging
     
     // done whenever a new scene is selected
@@ -19,7 +20,7 @@ void Tracer::init(int width, int height)
 {
     params.width = (unsigned int)width;
     params.height = (unsigned int)height;
-    params.n_lights = sizeof(test_lights) / sizeof(Light);
+    params.n_lights = sizeof(test_lights) / sizeof(PointLight);
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
     params.useEnvMap = 0;
     params.flashlight = 0;
@@ -211,6 +212,17 @@ void Tracer::initCamera()
     paramsUpdatePending = true;
 }
 
+void Tracer::initAreaLight()
+{
+    params.areaLight.E = float3(1.0f, 1.0f, 1.0f) * 20.0f;
+    params.areaLight.right = float3(0.0f, 0.0f, -1.0f);
+    params.areaLight.up = float3(0.0f, 1.0f, 0.0f);
+    params.areaLight.N = float4(-1.0f, 0.0f, 0.0f, 0.0f);
+    params.areaLight.pos = float4(1.0f, 1.0f, 0.0f, 1.0f);
+    params.areaLight.size = float2(2.0f, 2.0f);
+    paramsUpdatePending = true;
+}
+
 // "The rows of R represent the coordinates in the original space of unit vectors along the
 //  coordinate axes of the rotated space." (https://www.fastgraph.com/makegames/3drotation/)
 void Tracer::updateCamera()
@@ -227,6 +239,14 @@ void Tracer::updateCamera()
     params.camera.dir =  -float3(rot.m20, rot.m21, rot.m22); // camera points in the negative z-direction
 }
 
+void Tracer::updateAreaLight()
+{
+    params.areaLight.right = params.camera.right;
+    params.areaLight.up = params.camera.up;
+    params.areaLight.N = params.camera.dir;
+    params.areaLight.pos = params.camera.pos;
+}
+
 // Functional keys that need to be triggered only once per press
 #define match(key, expr) case key: expr; paramsUpdatePending = true; break;
 void Tracer::handleKeypress(int key)
@@ -238,6 +258,7 @@ void Tracer::handleKeypress(int key)
         match(GLFW_KEY_F1, initCamera());
         match(GLFW_KEY_F2, saveCameraState());
         match(GLFW_KEY_F3, loadCameraState());
+        match(GLFW_KEY_SPACE, updateAreaLight());
     }
 }
 #undef match

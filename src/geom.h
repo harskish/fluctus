@@ -7,7 +7,9 @@ typedef unsigned int cl_uint;
 typedef char cl_uchar;
 typedef bool cl_bool;
 #else
+#include "math/float2.hpp"
 #include "math/float3.hpp"
+using FireRays::float2;
 using FireRays::float3;
 #endif
 
@@ -65,25 +67,21 @@ typedef struct
     Vertex v2;
 } Triangle;
 
-enum lightType
+typedef struct
 {
-    L_POINT,
-    L_AREA,
-    L_DIRECTIONAL
-};
+    float3 E;   // Diffuse emission (W/m^2), ~'color * intensity'?
+    float3 pos;
+} PointLight;
 
 typedef struct
 {
-    float3 E;   // [A,D,P] Diffuse emission (W/m^2), ~'color * intensity'?
-    float3 pos; // [A,P]
-    union
-    {
-        float3 N;   // [A] normal, no rotation in xy-plane assumed for square area lights
-        float3 dir; // [D]
-    };
-    float size; // [A] half of the total width/height, measured from center
-    enum lightType type;
-} Light;
+    float3 right;
+    float3 up;
+    float3 N;
+    float3 pos;
+    float3 E;        // Diffuse emission (W/m^2)
+    float2 size;     // Half of the total width/height, measured from center
+} AreaLight;
 
 typedef struct
 {
@@ -104,6 +102,7 @@ typedef struct
 
 typedef struct
 {
+    AreaLight areaLight;
     Camera camera;         // camera struct
     cl_uint width;         // window width
     cl_uint height;        // window height

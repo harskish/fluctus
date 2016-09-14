@@ -45,10 +45,10 @@ static Sphere test_spheres[] =
     { 1000.0f, float4(0.0f, +1020.0f, 0.0f, 0.0f), RGB2f3(0, 0, 255) },      // ceiling
 };
 
-static Light test_lights[] =
+static PointLight test_lights[] =
 {
-    { RGB2f3(255, 255, 255) * 30.0f, {float3(2.0f, 4.0f, 0.0f)}, {float3(0.0f)}, 0.0f, L_POINT },
-    //{ RGB2f3(255, 255, 255) * 30.0f, { float3(0.0f, 10.0f, 0.0f) },{ float3(0.0f) }, 0.0f, L_POINT },
+    { RGB2f3(255, 255, 255) * 30.0f, {float3(2.0f, 4.0f, 0.0f)} },
+    //{ RGB2f3(255, 255, 255) * 30.0f, { float3(0.0f, 10.0f, 0.0f) } },
 };
 
 class CLContext

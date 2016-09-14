@@ -30,7 +30,9 @@ public:
     void pollKeys();              // movement keys
     void handleKeypress(int key); // function keys
     void updateCamera();
+    void updateAreaLight();
     void initCamera();
+    void initAreaLight();
     void saveCameraState();
     void loadCameraState();
 
