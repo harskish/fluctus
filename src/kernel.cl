@@ -225,6 +225,33 @@ inline bool intersectTriangle(Ray *r, global Triangle *tri, float *tret, float *
     return true;
 }
 
+// For drawing the test area light
+inline bool intersectTriangleLocal(Ray *r, Triangle *tri)
+{
+    float3 s1 = tri->v1.p - tri->v0.p;
+    float3 s2 = tri->v2.p - tri->v0.p;
+    float3 pvec = cross(r->dir, s2);
+    float det = dot(s1, pvec);
+
+    // miss if det close to 0
+    if (fabs(det) < EPSILON) return false;
+    float iDet = 1.0f / det;
+
+    float3 tvec = r->orig - tri->v0.p;
+    float u = dot(tvec, pvec) * iDet;
+    if (u < 0.0f || u > 1.0f) return false;
+
+    float3 qvec = cross(tvec, s1);
+    float v = dot(r->dir, qvec) * iDet;
+    if (v < 0.0f || u + v > 1.0f) return false;
+
+    float t = dot(s2, qvec) * iDet;
+
+    if (t < 0.0f) return false;
+
+    return true;
+}
+
 inline float3 evalEnvMap(read_only image2d_t envMap, float3 dir)
 {
     int2 envMapDim = get_image_dim(envMap);
@@ -486,6 +513,30 @@ inline void sampleAreaLight(AreaLight light, float *pdf, float3 *p, uint *seed)
     *p += r2 * light.size.y * light.up;
 }
 
+// For debugging: check if ray hits area light (for drawing a white square)
+inline bool rayHitsLight(Ray *r, global RenderParams *params)
+{
+    float3 tl = (float3)(params->areaLight.pos + params->areaLight.size.x * params->areaLight.right + params->areaLight.size.y * params->areaLight.up);
+    float3 tr = (float3)(params->areaLight.pos - params->areaLight.size.x * params->areaLight.right + params->areaLight.size.y * params->areaLight.up);
+    float3 bl = (float3)(params->areaLight.pos + params->areaLight.size.x * params->areaLight.right - params->areaLight.size.y * params->areaLight.up);
+    float3 br = (float3)(params->areaLight.pos - params->areaLight.size.x * params->areaLight.right - params->areaLight.size.y * params->areaLight.up);
+
+    Triangle T1;
+    T1.v0.p = tl;
+    T1.v1.p = bl;
+    T1.v2.p = br;
+    if (intersectTriangleLocal(r, &T1)) return true;
+
+    Triangle T2;
+    T2.v0.p = tl;
+    T2.v1.p = br;
+    T2.v2.p = tr;
+    if (intersectTriangleLocal(r, &T2)) return true;
+
+    return false;
+}
+
+
 inline void sampleHemisphere(float3 *pos, float3 *n, float *costh, uint *seed, float *p, float3 *dir)
 {
     float r1 = 2.0f * M_PI_F * rand(seed);
@@ -542,7 +593,7 @@ inline float3 traceRay(float2 pos, global Sphere *scene, global PointLight *ligh
     float3 pixelColor = (float3)(0.0f);
 
     // Supersampling
-    const int SAMPLES = 9;
+    const int SAMPLES = 4;
     const int dim = (int)sqrt((float)SAMPLES);
     for (int n = 0; n < SAMPLES; n++)
     {
@@ -596,6 +647,12 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
     const int MAX_BOUNCES = 4;
     float3 dir = r.dir; // updated at each bounce
     int i = 0;
+
+    // TEST: show white area light on screen
+    if (rayHitsLight(&r, params))
+    {
+        return (float3)(1.0f);
+    }
     
     while(i < MAX_BOUNCES && prob > 0.0f)
     {

@@ -214,12 +214,12 @@ void Tracer::initCamera()
 
 void Tracer::initAreaLight()
 {
-    params.areaLight.E = float3(1.0f, 1.0f, 1.0f) * 20.0f;
+    params.areaLight.E = float3(1.0f, 1.0f, 1.0f) * 50.0f;
     params.areaLight.right = float3(0.0f, 0.0f, -1.0f);
     params.areaLight.up = float3(0.0f, 1.0f, 0.0f);
     params.areaLight.N = float4(-1.0f, 0.0f, 0.0f, 0.0f);
     params.areaLight.pos = float4(1.0f, 1.0f, 0.0f, 1.0f);
-    params.areaLight.size = float2(2.0f, 2.0f);
+    params.areaLight.size = float2(0.5f, 0.5f);
     paramsUpdatePending = true;
 }
 
@@ -244,7 +244,7 @@ void Tracer::updateAreaLight()
     params.areaLight.right = params.camera.right;
     params.areaLight.up = params.camera.up;
     params.areaLight.N = params.camera.dir;
-    params.areaLight.pos = params.camera.pos;
+    params.areaLight.pos = params.camera.pos - 0.01f * params.camera.dir;
 }
 
 // Functional keys that need to be triggered only once per press
