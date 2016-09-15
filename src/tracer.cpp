@@ -9,7 +9,7 @@ Tracer::Tracer(int width, int height)
     clctx = new CLContext(window->getPBO());
     initCamera();
     initAreaLight();
-    loadCameraState(); // useful when debugging
+    loadState(); // useful when debugging
     
     // done whenever a new scene is selected
     init(width, height);
@@ -130,9 +130,9 @@ inline void writeVec(std::ofstream &out, FireRays::float3 &vec)
     write(out, vec.z);
 }
 
-void Tracer::saveCameraState()
+void Tracer::saveState()
 {
-    std::ofstream out("camera.dat", std::ios::binary);
+    std::ofstream out("state.dat", std::ios::binary);
 
     // Write camera state to file
     if (out.good())
@@ -145,10 +145,18 @@ void Tracer::saveCameraState()
         writeVec(out, params.camera.right);
         writeVec(out, params.camera.up);
         std::cout << "Camera state exported" << std::endl;
+
+        writeVec(out, params.areaLight.N);
+        writeVec(out, params.areaLight.pos);
+        writeVec(out, params.areaLight.right);
+        writeVec(out, params.areaLight.up);
+        write(out, params.areaLight.size.x);
+        write(out, params.areaLight.size.y);
+        std::cout << "AreaLight state exported" << std::endl;
     }
     else
     {
-        std::cout << "Could not create camera state file" << std::endl;
+        std::cout << "Could not create state file" << std::endl;
     }
 }
 
@@ -159,9 +167,9 @@ inline void readVec(std::ifstream &in, FireRays::float3 &vec)
     read(in, vec.z);
 }
 
-void Tracer::loadCameraState()
+void Tracer::loadState()
 {
-    std::ifstream in("camera.dat");
+    std::ifstream in("state.dat");
     if (in.good())
     {
         read(in, cameraRotation.x);
@@ -172,10 +180,18 @@ void Tracer::loadCameraState()
         readVec(in, params.camera.right);
         readVec(in, params.camera.up);
         std::cout << "Camera state imported" << std::endl;
+
+        readVec(in, params.areaLight.N);
+        readVec(in, params.areaLight.pos);
+        readVec(in, params.areaLight.right);
+        readVec(in, params.areaLight.up);
+        read(in, params.areaLight.size.x);
+        read(in, params.areaLight.size.y);
+        std::cout << "AreaLight state imported" << std::endl;
     }
     else
     {
-        std::cout << "Camera state file not found" << std::endl;
+        std::cout << "State file not found" << std::endl;
     }
 }
 
@@ -256,8 +272,8 @@ void Tracer::handleKeypress(int key)
         match(GLFW_KEY_M, init(params.width, params.height));
         match(GLFW_KEY_H, params.flashlight = !params.flashlight);
         match(GLFW_KEY_F1, initCamera());
-        match(GLFW_KEY_F2, saveCameraState());
-        match(GLFW_KEY_F3, loadCameraState());
+        match(GLFW_KEY_F2, saveState());
+        match(GLFW_KEY_F3, loadState());
         match(GLFW_KEY_SPACE, updateAreaLight());
     }
 }

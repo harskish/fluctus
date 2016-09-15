@@ -33,8 +33,8 @@ public:
     void updateAreaLight();
     void initCamera();
     void initAreaLight();
-    void saveCameraState();
-    void loadCameraState();
+    void saveState();
+    void loadState();
 
     void selectScene();
     void initEnvMap();
