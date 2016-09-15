@@ -117,7 +117,7 @@ void Tracer::update()
 
     // Advance render state
     clctx->executeKernel(params, iteration++);
-    if (iteration % 50 == 0) std::cout << "\r" << iteration << " spp" << std::flush;
+    if (iteration % 10 == 0) std::cout << "\r" << iteration << " spp" << std::flush;
 
     // Draw progress to screen
     window->repaint();

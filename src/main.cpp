@@ -11,8 +11,8 @@
 int main(int argc, char* argv[])
 {
     // Initial size of window
-    int width = (argc > 1) ? atoi(argv[1]) : 1000;
-    int height = (argc > 2) ? atoi(argv[2]) : 600;
+    int width = (argc > 1) ? atoi(argv[1]) : 320 * 2;
+    int height = (argc > 2) ? atoi(argv[2]) : 240 * 2;
 
 #ifdef _DEBUG
     width = 320;

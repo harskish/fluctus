@@ -226,7 +226,7 @@ inline bool intersectTriangle(Ray *r, global Triangle *tri, float *tret, float *
 }
 
 // For drawing the test area light
-inline bool intersectTriangleLocal(Ray *r, Triangle *tri)
+inline bool intersectTriangleLocal(Ray *r, Triangle *tri, float *tres)
 {
     float3 s1 = tri->v1.p - tri->v0.p;
     float3 s2 = tri->v2.p - tri->v0.p;
@@ -249,6 +249,7 @@ inline bool intersectTriangleLocal(Ray *r, Triangle *tri)
 
     if (t < 0.0f) return false;
 
+    *tres = t;
     return true;
 }
 
@@ -514,7 +515,7 @@ inline void sampleAreaLight(AreaLight light, float *pdf, float3 *p, uint *seed)
 }
 
 // For debugging: check if ray hits area light (for drawing a white square)
-inline bool rayHitsLight(Ray *r, global RenderParams *params)
+inline bool rayHitsLight(Ray *r, global RenderParams *params, float *tres)
 {
     float3 tl = (float3)(params->areaLight.pos + params->areaLight.size.x * params->areaLight.right + params->areaLight.size.y * params->areaLight.up);
     float3 tr = (float3)(params->areaLight.pos - params->areaLight.size.x * params->areaLight.right + params->areaLight.size.y * params->areaLight.up);
@@ -525,13 +526,13 @@ inline bool rayHitsLight(Ray *r, global RenderParams *params)
     T1.v0.p = tl;
     T1.v1.p = bl;
     T1.v2.p = br;
-    if (intersectTriangleLocal(r, &T1)) return true;
+    if (intersectTriangleLocal(r, &T1, tres)) return true;
 
     Triangle T2;
     T2.v0.p = tl;
     T2.v1.p = br;
     T2.v2.p = tr;
-    if (intersectTriangleLocal(r, &T2)) return true;
+    if (intersectTriangleLocal(r, &T2, tres)) return true;
 
     return false;
 }
@@ -649,7 +650,8 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
     int i = 0;
 
     // TEST: show white area light on screen
-    if (rayHitsLight(&r, params))
+    float tAreaLight = FLT_MAX;
+    if (rayHitsLight(&r, params, &tAreaLight) && tAreaLight < hit.t)
     {
         return (float3)(1.0f);
     }
@@ -685,14 +687,15 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
         float3 orig = hit.P - 1e-3f * dir;  // avoid self-shadowing
         float3 L = posL - orig;
         float lenL = length(L);
+        L = normalize(L);
         Ray rLight = { orig, L };
         Hit hitLight = raycast(&rLight, lenL, scene, tris, nodes, indices, params);
         
         if(hitLight.i == -1) // light not obstructed
         {
             float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
-            float costh = max(dot(n, normalize(L)), 0.0f);
-            Ei += brdf * throughput * emission * max(dot(normalize(-L), nLight), 0.0f) * costh / (lenL * lenL) / pdf1 / prob;
+            float costh = max(dot(n, L), 0.0f);
+            Ei += brdf * throughput * emission * max(dot(-L, nLight), 0.0f) * costh / (lenL * lenL) / pdf1 / prob;
         }
 
         // Indirect
