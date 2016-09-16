@@ -568,12 +568,13 @@ inline void sampleHemisphere(float3 *pos, float3 *n, float *costh, uint *seed, f
     *p = *costh / M_PI_F; //pdf
 }
 
-inline void getTextureParameters(Hit hit, global Sphere *scene, float3 *Kd, float3 *N, float3 *Ks)
+inline void getTextureParameters(Hit hit, global Sphere *scene, float3 *Kd, float3 *N, float3 *Ks, float *refr)
 {
     // Dummy method for now, should read from textures (if available)
     *Kd = scene[hit.i].Kd;
     *N = hit.N;
     *Ks = (float3)(1.0f);
+    if(hit.i == 0) *refr = 1.5f;
 }
 
 inline float3 reflectionShading(Hit *hit, read_only image2d_t envMap, global RenderParams *params)
@@ -594,7 +595,7 @@ inline float3 traceRay(float2 pos, global Sphere *scene, global PointLight *ligh
     float3 pixelColor = (float3)(0.0f);
 
     // Supersampling
-    const int SAMPLES = 4;
+    const int SAMPLES = 1;
     const int dim = (int)sqrt((float)SAMPLES);
     for (int n = 0; n < SAMPLES; n++)
     {
@@ -605,10 +606,10 @@ inline float3 traceRay(float2 pos, global Sphere *scene, global PointLight *ligh
         if (hit.i > -1)
         {
             // Whitted shading
-            //pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
+            pixelColor = whittedShading(&hit, scene, tris, nodes, indices, lights, params);
 
             // Reflections + environment map
-            pixelColor += reflectionShading(&hit, envMap, params);
+            //pixelColor += reflectionShading(&hit, envMap, params);
 
             // Depth shading
             //pixelColor = (float3)(hit.t / 8.0f);
@@ -636,7 +637,15 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
 
     Ray r = getCameraRay(pos, params);
     Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
-    if (hit.i < 0) return Ei;
+    
+    // TEST: show white area light on screen
+    float tAreaLight = FLT_MAX;
+    if (rayHitsLight(&r, params, &tAreaLight) && tAreaLight < hit.t)
+    {
+        return (float3)(1.0f);
+    }
+    
+    if (hit.i < 0) return evalEnvMap(envMap, r.dir);
 
     AreaLight areaLight = params->areaLight;
     float3 emission = areaLight.E;
@@ -645,21 +654,15 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
     // State
     /* LordCRC: move seed to local store?? */
     uint seed = get_global_id(1) * params->width + get_global_id(0) + iter * params->width * params->height; // unique for each pixel
-    const int MAX_BOUNCES = 4;
+    const int MAX_BOUNCES = 3;
     float3 dir = r.dir; // updated at each bounce
     int i = 0;
-
-    // TEST: show white area light on screen
-    float tAreaLight = FLT_MAX;
-    if (rayHitsLight(&r, params, &tAreaLight) && tAreaLight < hit.t)
-    {
-        return (float3)(1.0f);
-    }
     
     while(i < MAX_BOUNCES && prob > 0.0f)
     {
         float3 Kd, Ks, n; // fetched from texture/material
-        getTextureParameters(hit, scene, &Kd, &n, &Ks);
+        float refr = 0.0f;
+        getTextureParameters(hit, scene, &Kd, &n, &Ks, &refr);
 
         // Backside of triangle hit
         bool backside = (dot(n, dir) > 0.0f);
@@ -667,9 +670,57 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
             n *= -1;
         }
 
-        /* REFLECTION / REFRACTION */
-        {
-            // ...
+        /* REFRACTION */
+        if (false && refr && i <= MAX_BOUNCES) { // only for object, not walls (except wall 0)
+            float3 orig;// , dir;
+            const float EPS_REFR = 1e-5f;
+            float cosI = dot(-normalize(dir), n);
+            float n1, n2;
+
+            if (backside) { // inside of material
+                n1 = refr; // read from texture!
+                n2 = 1.0f;
+            }
+            else {
+                n1 = 1.0f;
+                n2 = refr;
+            }
+
+            float cosT = 1.0f - pow(n1 / n2, 2.0f) * (1.0f - pow(cosI, 2.0f));
+            float raylen = length(dir);
+
+            // Total internal reflection
+            if (cosT < 0.0f) {
+                orig = hit.P + EPS_REFR * n;
+                dir = raylen * reflect(normalize(dir), n);
+            }
+            else {
+                cosT = sqrt(cosT);
+                // Fresnel: reflectance for unpolarized light
+                float fr = 0.5f * (pow((n1 * cosI - n2 * cosT) / (n1 * cosI + n2 * cosT), 2.0f) + pow((n2 * cosI - n1 * cosT) / (n1 * cosT + n2 * cosI), 2.0f));
+
+                if (rand(&seed) < fr) {
+                    // Reflection
+                    orig = hit.P + EPS_REFR * n;
+                    dir = raylen * reflect(normalize(dir), n);
+                }
+                else {
+                    // Refraction
+                    orig = hit.P - EPS_REFR * n;
+                    dir = raylen * (normalize(dir) * (n1 / n2) + n * ((n1 / n2) * cosI - cosT));
+                }
+            }
+
+            // Cast ray
+            //RaycastResult resNext;
+            //if (!ctx.m_rt->raycast(resNext, orig, dir)) break;
+            r.orig = orig;
+            r.dir = dir;
+            hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
+            if (hit.i < 0) break;
+
+            i++;
+            continue;
         }
 
 
@@ -734,13 +785,15 @@ kernel void trace(global float *out, global Sphere *scene, global PointLight *li
 
     if(x >= params->width || y >= params->height) return;
 
-    // Trace
+    // Ray tracing
     //float3 pixelColor = traceRay((float2)(x, y), scene, lights, tris, nodes, indices, envMap, params);
-    float3 pixelColor = tracePath((float2)(x, y), iteration, scene, lights, tris, nodes, indices, envMap, params);
     
-    // Accumulate
+    // Path tracing + accumulation
+    //*
+    float3 pixelColor = tracePath((float2)(x, y), iteration, scene, lights, tris, nodes, indices, envMap, params);
     float4 prev = vload4((y * params->width + x), out);
     pixelColor = (pixelColor + iteration * prev.xyz) / (iteration + 1);
+    //*/
 
     vstore4((float4)(pixelColor, 0.0f), (y * params->width + x), out); // (value, offset, ptr)
 }

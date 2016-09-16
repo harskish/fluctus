@@ -230,7 +230,7 @@ void Tracer::initCamera()
 
 void Tracer::initAreaLight()
 {
-    params.areaLight.E = float3(1.0f, 1.0f, 1.0f) * 50.0f;
+    params.areaLight.E = float3(1.0f, 1.0f, 1.0f) * 200.0f;
     params.areaLight.right = float3(0.0f, 0.0f, -1.0f);
     params.areaLight.up = float3(0.0f, 1.0f, 0.0f);
     params.areaLight.N = float4(-1.0f, 0.0f, 0.0f, 0.0f);
