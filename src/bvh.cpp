@@ -17,7 +17,7 @@ BVH::BVH(std::vector<RTTriangle>* tris, SplitMode mode) {
     m_build_nodes.push_back(root);
     nodes++;
     
-    build(0, 0); // root, depth 0
+    build(0, 0, 0.0f, 1.0f); // root, depth 0, whole span
 
     createSmallNodes();
     
@@ -143,7 +143,9 @@ void BVH::exportTo(const std::string filename) const {
     }
 }
 
-void BVH::build(U32 nInd, U32 depth) {
+void BVH::build(U32 nInd, U32 depth, F32 progressStart, F32 progressEnd) {
+    printf("BVH builder: progress %.0f%%\r", progressStart * 100.0f);
+
     m_build_nodes[nInd].computeBB(m_indices, m_triangles);
     metrics.depth = std::max(metrics.depth, depth);
     U32 elems = m_build_nodes[nInd].spannedTris();
@@ -156,6 +158,10 @@ void BVH::build(U32 nInd, U32 depth) {
 
         metrics.splits++;
 
+        int refLeft = (split - 1) - (m_build_nodes[nInd].iStart) + 1;
+        int refRigh = m_build_nodes[nInd].iEnd - split + 1;
+        F32 progressMid = lerp(progressStart, progressEnd, (F32)refLeft / (F32)(refLeft + refRigh));
+
         // Left child
         BuildNode leftChild = BuildNode();
         leftChild.iStart = m_build_nodes[nInd].iStart;
@@ -163,7 +169,7 @@ void BVH::build(U32 nInd, U32 depth) {
         leftChild.parent = nInd;
         m_build_nodes.push_back(leftChild);
         nodes++;
-        build(nodes - 1, ++depth); // last pushed
+        build(nodes - 1, ++depth, progressStart, progressMid); // last pushed
         
         // Right child
         BuildNode rightChild = BuildNode();
@@ -172,7 +178,7 @@ void BVH::build(U32 nInd, U32 depth) {
         rightChild.parent = nInd;
         m_build_nodes.push_back(rightChild);
         m_build_nodes[nInd].rightChild = nodes++;
-        build(nodes - 1, ++depth);
+        build(nodes - 1, ++depth, progressMid, progressEnd);
     }
     else {
         metrics.leaves++;

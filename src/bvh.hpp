@@ -10,6 +10,8 @@
 #include "bvhnode.hpp"
 #include "rtutil.hpp"
 
+template <class A, class B> A lerp(const A& a, const A& b, const B& t) { return (A)(a * ((B)1 - t) + b * t); }
+
 class BVH {
 
 friend class Tracer;
@@ -22,7 +24,7 @@ public:
     void exportTo(const std::string filename) const;
 
 private:
-    void build(U32 nInd, U32 depth);
+    void build(U32 nInd, U32 depth, F32 progressStart, F32 progressEnd);
     void importFrom(const std::string filename);
 
     // Convert build nodes to small nodes
