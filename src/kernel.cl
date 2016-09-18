@@ -791,8 +791,9 @@ kernel void trace(read_only image2d_t src, write_only image2d_t dst, global Sphe
     // Path tracing + accumulation
     //*
     float3 pixelColor = tracePath((float2)(x, y), iteration, scene, lights, tris, nodes, indices, envMap, params);
-    float4 prev = read_imagef(src, (int2)(x, y));
-    pixelColor = (pixelColor + iteration * prev.xyz) / (iteration + 1);
+    const float tex_weight = iteration * native_recip((float)(iteration) + 1.0f);
+    float3 prev = read_imagef(src, (int2)(x, y)).xyz;
+    pixelColor = clamp(mix(pixelColor, prev, tex_weight), (float3)(0.0f), (float3)(1.0f));
     //*/
 
     //vstore4((float4)(pixelColor, 0.0f), (y * params->width + x), out); // (value, offset, ptr)
