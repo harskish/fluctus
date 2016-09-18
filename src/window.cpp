@@ -82,12 +82,12 @@ PTWindow::PTWindow(int width, int height, void *tracer)
     std::cout << "Using GLEW " << glewGetString(GLEW_VERSION) << std::endl;
     // ===============================================
 
-    createPBO();
+    createTextures();
 }
 
 PTWindow::~PTWindow()
 {
-    if(gl_PBO) glDeleteTextures(1, &gl_PBO);
+    if(gl_textures[0]) glDeleteTextures(2, gl_textures);
 }
 
 void PTWindow::requestClose()
@@ -104,59 +104,61 @@ void PTWindow::getFBSize(unsigned int &w, unsigned int &h)
     h = (unsigned int) fbh;
 }
 
-void PTWindow::repaint()
+void PTWindow::repaint(int frontBuffer)
 {
     unsigned int w, h;
     getFBSize(w, h);
-
-    //std::cout << "Dimensons from framebuffer: " << w << "x" << h << std::endl;
-
+    
     glViewport(0, 0, w, h);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
+    glOrtho(0.0, w, 0.0, h, -1.0, 1.0);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
 
-    // Set up an ortho-projection such that the bottom/left
-    // corner of the image plane is 0,0
-    glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+    // Draw a single quad
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, gl_textures[frontBuffer]);
 
-    glClear(GL_COLOR_BUFFER_BIT);
-    glDisable(GL_DEPTH_TEST);
-    glRasterPos2i(0, 0);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_PBO);
-    glDrawPixels(w, h, GL_RGBA, GL_FLOAT, 0);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0); glVertex2f(0, 0);
+    glTexCoord2f(0, 1); glVertex2f(0, h);
+    glTexCoord2f(1, 1); glVertex2f(w, h);
+    glTexCoord2f(1, 0); glVertex2f(w, 0);
+    glEnd();
 
+    glBindTexture(GL_TEXTURE_2D, 0);
     glfwSwapBuffers(window);
 
     if(show_fps)
         calcFPS(1.0, "HOLDTHEDOOR");
 }
 
-// TODO: use FBO/RenderBuffer instead?
-void PTWindow::createPBO()
+// Create front and back buffers
+void PTWindow::createTextures()
 {
-    if (gl_PBO) {
-        std::cout << "Removing old gl_PBO" << std::endl;
-        glDeleteBuffers(1, &gl_PBO);
+    if (gl_textures[0]) {
+        std::cout << "Removing old textures" << std::endl;
+        glDeleteTextures(2, gl_textures);
     }
-
-    glGenBuffers(1, &gl_PBO);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_PBO);
 
     unsigned int width, height;
     getFBSize(width, height);
-
     std::cout << "New size: " << width << "x" << height << std::endl;
+
+    glGenTextures(2, gl_textures);
+    for (int i = 0; i < 2; i++)
+    {
+        glBindTexture(GL_TEXTURE_2D, gl_textures[i]);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_FLOAT, 0);
+    }
     
-    // STREAM_DRAW because of frequent updates
-    std::cout << "Allocating GL-PBO with " << width * height * sizeof(GLfloat) * 4 << " bytes" << std::endl;
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, width * height * sizeof(GLfloat) * 4, 0, GL_STREAM_DRAW);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-    
-    std::cout << "Created GL-PBO at " << gl_PBO << std::endl;
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 double PTWindow::calcFPS(double interval, std::string theWindowTitle)

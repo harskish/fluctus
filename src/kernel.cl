@@ -778,7 +778,7 @@ OPENCL MEMORY SPACES:
 | Local    | __local        | Work-group-wide | Shared   | __shared__   |
 | Private  | __private      | Work-item-wide  | Local    |              |
 */
-kernel void trace(global float *out, global Sphere *scene, global PointLight *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, uint iteration)
+kernel void trace(read_only image2d_t src, write_only image2d_t dst, global Sphere *scene, global PointLight *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, uint iteration)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
@@ -791,9 +791,10 @@ kernel void trace(global float *out, global Sphere *scene, global PointLight *li
     // Path tracing + accumulation
     //*
     float3 pixelColor = tracePath((float2)(x, y), iteration, scene, lights, tris, nodes, indices, envMap, params);
-    float4 prev = vload4((y * params->width + x), out);
+    float4 prev = read_imagef(src, (int2)(x, y));
     pixelColor = (pixelColor + iteration * prev.xyz) / (iteration + 1);
     //*/
 
-    vstore4((float4)(pixelColor, 0.0f), (y * params->width + x), out); // (value, offset, ptr)
+    //vstore4((float4)(pixelColor, 0.0f), (y * params->width + x), out); // (value, offset, ptr)
+    write_imagef(dst, (int2)(x, y), (float4)(pixelColor, 0.0f));
 }

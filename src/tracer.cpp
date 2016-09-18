@@ -6,7 +6,7 @@ Tracer::Tracer(int width, int height)
     // done only once (VS debugging stops working if context is recreated)
     window = new PTWindow(width, height, this);
     window->setShowFPS(true);
-    clctx = new CLContext(window->getPBO());
+    clctx = new CLContext(window->getTexPtr());
     initCamera();
     initAreaLight();
     loadState(); // useful when debugging
@@ -94,8 +94,8 @@ bool Tracer::running()
 // Callback for when the window size changes
 void Tracer::resizeBuffers()
 {
-    window->createPBO();
-    clctx->createPBO(window->getPBO());
+    window->createTextures();
+    clctx->createTextures(window->getTexPtr());
     paramsUpdatePending = true;
     std::cout << std::endl;
 }
@@ -116,11 +116,12 @@ void Tracer::update()
     }
 
     // Advance render state
-    clctx->executeKernel(params, iteration++);
+    clctx->executeKernel(params, frontBuffer, iteration++);
     if (iteration % 10 == 0) std::cout << "\r" << iteration << " spp" << std::flush;
 
     // Draw progress to screen
-    window->repaint();
+    window->repaint(frontBuffer);
+    frontBuffer = 1 - frontBuffer;
 }
 
 inline void writeVec(std::ofstream &out, FireRays::float3 &vec)

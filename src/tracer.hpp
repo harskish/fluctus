@@ -60,4 +60,5 @@ private:
     BVH *bvh;
     std::vector<RTTriangle>* m_triangles;
     cl_uint iteration;
+    int frontBuffer = 0;
 };

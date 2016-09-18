@@ -29,7 +29,7 @@ cl::Device &CLContext::getDeviceByName(cl::Context &context, std::string name) {
     return devices[0];
 }
 
-CLContext::CLContext(GLuint gl_PBO)
+CLContext::CLContext(GLuint *textures)
 {
     //printDevices();
 
@@ -99,7 +99,8 @@ CLContext::CLContext(GLuint gl_PBO)
     verify("Failed to create compute kernel!");
 
     // Create OpenCL buffer from OpenGL PBO
-    createPBO(gl_PBO);
+    //createPBO(gl_PBO);
+    createTextures(textures);
 
     // Allocate device memory for scene and rendering parameters
     setupScene();
@@ -111,18 +112,17 @@ CLContext::~CLContext()
     std::cout << "Calling CLContext destructor!" << std::endl;
 }
 
-void CLContext::createPBO(GLuint gl_PBO)
+void CLContext::createTextures(GLuint *tex_arr)
 {
-    if(sharedMemory.size() > 0) {
-        std::cout << "Removing old CL-PBO" << std::endl;
+    if (sharedMemory.size() > 0) {
+        std::cout << "Removing old textures" << std::endl;
         sharedMemory.clear(); // memory freed by cl-cpp-wrapper
     }
 
-    // CL_MEM_WRITE_ONLY is faster, but we need accumulation...
-    sharedMemory.push_back(cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err));
+    sharedMemory.push_back(cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[0], &err));
+    sharedMemory.push_back(cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[1], &err));
 
-    verify("CL-PBO creation failed!");
-    std::cout << "Created CL-PBO at " << (sharedMemory.back())() << std::endl;
+    verify("CL-texture creation failed!");
 }
 
 void CLContext::createEnvMap(float *data, int width, int height)
@@ -220,11 +220,12 @@ void CLContext::updateParams(const RenderParams &params)
     // std::cout << "RenderParams updated!" << std::endl;
 }
 
-void CLContext::executeKernel(const RenderParams &params, const cl_uint iteration)
+void CLContext::executeKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration)
 {
     int i = 0;
     err = 0;
-    err |= pt_kernel.setArg(i++, sharedMemory.back()); // output buffer
+    err |= pt_kernel.setArg(i++, sharedMemory[1 - frontBuffer]); // src
+    err |= pt_kernel.setArg(i++, sharedMemory[frontBuffer]); // dst
     err |= pt_kernel.setArg(i++, sphereBuffer);
     err |= pt_kernel.setArg(i++, lightBuffer);
     err |= pt_kernel.setArg(i++, triangleBuffer);
@@ -235,12 +236,13 @@ void CLContext::executeKernel(const RenderParams &params, const cl_uint iteratio
     err |= pt_kernel.setArg(i++, iteration);
     verify("Failed to set kernel arguments!");
 
-    size_t max_gw_size;
-    err = device.getInfo(CL_DEVICE_MAX_WORK_GROUP_SIZE, &max_gw_size);
+    size_t max_wg_size;
+    //err = device.getInfo(CL_DEVICE_MAX_WORK_GROUP_SIZE, &max_gw_size); //CL_KERNEL_WORK_GROUP_SIZE
+    max_wg_size = pt_kernel.getWorkGroupInfo<CL_KERNEL_WORK_GROUP_SIZE>(device, &err);
     verify("Failed to retrieve kernel work group info!");
 
     ndRangeSizes[0] = 32; //TODO: 32 might be too large
-    ndRangeSizes[1] = max_gw_size / ndRangeSizes[0];
+    ndRangeSizes[1] = max_wg_size / ndRangeSizes[0];
 
     // Multiples of 32
     int wgMultipleWidth = ((params.width & 0x1F) == 0) ? params.width : ((params.width & 0xFFFFFFE0) + 0x20);
@@ -262,8 +264,8 @@ void CLContext::executeKernel(const RenderParams &params, const cl_uint iteratio
             cl::NullRange                  // local
         );
     #else
-        //err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
-        err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+        err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
+        //err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     #endif
     verify("Failed to enqueue kernel!");
 

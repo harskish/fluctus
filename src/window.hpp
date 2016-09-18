@@ -15,7 +15,7 @@ public:
     PTWindow(int w, int h, void *tracer);
     ~PTWindow();
 
-    void repaint();
+    void repaint(int frontBuffer);
 
     bool available()
     {
@@ -24,20 +24,20 @@ public:
     }
 
     void setShowFPS(bool show) { show_fps = show; }
-    void createPBO();
+    void createTextures();
     void requestClose();
 
     float2 getCursorPos();
     bool keyPressed(int key);
 
     GLFWwindow *glfwWindowPtr() { return window; }
-    GLuint getPBO() { return gl_PBO; }
+    GLuint *getTexPtr() { return gl_textures; }
     void getFBSize(unsigned int &w, unsigned int &h);
 
 private:
     double calcFPS(double interval = 1.0, std::string theWindowTitle = "NONE");
 
     GLFWwindow *window;
-    GLuint gl_PBO = 0;
+    GLuint gl_textures[2] = { 0, 0 };
     bool show_fps = false;
 };

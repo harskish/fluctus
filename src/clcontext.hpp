@@ -37,14 +37,13 @@ static Sphere test_spheres[] =
 {
     // radius, position, Kd
     //{ 1.0f, float4(0.0f, 0.0f, 0.0f, 0.0f), RGB2f3(255, 0, 0) },             // big sphere
-    { 0.0f, float4(0.0f, 1.5f, 0.0f, 0.0f), RGB2f3(255, 255, 255) },             // small sphere
-    /*{ 1000.0f, float4(0.0f, 0.0f, +1008.0f, 0.0f), RGB2f3(180, 190, 180) },  // back wall
+    //{ 0.0f, float4(0.0f, 1.5f, 0.0f, 0.0f), RGB2f3(255, 255, 255) },             // small sphere
+    { 1000.0f, float4(0.0f, 0.0f, +1008.0f, 0.0f), RGB2f3(180, 190, 180) },  // back wall
     { 1000.0f, float4(0.0f, 0.0f, -1008.0f, 0.0f), RGB2f3(180, 190, 180) },  // front (visible) wall
     { 1000.0f, float4(0.0f, -1001.0f, 0.0f, 0.0f), RGB2f3(0, 0, 255) },      // floor
     { 1000.0f, float4(-1008.0f, 0.0f, 0.0f, 0.0f), RGB2f3(205, 110, 15) },   // left wall
     { 1000.0f, float4(+1008.0f, 0.0f, 0.0f, 0.0f), RGB2f3(255, 0, 255) },    // right wall
     { 1000.0f, float4(0.0f, +1020.0f, 0.0f, 0.0f), RGB2f3(0, 0, 255) },      // ceiling
-    */
 };
 
 static PointLight test_lights[] =
@@ -59,14 +58,14 @@ class CLContext
 friend class Tracer;
 
 public:
-    CLContext(GLuint gl_PBO);
+    CLContext(GLuint *textures);
     ~CLContext();
 
-    void executeKernel(const RenderParams &params, const cl_uint iteration);
+    void executeKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
     void setupParams();
     void updateParams(const RenderParams &params);
     void createBVHBuffers(std::vector<RTTriangle> *triangles, std::vector<cl_uint> *indices, std::vector<Node> *nodes);
-    void createPBO(GLuint gl_PBO);
+    void createTextures(GLuint *tex_arr);
     void createEnvMap(float *data, int width, int height);
 private:
     void printDevices();
@@ -85,7 +84,7 @@ private:
     cl::CommandQueue cmdQueue;
     cl::Kernel pt_kernel;
 
-    std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data
+    std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (two textures)
     cl::Buffer sphereBuffer;
     cl::Buffer lightBuffer;
     cl::Buffer renderParams;                // contains only one RenderParam
