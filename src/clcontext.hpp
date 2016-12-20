@@ -72,7 +72,7 @@ private:
     void setupScene();
     void verify(std::string msg);
     cl::Platform &getPlatformByName(std::vector<cl::Platform> &platforms, std::string name);
-    cl::Device &getDeviceByName(cl::Context &context, std::string name);
+    cl::Device &getDeviceByName(std::vector<cl::Device> &devices, std::string name);
     std::string errorString();
 
     int err;                                // error code returned from api calls

@@ -16,8 +16,7 @@ cl::Platform &CLContext::getPlatformByName(std::vector<cl::Platform> &platforms,
     return platforms[0];
 }
 
-cl::Device &CLContext::getDeviceByName(cl::Context &context, std::string name) {
-    auto devices = context.getInfo<CL_CONTEXT_DEVICES>();
+cl::Device &CLContext::getDeviceByName(std::vector<cl::Device> &devices, std::string name) {
     for(cl::Device &d: devices) {
         std::string deviceName = d.getInfo<CL_DEVICE_NAME>();
         if(deviceName == name) {
@@ -31,7 +30,7 @@ cl::Device &CLContext::getDeviceByName(cl::Context &context, std::string name) {
 
 CLContext::CLContext(GLuint *textures)
 {
-    //printDevices();
+    printDevices();
 
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
@@ -67,7 +66,8 @@ CLContext::CLContext(GLuint *textures)
     verify("Failed to create shared context");
 
     // Select correct device from context based on settings
-    device = getDeviceByName(context, Settings::getInstance().getDeviceName());
+    std::vector<cl::Device> devices = context.getInfo<CL_CONTEXT_DEVICES>();
+    device = getDeviceByName(devices, Settings::getInstance().getDeviceName());
     std::cout << "DEVICE: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
     // Create command queue for context

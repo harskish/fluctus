@@ -129,6 +129,7 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\rgbe\rgbe.cpp" />
     <ClCompile Include="src\scene.cpp" />
+    <ClCompile Include="src\settings.cpp" />
     <ClCompile Include="src\tinyfiledialogs.c" />
     <ClCompile Include="src\tracer.cpp" />
     <ClCompile Include="src\window.cpp" />
@@ -147,6 +148,7 @@
     <ClInclude Include="src\rgbe\rgbe.hpp" />
     <ClInclude Include="src\rtutil.hpp" />
     <ClInclude Include="src\scene.hpp" />
+    <ClInclude Include="src\settings.hpp" />
     <ClInclude Include="src\tinyfiledialogs.h" />
     <ClInclude Include="src\tracer.hpp" />
     <ClInclude Include="src\triangle.hpp" />
