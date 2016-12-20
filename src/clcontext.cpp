@@ -4,26 +4,41 @@
 #define CPU_DEBUGGING
 #endif
 
+cl::Platform &CLContext::getPlatformByName(std::vector<cl::Platform> &platforms, std::string name) {
+    for(cl::Platform &p: platforms) {
+        std::string platformName = p.getInfo<CL_PLATFORM_NAME>();
+        if(platformName == name) {
+            return p;
+        }
+    }
+
+    std::cout << "No platform with name \"" << name << "\" found, using default" << std::endl;
+    return platforms[0];
+}
+
+cl::Device &CLContext::getDeviceByName(cl::Context &context, std::string name) {
+    auto devices = context.getInfo<CL_CONTEXT_DEVICES>();
+    for(cl::Device &d: devices) {
+        std::string deviceName = d.getInfo<CL_DEVICE_NAME>();
+        if(deviceName == name) {
+            return d;
+        }
+    }
+
+    std::cout << "No device with name \"" << name << "\" in selected context, using default" << std::endl;
+    return devices[0];
+}
+
 CLContext::CLContext(GLuint gl_PBO)
 {
-    printDevices();
+    //printDevices();
 
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
-
-    #ifdef CPU_DEBUGGING
-        cl::Platform platform = platforms[2];
-    #else
-        cl::Platform platform = platforms[1];
-    #endif
-
+    cl::Platform platform = getPlatformByName(platforms, Settings::getInstance().getPlatformName());
     std::cout << "PLATFORM: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
-    platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
 
-    // Macbook pro 15 fix
-    #ifdef __APPLE__
-    //clDevices.erase(clDevices.begin());
-    #endif
+    platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
 
     // Init shared context
     #ifdef __APPLE__
@@ -51,14 +66,15 @@ CLContext::CLContext(GLuint gl_PBO)
     context = cl::Context(clDevices, props, NULL, NULL, &err);
     verify("Failed to create shared context");
 
-    device = context.getInfo<CL_CONTEXT_DEVICES>()[0];
-    std::cout << "Using device nr. 0 of context" << std::endl;
+    // Select correct device from context based on settings
+    device = getDeviceByName(context, Settings::getInstance().getDeviceName());
+    std::cout << "DEVICE: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
     // Create command queue for context
     cmdQueue = cl::CommandQueue(context, device, 0, &err);
     verify("Failed to create command queue!");
 
-    // Read kenel source from file
+    // Read kernel source from file
     cl::Program program;
     kernelFromFile("src/kernel.cl", context, program, err);
     verify("Failed to create compute program!");

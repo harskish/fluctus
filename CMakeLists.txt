@@ -45,7 +45,7 @@ set(SOURCE_FILES
     src/envmap.cpp
     src/rgbe/rgbe.hpp
     src/rgbe/rgbe.cpp
-)
+    src/settings.cpp src/settings.hpp)
 
 add_executable(CL_TRACE ${SOURCE_FILES})
 
