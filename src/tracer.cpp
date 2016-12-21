@@ -4,7 +4,7 @@
 Tracer::Tracer(int width, int height)
 {
     // done only once (VS debugging stops working if context is recreated)
-    window = new PTWindow(width, height, this);
+    window = new PTWindow(width, height, this); // this = glfw user pointer
     window->setShowFPS(true);
     clctx = new CLContext(window->getTexPtr());
     initCamera();
@@ -18,8 +18,10 @@ Tracer::Tracer(int width, int height)
 // Run whenever a scene is laoded
 void Tracer::init(int width, int height)
 {
-    params.width = (unsigned int)width;
-    params.height = (unsigned int)height;
+    float renderScale = Settings::getInstance().getRenderScale();
+
+    params.width = static_cast<unsigned int>(width * renderScale);
+    params.height = static_cast<unsigned int>(height * renderScale);
     params.n_lights = sizeof(test_lights) / sizeof(PointLight);
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
     params.useEnvMap = 0;
@@ -107,7 +109,11 @@ void Tracer::update()
     pollKeys();
 
     // Update RenderParams in GPU memory if needed
+    const float renderScale = Settings::getInstance().getRenderScale();
     window->getFBSize(params.width, params.height);
+    params.width = static_cast<unsigned int>(params.width * renderScale);
+    params.height = static_cast<unsigned int>(params.height * renderScale);
+
     if(paramsUpdatePending)
     {
         clctx->updateParams(params);

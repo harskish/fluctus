@@ -13,6 +13,9 @@ void Settings::init()
 {
     platformName = "";
     deviceName = "";
+    renderScale = 1.0f;
+    windowWidth = 640;
+    windowHeight = 480;
 }
 
 inline bool contains(json j, std::string value)
@@ -50,6 +53,9 @@ void Settings::load()
 
 void Settings::import(json j)
 {
-    if(contains(j, "platformName")) this->platformName = j["platformName"];
-    if(contains(j, "deviceName")) this->deviceName = j["deviceName"];
+    if(contains(j, "platformName")) this->platformName = j["platformName"].get<std::string>();
+    if(contains(j, "deviceName")) this->deviceName = j["deviceName"].get<std::string>();
+    if (contains(j, "renderScale")) this->renderScale = j["renderScale"].get<float>();
+    if (contains(j, "windowWidth")) this->windowWidth = j["windowWidth"].get<int>();
+    if (contains(j, "windowHeight")) this->windowHeight = j["windowHeight"].get<int>();
 }

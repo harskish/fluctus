@@ -145,7 +145,12 @@ void PTWindow::createTextures()
 
     unsigned int width, height;
     getFBSize(width, height);
-    std::cout << "New size: " << width << "x" << height << std::endl;
+
+    // Size of texture depends on render resolution scale
+    float renderScale = Settings::getInstance().getRenderScale();
+    width = static_cast<unsigned int>(width * renderScale);
+    height = static_cast<unsigned int>(height * renderScale);
+    std::cout << "New texture size: " << width << "x" << height << std::endl;
 
     glGenTextures(2, gl_textures);
     for (int i = 0; i < 2; i++)

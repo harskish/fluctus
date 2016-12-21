@@ -14,8 +14,12 @@ public:
     Settings(Settings const&) = delete;
     void operator=(Settings const&) = delete;
 
+    // Getters
     std::string getPlatformName() { return platformName; }
     std::string getDeviceName() { return deviceName; }
+    int getWindowWidth() { return windowWidth; };
+    int getWindowHeight() { return windowHeight; };
+    float getRenderScale() { return renderScale; };
 
 private:
     Settings();
@@ -23,6 +27,10 @@ private:
     void load();
     void import(nlohmann::json j);
 
-    std::string platformName = "";
-    std::string deviceName = "";
+    // Contents of settings singleton
+    std::string platformName;
+    std::string deviceName;
+    int windowWidth;
+    int windowHeight;
+    float renderScale;
 };

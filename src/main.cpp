@@ -10,14 +10,11 @@
 
 int main(int argc, char* argv[])
 {
-    // Initial size of window
-    int width = (argc > 1) ? atoi(argv[1]) : 320 * 2;
-    int height = (argc > 2) ? atoi(argv[2]) : 240 * 2;
+    Settings &s = Settings::getInstance();
 
-#ifdef _DEBUG
-    width = 320;
-    height = 240;
-#endif
+    // Initial size of window
+    int width = (argc > 1) ? atoi(argv[1]) : s.getWindowWidth();
+    int height = (argc > 2) ? atoi(argv[2]) : s.getWindowHeight();
 
     if (!glfwInit())
     {
