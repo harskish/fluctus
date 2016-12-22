@@ -7,24 +7,24 @@
 cl::Platform &CLContext::getPlatformByName(std::vector<cl::Platform> &platforms, std::string name) {
     for(cl::Platform &p: platforms) {
         std::string platformName = p.getInfo<CL_PLATFORM_NAME>();
-        if(platformName == name) {
+        if(platformName.find(name) != std::string::npos) {
             return p;
         }
     }
 
-    std::cout << "No platform with name \"" << name << "\" found, using default" << std::endl;
+    std::cout << "No platform name containing \"" << name << "\" found!" << std::endl;
     return platforms[0];
 }
 
 cl::Device &CLContext::getDeviceByName(std::vector<cl::Device> &devices, std::string name) {
     for(cl::Device &d: devices) {
         std::string deviceName = d.getInfo<CL_DEVICE_NAME>();
-        if(deviceName == name) {
+        if(deviceName.find(name) != std::string::npos) {
             return d;
         }
     }
 
-    std::cout << "No device with name \"" << name << "\" in selected context, using default" << std::endl;
+    std::cout << "No device name containing \"" << name << "\" in selected context!" << std::endl;
     return devices[0];
 }
 
