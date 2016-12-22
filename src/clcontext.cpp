@@ -264,8 +264,11 @@ void CLContext::executeKernel(const RenderParams &params, const int frontBuffer,
             cl::NullRange                  // local
         );
     #else
-        err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
-        //err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+        // Manually select local workgroup size
+        //err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
+        
+        // Let OpenCL implementation choose optimal local workgroup size
+        err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     #endif
     verify("Failed to enqueue kernel!");
 
