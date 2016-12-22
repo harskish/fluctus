@@ -148,9 +148,9 @@ void PTWindow::createTextures()
 
     // Size of texture depends on render resolution scale
     float renderScale = Settings::getInstance().getRenderScale();
-    width = static_cast<unsigned int>(width * renderScale);
-    height = static_cast<unsigned int>(height * renderScale);
-    std::cout << "New texture size: " << width << "x" << height << std::endl;
+    this->textureWidth = static_cast<unsigned int>(width * renderScale);
+    this->textureHeight = static_cast<unsigned int>(height * renderScale);
+    std::cout << "New texture size: " << this->textureWidth << "x" << this->textureHeight << std::endl;
 
     glGenTextures(2, gl_textures);
     for (int i = 0; i < 2; i++)
@@ -160,7 +160,7 @@ void PTWindow::createTextures()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, 0);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, this->textureWidth, this->textureHeight, 0, GL_RGBA, GL_FLOAT, 0);
     }
     
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -183,18 +183,19 @@ double PTWindow::calcFPS(double interval, std::string theWindowTitle)
     if ((tNow - tLast) > interval)
     {
         fps = (double)frameCount / (tNow - tLast);
+        float mSps = fps * this->textureWidth * this->textureHeight / 1e6;
  
         // If the user specified a window title to append the FPS value to...
         if (theWindowTitle != "NONE")
         {
             // Convert the fps value into a string using an output stringstream
             std::ostringstream stream;
-            stream.precision(3);
-            stream << std::fixed << fps;
-            std::string fpsString = stream.str();            
+            stream.precision(2);
+            stream << std::fixed << " | FPS: " << fps << " | Samples/sec: " << mSps << "M";
+            std::string fpsString = stream.str();
  
-            // Append the FPS value to the window title details
-            theWindowTitle += " | FPS: " + fpsString;
+            // Append the FPS and samples/sec to the window title details
+            theWindowTitle += fpsString;
  
             // Convert the new window title to a c_str and set it
             const char* pszConstString = theWindowTitle.c_str();

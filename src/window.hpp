@@ -39,5 +39,6 @@ private:
 
     GLFWwindow *window;
     GLuint gl_textures[2] = { 0, 0 };
+    unsigned int textureWidth, textureHeight;
     bool show_fps = false;
 };
