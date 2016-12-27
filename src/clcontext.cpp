@@ -28,9 +28,18 @@ cl::Device &CLContext::getDeviceByName(std::vector<cl::Device> &devices, std::st
     return devices[0];
 }
 
+inline bool platformIsNvidia(cl::Platform platform)
+{
+    std::string name = platform.getInfo<CL_PLATFORM_NAME>();
+    return name.find("NVIDIA") != std::string::npos;
+}
+
 CLContext::CLContext(GLuint *textures)
 {
-    printDevices();
+    // Remove kernel caching to always get build log (on NVIDIA hardware)
+    _putenv_s("CUDA_CACHE_DISABLE", "1");
+
+    //printDevices();
 
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
@@ -81,25 +90,23 @@ CLContext::CLContext(GLuint *textures)
 
     // Build kernel source (create compute program)
     // Define "GPU" to disable cl-prefixed types in shared headers (cl_float4 => float4 etc.)
+    std::string buildOpts = "-DGPU -I./src";
+    if (platformIsNvidia(platform)) buildOpts += " -cl-nv-verbose";
     #ifdef CPU_DEBUGGING
-        err = program.build(clDevices, "-DGPU -g -s \"C:\\Users\\Erik\\code\\cltrace\\src\\kernel.cl\"");
-    #else
-        err = program.build(clDevices, "-I./src -DGPU");
+        buildOpts += " -g -s \"C:\\Users\\Erik\\code\\cltrace\\src\\kernel.cl\"";
     #endif
+    err = program.build(clDevices, buildOpts.c_str());
     std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-    if (err != CL_SUCCESS)
-    {
-        std::cout << "Error: Failed to build compute program!" << std::endl;
-        std::cout << "Build log: " << buildLog << std::endl;
-        exit(1);
-    }
+    
+    // Check build log
+    std::cout << buildLog << std::endl;
+    verify("Failed to build compute program!");
 
     // Creating compute kernel from program
     pt_kernel = cl::Kernel(program, "trace", &err);
     verify("Failed to create compute kernel!");
 
     // Create OpenCL buffer from OpenGL PBO
-    //createPBO(gl_PBO);
     createTextures(textures);
 
     // Allocate device memory for scene and rendering parameters
