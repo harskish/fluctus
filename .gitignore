@@ -1,0 +1,10 @@
+assets/
+Debug/
+Release/
+.vs/
+settings.json
+state.dat
+cltrace.VC.VC.opendb
+cltrace.VC.db
+cltrace.vcxproj.filters
+cltrace.vcxproj.user
