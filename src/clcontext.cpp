@@ -227,6 +227,18 @@ void CLContext::updateParams(const RenderParams &params)
     // std::cout << "RenderParams updated!" << std::endl;
 }
 
+inline void calcRps(const RenderParams &params, double launchTime)
+{
+    static double lastPrinted = 0;
+    double now = glfwGetTime();
+    if (now - lastPrinted > 1.0)
+    {
+        lastPrinted = now;
+        double mRps = params.width * params.height * 1e-6 / launchTime;
+        printf("Kernel rays/s: %.0fM\n", mRps);
+    }
+}
+
 void CLContext::executeKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration)
 {
     int i = 0;
@@ -263,6 +275,7 @@ void CLContext::executeKernel(const RenderParams &params, const int frontBuffer,
     err = cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
     verify("Failed to enqueue GL object acquisition!");
 
+    double kStart = glfwGetTime();
     #ifdef CPU_DEBUGGING
         err = cmdQueue.enqueueNDRangeKernel(
             pt_kernel,
@@ -284,6 +297,8 @@ void CLContext::executeKernel(const RenderParams &params, const int frontBuffer,
     
     err = cmdQueue.finish();
     verify("Failed to finish command queue!");
+
+    calcRps(params, glfwGetTime() - kStart);
 }
 
 // Return info about error

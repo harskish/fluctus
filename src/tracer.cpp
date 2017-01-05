@@ -109,13 +109,14 @@ void Tracer::update()
     pollKeys();
 
     // Update RenderParams in GPU memory if needed
-    const float renderScale = Settings::getInstance().getRenderScale();
-    window->getFBSize(params.width, params.height);
-    params.width = static_cast<unsigned int>(params.width * renderScale);
-    params.height = static_cast<unsigned int>(params.height * renderScale);
-
     if(paramsUpdatePending)
     {
+        // Update render dimensions
+        const float renderScale = Settings::getInstance().getRenderScale();
+        window->getFBSize(params.width, params.height);
+        params.width = static_cast<unsigned int>(params.width * renderScale);
+        params.height = static_cast<unsigned int>(params.height * renderScale);
+
         clctx->updateParams(params);
         paramsUpdatePending = false;
         iteration = 0; // accumulation reset
