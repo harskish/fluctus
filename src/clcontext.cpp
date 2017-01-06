@@ -1,8 +1,11 @@
 #include "clcontext.hpp"
+#include <stdlib.h>
 
 #ifdef _DEBUG
 #define CPU_DEBUGGING
 #endif
+
+/* UTILS */
 
 cl::Platform &CLContext::getPlatformByName(std::vector<cl::Platform> &platforms, std::string name) {
     for(cl::Platform &p: platforms) {
@@ -34,16 +37,45 @@ inline bool platformIsNvidia(cl::Platform platform)
     return name.find("NVIDIA") != std::string::npos;
 }
 
+inline void calcRps(const unsigned int numRays, double launchTime)
+{
+    static double lastPrinted = 0;
+    double now = glfwGetTime();
+    if (now - lastPrinted > 1.0)
+    {
+        lastPrinted = now;
+        double mRps = numRays * 1e-6 / launchTime;
+        printf("Kernel rays/s: %.0fM\n", mRps);
+    }
+}
+
+inline std::string getAbsolutePath(std::string filename)
+{
+    const int MAX_LENTH = 4096;
+    char resolved_path[MAX_LENTH];
+    #ifdef _WIN32
+        _fullpath(resolved_path, filename.c_str(), MAX_LENTH);
+    #else
+        realpath(filename.c_str(), resolved_path);
+    #endif
+    return std::string(resolved_path);
+}
+
+
+/* CLASS METHODS */
+
 CLContext::CLContext(GLuint *textures)
 {
-    // Remove kernel caching to always get build log (on NVIDIA hardware)
-    _putenv_s("CUDA_CACHE_DISABLE", "1");
+    // Remove kernel caching to always get build logs (on NVIDIA hardware)
+    #ifdef _WIN32
+        _putenv_s("CUDA_CACHE_DISABLE", "1");
+    #endif
 
     //printDevices();
 
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
-    cl::Platform platform = getPlatformByName(platforms, Settings::getInstance().getPlatformName());
+    platform = getPlatformByName(platforms, Settings::getInstance().getPlatformName());
     std::cout << "PLATFORM: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
 
     platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
@@ -83,35 +115,157 @@ CLContext::CLContext(GLuint *textures)
     cmdQueue = cl::CommandQueue(context, device, 0, &err);
     verify("Failed to create command queue!");
 
-    // Read kernel source from file
-    cl::Program program;
-    kernelFromFile("src/kernel.cl", context, program, err);
-    verify("Failed to create compute program!");
+    // Create placeholder environment map
+    float rgb[3] = { 0.0f, 0.0f, 0.0f };
+    createEnvMap(rgb, 1, 1);
 
-    // Build kernel source (create compute program)
-    // Define "GPU" to disable cl-prefixed types in shared headers (cl_float4 => float4 etc.)
-    std::string buildOpts = "-DGPU -I./src";
-    if (platformIsNvidia(platform)) buildOpts += " -cl-nv-verbose";
-    #ifdef CPU_DEBUGGING
-        buildOpts += " -g -s \"C:\\Users\\Erik\\code\\cltrace\\src\\kernel.cl\"";
-    #endif
-    err = program.build(clDevices, buildOpts.c_str());
-    std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-    
-    // Check build log
-    std::cout << buildLog << std::endl;
-    verify("Failed to build compute program!");
-
-    // Creating compute kernel from program
-    pt_kernel = cl::Kernel(program, "trace", &err);
-    verify("Failed to create compute kernel!");
+    // Setup RenderParams
+    setupParams();
 
     // Create OpenCL buffer from OpenGL PBO
     createTextures(textures);
 
-    // Allocate device memory for scene and rendering parameters
+    // Allocate device memory for scene
     setupScene();
-    setupParams();
+    
+    // Build kernels, set their params
+    setupKernels();
+}
+
+void CLContext::setupKernels()
+{
+    initMCBuffers();
+    setupRayGenKernel();
+    setupNextVertexKernel();
+    setupSplatKernel();
+    setupMegaKernel();
+}
+
+// Init state buffers (rays, tasks) needed by microkernels
+void CLContext::initMCBuffers()
+{
+    const size_t t_bytes = NUM_TASKS * sizeof(GPUTaskState);
+    const size_t r_bytes = NUM_TASKS * sizeof(Ray);
+
+    raysBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, r_bytes, NULL, &err);
+    verify("Ray buffer creation failed!");
+
+    tasksBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, t_bytes, NULL, &err);
+    verify("Task buffer creation failed!");
+
+    // Init tasks buffer
+    GPUTaskState *initialTaskStates = new GPUTaskState[NUM_TASKS];
+    std::for_each(initialTaskStates + 0, initialTaskStates + NUM_TASKS, [](GPUTaskState &s) { s.phase = MK_GENERATE_CAMERA_RAY; s.pdf = 1.0f; s.T = float3(1.0f); s.seed = (unsigned int)rand(); });
+    err = cmdQueue.enqueueWriteBuffer(tasksBuffer, CL_TRUE, 0, t_bytes, initialTaskStates);
+    delete[] initialTaskStates;
+    verify("Task buffer writing failed!");
+
+    const size_t memoryUsageMiB = (t_bytes + r_bytes) / (2 << 19);
+    std::cout << "Microkernel state data: " << memoryUsageMiB << " MiB" << std::endl;
+}
+
+// Build kernel based on file name and entrypoint method name. Save compiled kernel in target.
+// Platform and build specific build options are automatically set.
+void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::string methodName)
+{
+    // Kernel already exists
+    if (target()) return;
+    
+    // Read kernel source from file
+    std::string kernelPath = "src/" + fileName;
+
+    cl::Program program;
+    kernelFromFile(kernelPath, context, program, err);
+    verify("Failed to create compute program for " + fileName);
+
+    // Build kernel source (create compute program)
+    // Define "GPU" to disable cl-prefixed types in shared headers (cl_float4 => float4 etc.)
+    std::string buildOpts = "-DGPU -I./src";
+
+    if (platformIsNvidia(platform)) buildOpts += " -cl-nv-verbose";
+
+    #ifdef CPU_DEBUGGING
+        buildOpts += " -g -s \"" + getAbsolutePath(kernelPath) + "\"";
+    #endif
+
+    err = program.build(clDevices, buildOpts.c_str());
+    std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+
+    // Check build log
+    std::cout << "[" << fileName << " build log]\n" << buildLog << std::endl;
+    verify("Failed to build compute program!");
+
+    // Creating compute kernel from program
+    target = cl::Kernel(program, methodName.c_str(), &err);
+    verify("Failed to create compute kernel!");
+}
+
+void CLContext::setupMegaKernel()
+{
+    buildKernel(kernel_monolith, "kernel_monolith.cl", "trace");
+
+    int i = 0;
+    err = 0;
+    err |= kernel_monolith.setArg(i++, sharedMemory[1]); // src
+    err |= kernel_monolith.setArg(i++, sharedMemory[0]); // dst
+    err |= kernel_monolith.setArg(i++, sphereBuffer);
+    err |= kernel_monolith.setArg(i++, lightBuffer);
+    err |= kernel_monolith.setArg(i++, triangleBuffer);
+    err |= kernel_monolith.setArg(i++, nodeBuffer);
+    err |= kernel_monolith.setArg(i++, indexBuffer);
+    err |= kernel_monolith.setArg(i++, environmentMap);
+    err |= kernel_monolith.setArg(i++, renderParams);
+    err |= kernel_monolith.setArg(i++, 0); // iteration
+    verify("Failed to set kernel arguments!");
+}
+
+void CLContext::setupRayGenKernel()
+{
+    buildKernel(mk_raygen, "mk_raygen.cl", "genCameraRays");
+
+    // Set initial kernel params
+    int i = 0;
+    err = 0;
+    err |= mk_raygen.setArg(i++, raysBuffer);
+    err |= mk_raygen.setArg(i++, tasksBuffer);
+    err |= mk_raygen.setArg(i++, renderParams);
+    err |= mk_raygen.setArg(i++, NUM_TASKS);
+    verify("Failed to set mk_raygen arguments!");
+}
+
+void CLContext::setupNextVertexKernel()
+{
+    buildKernel(mk_next_vertex, "mk_next_vertex.cl", "nextVertex");
+
+    // Set initial kernel params
+    int i = 0;
+    err = 0;
+    err |= mk_next_vertex.setArg(i++, raysBuffer);
+    err |= mk_next_vertex.setArg(i++, tasksBuffer);
+    err |= mk_next_vertex.setArg(i++, sphereBuffer);
+    err |= mk_next_vertex.setArg(i++, triangleBuffer);
+    err |= mk_next_vertex.setArg(i++, nodeBuffer);
+    err |= mk_next_vertex.setArg(i++, indexBuffer);
+    err |= mk_next_vertex.setArg(i++, renderParams);
+    err |= mk_next_vertex.setArg(i++, NUM_TASKS);
+    verify("Failed to set mk_next_vertex arguments!");
+}
+
+void CLContext::setupSplatKernel()
+{
+    buildKernel(mk_splat, "mk_splat.cl", "splat");
+
+    // Set initial kernel params
+    int i = 0;
+    err = 0;
+    err |= mk_splat.setArg(i++, raysBuffer);
+    err |= mk_splat.setArg(i++, tasksBuffer);
+    // The front/back buffers change every iteration
+    err |= mk_splat.setArg(i++, sharedMemory[1]); // src
+    err |= mk_splat.setArg(i++, sharedMemory[0]); // dst
+    err |= mk_splat.setArg(i++, renderParams);
+    err |= mk_splat.setArg(i++, NUM_TASKS);
+    verify("Failed to set mk_splat arguments!");
 }
 
 CLContext::~CLContext()
@@ -121,7 +275,8 @@ CLContext::~CLContext()
 
 void CLContext::createTextures(GLuint *tex_arr)
 {
-    if (sharedMemory.size() > 0) {
+    if (sharedMemory.size() > 0)
+    {
         std::cout << "Removing old textures" << std::endl;
         sharedMemory.clear(); // memory freed by cl-cpp-wrapper
     }
@@ -162,7 +317,7 @@ void CLContext::setupScene()
     size_t s_bytes = sizeof(test_spheres);
 
     // READ_WRITE due to Apple's OpenCL bug...?
-    sphereBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, s_bytes, NULL, &err);
+    sphereBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, s_bytes, NULL, &err);
     verify("Sphere buffer creation failed!");
 
     // Blocking write!
@@ -171,7 +326,7 @@ void CLContext::setupScene()
 
     // Lights
     size_t l_bytes = sizeof(test_lights);
-    lightBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, l_bytes, NULL, &err);
+    lightBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, l_bytes, NULL, &err);
     verify("Light buffer creation failed!");
 
     err = cmdQueue.enqueueWriteBuffer(lightBuffer, CL_TRUE, 0, l_bytes, test_lights);
@@ -188,13 +343,13 @@ void CLContext::createBVHBuffers(std::vector<RTTriangle> *tris, std::vector<cl_u
     size_t n_bytes = nodes->size() * sizeof(Node);
 
     // Allocate memory for buffers
-    triangleBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, t_bytes, NULL, &err);
+    triangleBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, t_bytes, NULL, &err);
     verify("Triangle buffer creation failed!");
 
-    indexBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, i_bytes, NULL, &err);
+    indexBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, i_bytes, NULL, &err);
     verify("Index buffer creation failed!");
 
-    nodeBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, n_bytes, NULL, &err);
+    nodeBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, n_bytes, NULL, &err);
     verify("Node buffer creation failed!");
 
     // Write data to buffers
@@ -206,13 +361,16 @@ void CLContext::createBVHBuffers(std::vector<RTTriangle> *tris, std::vector<cl_u
 
     err = cmdQueue.enqueueWriteBuffer(nodeBuffer, CL_TRUE, 0, n_bytes, nodes->data());
     verify("Node buffer writing failed!");
+
+    // Ensures that the kernels have the correct arguments
+    setupKernels();
 }
 
 // Passing structs to kernels is broken in several drivers (e.g. GT 750M on MacOS)
 // Allocating memory for the rendering params is more compatible
 void CLContext::setupParams()
 {
-    renderParams = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(RenderParams), NULL, &err);
+    renderParams = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(RenderParams), NULL, &err);
     verify("Params buffer creation failed!");
 
     std::cout << "RenderParam allocation succeeded!" << std::endl;
@@ -227,37 +385,64 @@ void CLContext::updateParams(const RenderParams &params)
     // std::cout << "RenderParams updated!" << std::endl;
 }
 
-inline void calcRps(const RenderParams &params, double launchTime)
+void CLContext::executeRayGenKernel(const RenderParams &params)
 {
-    static double lastPrinted = 0;
-    double now = glfwGetTime();
-    if (now - lastPrinted > 1.0)
-    {
-        lastPrinted = now;
-        double mRps = params.width * params.height * 1e-6 / launchTime;
-        printf("Kernel rays/s: %.0fM\n", mRps);
-    }
+    // Set updated RenderParams
+    err = mk_raygen.setArg(2, renderParams);
+    verify("Failed to set mk_raygen RenderParams!");
+
+    // Enqueue 1D range
+    err = cmdQueue.enqueueNDRangeKernel(mk_raygen, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue kernel!");
 }
 
-void CLContext::executeKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration)
+void CLContext::executeNextVertexKernel(const RenderParams &params)
 {
-    int i = 0;
+    // Set updated RenderParams
+    err = mk_next_vertex.setArg(6, renderParams);
+    verify("Failed to set mk_next_vertex RenderParams!");
+
+    // Enqueue 1D range
+    err = cmdQueue.enqueueNDRangeKernel(mk_next_vertex, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue kernel!");
+}
+
+void CLContext::executeSplatKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration)
+{
     err = 0;
-    err |= pt_kernel.setArg(i++, sharedMemory[1 - frontBuffer]); // src
-    err |= pt_kernel.setArg(i++, sharedMemory[frontBuffer]); // dst
-    err |= pt_kernel.setArg(i++, sphereBuffer);
-    err |= pt_kernel.setArg(i++, lightBuffer);
-    err |= pt_kernel.setArg(i++, triangleBuffer);
-    err |= pt_kernel.setArg(i++, nodeBuffer);
-    err |= pt_kernel.setArg(i++, indexBuffer);
-    err |= pt_kernel.setArg(i++, environmentMap);
-    err |= pt_kernel.setArg(i++, renderParams);
-    err |= pt_kernel.setArg(i++, iteration);
-    verify("Failed to set kernel arguments!");
+    err |= mk_splat.setArg(2, sharedMemory[1 - frontBuffer]); // src
+    err |= mk_splat.setArg(3, sharedMemory[frontBuffer]); // dst
+    err |= mk_splat.setArg(4, renderParams);
+    verify("Failed to set mk_splat arguments!");
+
+    // Splat kernel must be aware of GL-CL sharing
+    err = cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
+    verify("Failed to enqueue GL object acquisition!");
+
+    // TODO: find out why my GTX 780 won't enqueue 1D kernels!
+    // TODO: also, look at having global wg be a multiple of local wg (or a multiple of 32/64)
+    err = cmdQueue.enqueueNDRangeKernel(mk_splat, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+    verify("Failed to enqueue kernel!");
+
+    err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
+    verify("Failed to enqueue GL object release!");
+
+    err = cmdQueue.finish();
+    verify("Failed to finish command queue!");
+}
+
+void CLContext::executeMegaKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration)
+{
+    err = 0;
+    err |= kernel_monolith.setArg(0, sharedMemory[1 - frontBuffer]); // src
+    err |= kernel_monolith.setArg(1, sharedMemory[frontBuffer]); // dst
+    err |= kernel_monolith.setArg(8, renderParams);
+    err |= kernel_monolith.setArg(9, iteration);
+    verify("Failed to set megakernel arguments!");
 
     size_t max_wg_size;
     //err = device.getInfo(CL_DEVICE_MAX_WORK_GROUP_SIZE, &max_gw_size); //CL_KERNEL_WORK_GROUP_SIZE
-    max_wg_size = pt_kernel.getWorkGroupInfo<CL_KERNEL_WORK_GROUP_SIZE>(device, &err);
+    max_wg_size = kernel_monolith.getWorkGroupInfo<CL_KERNEL_WORK_GROUP_SIZE>(device, &err);
     verify("Failed to retrieve kernel work group info!");
 
     ndRangeSizes[0] = 32; //TODO: 32 might be too large
@@ -278,17 +463,17 @@ void CLContext::executeKernel(const RenderParams &params, const int frontBuffer,
     double kStart = glfwGetTime();
     #ifdef CPU_DEBUGGING
         err = cmdQueue.enqueueNDRangeKernel(
-            pt_kernel,
+            kernel_monolith,
             cl::NullRange,                 // offset
             cl::NDRange(params.width, 5),  // global
             cl::NullRange                  // local
         );
     #else
         // Manually select local workgroup size
-        //err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, global, local);
+        //err = cmdQueue.enqueueNDRangeKernel(kernel_monolith, cl::NullRange, global, local);
         
         // Let OpenCL implementation choose optimal local workgroup size
-        err = cmdQueue.enqueueNDRangeKernel(pt_kernel, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+        err = cmdQueue.enqueueNDRangeKernel(kernel_monolith, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     #endif
     verify("Failed to enqueue kernel!");
 
@@ -298,7 +483,7 @@ void CLContext::executeKernel(const RenderParams &params, const int frontBuffer,
     err = cmdQueue.finish();
     verify("Failed to finish command queue!");
 
-    calcRps(params, glfwGetTime() - kStart);
+    calcRps(params.width * params.height, glfwGetTime() - kStart);
 }
 
 // Return info about error

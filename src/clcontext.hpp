@@ -61,7 +61,11 @@ public:
     CLContext(GLuint *textures);
     ~CLContext();
 
-    void executeKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
+    void executeMegaKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
+    void executeRayGenKernel(const RenderParams &params);
+    void executeNextVertexKernel(const RenderParams &params);
+    void executeSplatKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
+
     void setupParams();
     void updateParams(const RenderParams &params);
     void createBVHBuffers(std::vector<RTTriangle> *triangles, std::vector<cl_uint> *indices, std::vector<Node> *nodes);
@@ -71,23 +75,44 @@ private:
     void printDevices();
     void setupScene();
     void verify(std::string msg);
+    
+    void setupKernels();
+    void setupRayGenKernel();
+    void setupNextVertexKernel();
+    void setupSplatKernel();
+    void setupMegaKernel();
+    void initMCBuffers();
+
+    void buildKernel(cl::Kernel &target, std::string fileName, std::string methodName);
+
     cl::Platform &getPlatformByName(std::vector<cl::Platform> &platforms, std::string name);
     cl::Device &getDeviceByName(std::vector<cl::Device> &devices, std::string name);
     std::string errorString();
 
     int err;                                // error code returned from api calls
     size_t ndRangeSizes[2];                 // kernel workgroup sizes
+    const size_t NUM_TASKS = 1920 * 1080;   // the amount of paths in flight simultaneously, limited by VRAM
 
     std::vector<cl::Device> clDevices;
     cl::Device device;
+    cl::Platform platform;
     cl::Context context;
     cl::CommandQueue cmdQueue;
-    cl::Kernel pt_kernel;
+    
+    // Kernels
+    cl::Kernel kernel_monolith;
+    cl::Kernel mk_raygen;
+    cl::Kernel mk_next_vertex;
+    cl::Kernel mk_splat;
 
     std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (two textures)
     cl::Buffer sphereBuffer;
     cl::Buffer lightBuffer;
     cl::Buffer renderParams;                // contains only one RenderParam
+    
+    // Microkernel buffers
+    cl::Buffer raysBuffer;
+    cl::Buffer tasksBuffer;
 
     cl::Image2D environmentMap;
 

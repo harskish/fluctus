@@ -55,12 +55,6 @@ void Tracer::initEnvMap()
         params.useEnvMap = 1;
         clctx->createEnvMap(envMap->getData(), envMap->getWidth(), envMap->getHeight());
     }
-    else
-    {
-        // Create dummy image (kernel arguments cannot be left unitialized)
-        float rgb[3] = { 0.0f, 0.0f, 0.0f };
-        clctx->createEnvMap(rgb, 1, 1);
-    }
 }
 
 // Check if old hierarchy can be reused
@@ -102,6 +96,18 @@ void Tracer::resizeBuffers()
     std::cout << std::endl;
 }
 
+inline void calcRps(const unsigned int numRays, double launchTime)
+{
+    static double lastPrinted = 0;
+    double now = glfwGetTime();
+    if (now - lastPrinted > 1.0)
+    {
+        lastPrinted = now;
+        double mRps = numRays * 1e-6 / launchTime;
+        printf("Kernel rays/s: %.0fM\n", mRps);
+    }
+}
+
 void Tracer::update()
 {
     // React to key presses
@@ -122,9 +128,32 @@ void Tracer::update()
         iteration = 0; // accumulation reset
     }
 
-    // Advance render state
-    clctx->executeKernel(params, frontBuffer, iteration++);
-    if (iteration % 10 == 0) std::cout << "\r" << iteration << " spp" << std::flush;
+    // Update iteration counter
+    iteration++;
+
+    
+    if (1)
+    {
+        glFinish(); // locks execution to refresh rate of display (GL)
+        
+        double kStart = glfwGetTime();
+
+        // Generate new camera rays
+        clctx->executeRayGenKernel(params);
+
+        // Trace rays
+        clctx->executeNextVertexKernel(params);
+
+        // Splat results
+        clctx->executeSplatKernel(params, frontBuffer, iteration);
+
+        calcRps(params.width * params.height, glfwGetTime() - kStart);
+    }
+    else
+    {
+        // Advance render state
+        clctx->executeMegaKernel(params, frontBuffer, iteration);
+    }
 
     // Draw progress to screen
     window->repaint(frontBuffer);

@@ -155,7 +155,14 @@
     <ClInclude Include="src\window.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\kernel.cl" />
+    <None Include="src\bvh.cl" />
+    <None Include="src\intersect.cl" />
+    <None Include="src\kernel_monolith.cl" />
+    <None Include="src\mk_next_vertex.cl" />
+    <None Include="src\mk_raygen.cl" />
+    <None Include="src\mk_splat.cl" />
+    <None Include="src\random.cl" />
+    <None Include="src\utils.cl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

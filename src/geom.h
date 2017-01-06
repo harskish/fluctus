@@ -112,3 +112,28 @@ typedef struct
     cl_uint useEnvMap;
     cl_uint flashlight;
 } RenderParams; //
+
+
+// Microkernel state structs
+typedef enum
+{
+    MK_RT_NEXT_VERTEX = 0,
+    MK_HIT_NOTHING = 1,
+    MK_HIT_OBJECT = 2,
+    MK_DL_ILLUMINATE = 3,
+    MK_DL_SAMPLE_BSDF = 4,
+    MK_RT_DL = 5,
+    MK_GENERATE_NEXT_VERTEX_RAY = 6,
+    MK_SPLAT_SAMPLE = 7,
+    MK_NEXT_SAMPLE = 8,
+    MK_GENERATE_CAMERA_RAY = 9,
+    MK_DONE = 10
+} PathPhase;
+
+typedef struct
+{
+    float3 T; // throughput
+    PathPhase phase;
+    float pdf;
+    cl_uint seed;
+} GPUTaskState;
