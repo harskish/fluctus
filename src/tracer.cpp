@@ -60,7 +60,7 @@ void Tracer::initEnvMap()
 // Check if old hierarchy can be reused
 void Tracer::initHierarchy()
 {
-    std::string hashFile = "hierarchy-" + scene->hashString() + ".bin" ;
+    std::string hashFile = "hierarchies/hierarchy-" + scene->hashString() + ".bin" ;
     std::ifstream input(hashFile, std::ios::in);
 
     if (input.good())
