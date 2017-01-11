@@ -127,12 +127,8 @@ void Tracer::update()
         paramsUpdatePending = false;
         iteration = 0; // accumulation reset
     }
-
-    // Update iteration counter
-    iteration++;
-
     
-    if (1)
+    if (0)
     {
         glFinish(); // locks execution to refresh rate of display (GL)
         
@@ -158,6 +154,9 @@ void Tracer::update()
     // Draw progress to screen
     window->repaint(frontBuffer);
     frontBuffer = 1 - frontBuffer;
+
+    // Update iteration counter
+    iteration++;
 }
 
 inline void writeVec(std::ofstream &out, FireRays::float3 &vec)
