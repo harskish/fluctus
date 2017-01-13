@@ -1,3 +1,5 @@
+#define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+#include "tiny_obj_loader.h"
 #include "scene.hpp"
 
 Scene::Scene(const std::string filename)
@@ -5,7 +7,7 @@ Scene::Scene(const std::string filename)
     loadModel(filename); // Assume file is a model, not a scene. Just for now ;)
 
     // Test
-    envmap = new EnvironmentMap("assets/env_maps/dawn.hdr");
+    //envmap = new EnvironmentMap("assets/env_maps/dawn.hdr");
 }
 
 Scene::~Scene()
@@ -59,7 +61,7 @@ void Scene::loadModel(const std::string filename)
     {
         std::cout << "Loading OBJ file: " << filename << std::endl;
         computeHash(filename);
-        loadObjModel(filename);
+        loadObjWithMaterials(filename); //loadObjModel(filename);
     }
     else if (endsWith(filename, "ply"))
     {
@@ -143,6 +145,95 @@ inline void setFaceFormat(int &format, std::string &format_string, bool &negativ
             res << c;
         }
         format_string = res.str();
+    }
+}
+
+void Scene::loadObjWithMaterials(const std::string filePath)
+{
+    std::vector<tinyobj::shape_t> shapesVec;
+    std::vector<tinyobj::material_t> materialsVec;
+    tinyobj::attrib_t attrib;
+    std::string err;
+    
+    size_t fileNameStart = filePath.find_last_of("\\"); // assume Windows
+    if (fileNameStart <= 0) fileNameStart = filePath.find_last_of("/"); // Linux/MacOS
+    std::string folderPath = filePath.substr(0, fileNameStart + 1);
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapesVec, &materialsVec, &err, filePath.c_str(), folderPath.c_str());
+
+    if (!err.empty()) // `err` may contain warning message.
+    {
+        std::cerr << err << std::endl;
+    }
+
+    if (!ret)
+    {
+        exit(1);
+    }
+
+    std::cout << "# of shapes    : " << shapesVec.size() << std::endl;
+    std::cout << "# of materials : " << materialsVec.size() << std::endl;
+
+    const bool hasNormals = attrib.normals.size() > 0;
+
+    // Loop over shapesVec in file
+    for (size_t i = 0; i < shapesVec.size(); i++)
+    {
+        tinyobj::shape_t &shape = shapesVec[i];
+        assert((shapesVec[i].mesh.indices.size() % 3) == 0); // properly triangulated
+
+        // Loop over faces in the shape's mesh
+        for (size_t f = 0; f < shape.mesh.indices.size() / 3; f++)
+        {
+            VertexPNT V[3];
+            
+            // Vertices
+            bool allNormals = true;
+            for (size_t v = 0; v < 3; v++)
+            {
+                auto ind = shape.mesh.indices[3 * f + v];
+                
+                // Position
+                V[v].p = float3(attrib.vertices[3 * ind.vertex_index + 0], attrib.vertices[3 * ind.vertex_index + 1], attrib.vertices[3 * ind.vertex_index + 2]);
+
+                // Normal
+                if (ind.normal_index < 0 || !hasNormals)
+                {
+                    allNormals = false;
+                    V[v].n = float3(0.0f);
+                }
+                else
+                {
+                    V[v].n = float3(attrib.normals[3 * ind.normal_index + 0], attrib.normals[3 * ind.normal_index + 1], attrib.normals[3 * ind.normal_index + 2]);
+                }
+
+                // Tex coord
+                V[v].t = float3(0.0f);
+            }
+
+            if(!allNormals)
+                V[0].n = V[1].n = V[2].n = normalize(cross(V[1].p - V[0].p, V[2].p - V[0].p));
+
+            RTTriangle tri(V[0], V[1], V[2]);
+            tri.matId = shape.mesh.material_ids[f];
+            triangles.push_back(tri);
+        }
+    }
+
+    // Read materialsVec into own format
+    for (size_t i = 0; i < materialsVec.size(); i++)
+    {
+        Material m;
+        m.Kd = float3(materialsVec[i].diffuse[0], materialsVec[i].diffuse[1], materialsVec[i].diffuse[2]);
+        m.Ks = float3(materialsVec[i].specular[0], materialsVec[i].specular[1], materialsVec[i].specular[2]);
+        m.Ke = float3(materialsVec[i].emission[0], materialsVec[i].emission[1], materialsVec[i].emission[2]);
+        m.Ns = materialsVec[i].shininess;
+        m.Ni = materialsVec[i].ior;
+        // no texture support yet
+        m.map_Kd = -1;
+        m.map_Ks = -1;
+
+        materials.push_back(m);
     }
 }
 

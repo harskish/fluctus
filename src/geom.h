@@ -7,6 +7,7 @@ typedef unsigned int cl_uint;
 typedef char cl_uchar;
 typedef bool cl_bool;
 #else
+#include "cl2.hpp"
 #include "math/float2.hpp"
 #include "math/float3.hpp"
 using FireRays::float2;
@@ -55,16 +56,17 @@ typedef struct
 
 typedef struct
 {
-    float3 p;
-    float3 n;
-    float3 t;
-} Vertex;
+    float3 p; // 16B
+    float3 n; // 16B
+    float3 t; // 16B
+} Vertex; // >= 48B
 
 typedef struct
 {
     Vertex v0;
     Vertex v1;
     Vertex v2;
+    cl_uint matId; // all triangles have a material
 } Triangle;
 
 typedef struct
@@ -82,6 +84,17 @@ typedef struct
     float3 E;        // Diffuse emission (W/m^2)
     float2 size;     // Half of the total width/height, measured from center
 } AreaLight;
+
+typedef struct
+{
+    float3 Kd;     // diffuse reflectivity
+    float3 Ks;     // specular reflectivity 
+    float3 Ke;     // emission
+    cl_float Ns;   // specular exponent (shininess)
+    cl_float Ni;   // index of refraction
+    cl_int map_Kd; // diffuse texture idx
+    cl_int map_Ks; // specular texture idx
+} Material;
 
 typedef struct
 {
@@ -111,7 +124,7 @@ typedef struct
     cl_uint n_lights;      // number of lights in scene
     cl_uint useEnvMap;
     cl_uint flashlight;
-} RenderParams; //
+} RenderParams;
 
 
 // Microkernel state structs
