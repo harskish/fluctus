@@ -6,15 +6,13 @@
 #include "intersect.cl"
 
 // BVH traversal using simulated stack
-inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global GPUNode *nodes, global uint *indices)
+inline void bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global GPUNode *nodes, global uint *indices)
 {
     float lnear, lfar, rnear, rfar; //AABB limits
     uint closer, farther;
 
-    bool found = false;
-
     // Stack state
-    SimStackNode stack[32]; // this causes the large stack frames seen in the build log
+    SimStackNode stack[32]; // causes large stack frames (NVIDIA build log)
     int stackptr = 0;
 
     // Root node
@@ -53,8 +51,8 @@ inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
             }
             if (imin != -1 && tmin < hit->t)
             {
-                found = true;
                 hit->i = indices[imin];
+                hit->matId = tris[indices[imin]].matId;
                 hit->t = tmin;
                 hit->P = r->orig + tmin * r->dir;
                 hit->N = lerp(umin, vmin, tris[indices[imin]].v0.n, tris[indices[imin]].v1.n, tris[indices[imin]].v2.n);
@@ -95,8 +93,6 @@ inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
             }
         }
     }
-
-    return found;
 }
 
 #endif

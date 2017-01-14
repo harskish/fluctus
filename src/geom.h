@@ -101,7 +101,8 @@ typedef struct
     float3 P;
     float3 N;
     cl_float t;
-    cl_int i; // index of hit primitive, -1 by default
+    cl_int i; // index of hit triangle, -1 by default
+    cl_int matId; // index of hit material
 } Hit;
 
 typedef struct

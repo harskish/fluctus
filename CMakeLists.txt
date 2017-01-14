@@ -26,7 +26,6 @@ set(SOURCE_FILES
     src/window.cpp
     src/window.hpp
     src/geom.h
-    src/kernel.cl
     src/kernelreader.cpp
     src/kernelreader.hpp
     src/tracer.cpp

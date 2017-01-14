@@ -156,7 +156,7 @@ void Scene::loadObjWithMaterials(const std::string filePath)
     std::string err;
     
     size_t fileNameStart = filePath.find_last_of("\\"); // assume Windows
-    if (fileNameStart <= 0) fileNameStart = filePath.find_last_of("/"); // Linux/MacOS
+    if (fileNameStart == std::string::npos) fileNameStart = filePath.find_last_of("/"); // Linux/MacOS
     std::string folderPath = filePath.substr(0, fileNameStart + 1);
 
     bool ret = tinyobj::LoadObj(&attrib, &shapesVec, &materialsVec, &err, filePath.c_str(), folderPath.c_str());

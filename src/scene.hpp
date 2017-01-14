@@ -40,7 +40,7 @@ private:
     void loadPlyModel(const std::string filename);
 
     // With tiny_obj_loader
-    void Scene::loadObjWithMaterials(const std::string filename);
+    void loadObjWithMaterials(const std::string filename);
 
     void unpackIndexedData(const std::vector<float3> &positions,
                            const std::vector<float3>& normals,

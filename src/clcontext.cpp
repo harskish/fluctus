@@ -45,7 +45,7 @@ inline void calcRps(const unsigned int numRays, double launchTime)
     {
         lastPrinted = now;
         double mRps = numRays * 1e-6 / launchTime;
-        printf("Kernel rays/s: %.0fM\n", mRps);
+        printf("\rKernel rays/s: %.0fM", mRps);
     }
 }
 
@@ -170,7 +170,7 @@ void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::strin
 {
     // Kernel already exists
     if (target()) return;
-    
+
     // Read kernel source from file
     std::string kernelPath = "src/" + fileName;
 
@@ -243,7 +243,7 @@ void CLContext::setupNextVertexKernel()
     err = 0;
     err |= mk_next_vertex.setArg(i++, raysBuffer);
     err |= mk_next_vertex.setArg(i++, tasksBuffer);
-    err |= mk_next_vertex.setArg(i++, sphereBuffer);
+    err |= mk_next_vertex.setArg(i++, materialBuffer);
     err |= mk_next_vertex.setArg(i++, triangleBuffer);
     err |= mk_next_vertex.setArg(i++, nodeBuffer);
     err |= mk_next_vertex.setArg(i++, indexBuffer);
@@ -359,7 +359,7 @@ void CLContext::uploadSceneData(BVH *bvh, Scene *scene)
     nodeBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, n_bytes, NULL, &err);
     verify("Node buffer creation failed!");
 
-    materialBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, m_bytes, NULL, &err);
+    if(m_bytes > 0) materialBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, m_bytes, NULL, &err);
     verify("Material buffer creation failed!");
 
     // Write data to buffers
@@ -372,7 +372,7 @@ void CLContext::uploadSceneData(BVH *bvh, Scene *scene)
     err = cmdQueue.enqueueWriteBuffer(nodeBuffer, CL_TRUE, 0, n_bytes, nodes->data());
     verify("Node buffer writing failed!");
 
-    err = cmdQueue.enqueueWriteBuffer(materialBuffer, CL_TRUE, 0, m_bytes, materials->data());
+    if(m_bytes > 0) err = cmdQueue.enqueueWriteBuffer(materialBuffer, CL_TRUE, 0, m_bytes, materials->data());
     verify("Material buffer writing failed!");
 
     // Ensures that the kernels have the correct arguments

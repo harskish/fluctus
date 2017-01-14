@@ -12,7 +12,6 @@ constant sampler_t sampler =
 
 inline float3 evalEnvMap(read_only image2d_t envMap, float3 dir)
 {
-    int2 envMapDim = get_image_dim(envMap);
     float u = 1.0f + atan2(dir.x, -dir.z) / M_PI_F;
     float v = acos(dir.y) / M_PI_F;
 

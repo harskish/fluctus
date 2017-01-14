@@ -19,7 +19,7 @@ kernel void splat(global Ray *rays, global GPUTaskState *tasks, read_only image2
     const uint y = get_global_id(1);
 
     // TEST: just show throughput as color
-    const float4 color = (float4)(task->T / (2.0f * task->pdf), 0.0f); // TODO: remove pdf debug stuff
+    const float4 color = (float4)(task->T, 0.0f);
     write_imagef(dst, (int2)(x, y), color);
 
     // Update phase

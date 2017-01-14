@@ -4,7 +4,7 @@
 #include "geom.h"
 
 // http://www.burtleburtle.net/bob/hash/integer.html
-uint hash(uint seed)
+inline uint hash(uint seed)
 {
     seed = (seed ^ 61) ^ (seed >> 16);
     seed *= 9;
