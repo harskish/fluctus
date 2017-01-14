@@ -29,6 +29,8 @@
 #include "triangle.hpp"
 #include "bvhnode.hpp"
 #include "settings.hpp"
+#include "bvh.hpp"
+#include "scene.hpp"
 
 using FireRays::float3;
 
@@ -68,7 +70,7 @@ public:
 
     void setupParams();
     void updateParams(const RenderParams &params);
-    void createBVHBuffers(std::vector<RTTriangle> *triangles, std::vector<cl_uint> *indices, std::vector<Node> *nodes);
+    void uploadSceneData(BVH *bvh, Scene *scene);
     void createTextures(GLuint *tex_arr);
     void createEnvMap(float *data, int width, int height);
 private:
@@ -120,5 +122,6 @@ private:
     cl::Buffer triangleBuffer;
     cl::Buffer nodeBuffer;
     cl::Buffer indexBuffer;
+    cl::Buffer materialBuffer;
     cl_uint nodes = 0; // needed outside of building?
 };

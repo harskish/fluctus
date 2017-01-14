@@ -14,7 +14,7 @@ template <class A, class B> A lerp(const A& a, const A& b, const B& t) { return 
 
 class BVH {
 
-friend class Tracer;
+friend class CLContext;
 
 public:
     BVH(std::vector<RTTriangle> *tris, SplitMode mode);

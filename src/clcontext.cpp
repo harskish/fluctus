@@ -211,6 +211,7 @@ void CLContext::setupMegaKernel()
     err |= kernel_monolith.setArg(i++, sphereBuffer);
     err |= kernel_monolith.setArg(i++, lightBuffer);
     err |= kernel_monolith.setArg(i++, triangleBuffer);
+    err |= kernel_monolith.setArg(i++, materialBuffer);
     err |= kernel_monolith.setArg(i++, nodeBuffer);
     err |= kernel_monolith.setArg(i++, indexBuffer);
     err |= kernel_monolith.setArg(i++, environmentMap);
@@ -335,12 +336,18 @@ void CLContext::setupScene()
     std::cout << "Scene initialization succeeded!" << std::endl;
 }
 
-// TODO: Check if Apple still breaks when using CL_MEM_READ
-void CLContext::createBVHBuffers(std::vector<RTTriangle> *tris, std::vector<cl_uint> *indices, std::vector<Node> *nodes)
+// Upload BVH data, geometry and materials to GPU
+void CLContext::uploadSceneData(BVH *bvh, Scene *scene)
 {
+    std::vector<RTTriangle> *tris = bvh->m_triangles;
+    std::vector<cl_uint> *indices = &bvh->m_indices; 
+    std::vector<Node> *nodes = &bvh->m_nodes;
+    std::vector<Material> *materials = &scene->getMaterials();
+
     size_t t_bytes = tris->size() * sizeof(RTTriangle);
     size_t i_bytes = indices->size() * sizeof(cl_uint);
     size_t n_bytes = nodes->size() * sizeof(Node);
+    size_t m_bytes = materials->size() * sizeof(Material);
 
     // Allocate memory for buffers
     triangleBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, t_bytes, NULL, &err);
@@ -352,6 +359,9 @@ void CLContext::createBVHBuffers(std::vector<RTTriangle> *tris, std::vector<cl_u
     nodeBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, n_bytes, NULL, &err);
     verify("Node buffer creation failed!");
 
+    materialBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, m_bytes, NULL, &err);
+    verify("Material buffer creation failed!");
+
     // Write data to buffers
     err = cmdQueue.enqueueWriteBuffer(triangleBuffer, CL_TRUE, 0, t_bytes, tris->data());
     verify("Triangle buffer writing failed!");
@@ -361,6 +371,9 @@ void CLContext::createBVHBuffers(std::vector<RTTriangle> *tris, std::vector<cl_u
 
     err = cmdQueue.enqueueWriteBuffer(nodeBuffer, CL_TRUE, 0, n_bytes, nodes->data());
     verify("Node buffer writing failed!");
+
+    err = cmdQueue.enqueueWriteBuffer(materialBuffer, CL_TRUE, 0, m_bytes, materials->data());
+    verify("Material buffer writing failed!");
 
     // Ensures that the kernels have the correct arguments
     setupKernels();
@@ -436,8 +449,8 @@ void CLContext::executeMegaKernel(const RenderParams &params, const int frontBuf
     err = 0;
     err |= kernel_monolith.setArg(0, sharedMemory[1 - frontBuffer]); // src
     err |= kernel_monolith.setArg(1, sharedMemory[frontBuffer]); // dst
-    err |= kernel_monolith.setArg(8, renderParams);
-    err |= kernel_monolith.setArg(9, iteration);
+    err |= kernel_monolith.setArg(9, renderParams);
+    err |= kernel_monolith.setArg(10, iteration);
     verify("Failed to set megakernel arguments!");
 
     size_t max_wg_size;

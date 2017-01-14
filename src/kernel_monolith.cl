@@ -154,7 +154,7 @@ inline float3 reflectionShading(Hit *hit, read_only image2d_t envMap, global Ren
 }
 
 // Ray tracing!
-inline float3 traceRay(float2 pos, global Sphere *scene, global PointLight *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+inline float3 traceRay(float2 pos, global Sphere *scene, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
 {
     float3 pixelColor = (float3)(0.0f);
 
@@ -179,9 +179,10 @@ inline float3 traceRay(float2 pos, global Sphere *scene, global PointLight *ligh
             //pixelColor = (float3)(hit.t / 8.0f);
 
             // Intersection shading
-            //pixelColor = scene[hit.i].Kd;
+            const int matId = tris[hit.i].matId;
+            pixelColor = (matId >= 0) ? materials[matId].Kd : (float3)(0.5f, 0.5f, 0.5f);
 
-            pixelColor = (float3)(1.0f, 0.0f, 0.0f) / (2.0f * hit.t);
+            //pixelColor = (float3)(1.0f, 0.0f, 0.0f) / (2.0f * hit.t);
         }
         else if (params->useEnvMap)
         {
@@ -344,7 +345,7 @@ OPENCL MEMORY SPACES:
 | Local    | __local        | Work-group-wide | Shared   | __shared__   |
 | Private  | __private      | Work-item-wide  | Local    |              |
 */
-kernel void trace(read_only image2d_t src, write_only image2d_t dst, global Sphere *scene, global PointLight *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, uint iteration)
+kernel void trace(read_only image2d_t src, write_only image2d_t dst, global Sphere *scene, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, uint iteration)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
@@ -352,7 +353,7 @@ kernel void trace(read_only image2d_t src, write_only image2d_t dst, global Sphe
     if(x >= params->width || y >= params->height) return;
 
     // Ray tracing
-    float3 pixelColor = traceRay((float2)(x, y), scene, lights, tris, nodes, indices, envMap, params);
+    float3 pixelColor = traceRay((float2)(x, y), scene, lights, tris, materials, nodes, indices, envMap, params);
     
     // Path tracing + accumulation
     /*

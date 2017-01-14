@@ -31,7 +31,7 @@ void Tracer::init(int width, int height)
     initEnvMap();
     initHierarchy();
 
-    clctx->createBVHBuffers(bvh->m_triangles, &bvh->m_indices, &bvh->m_nodes);
+    clctx->uploadSceneData(bvh, scene);
 
     // Data uploaded to GPU => no longer needed
     delete scene;

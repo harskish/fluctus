@@ -54,7 +54,7 @@ inline bool bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
             if (imin != -1 && tmin < hit->t)
             {
                 found = true;
-                hit->i = 0; //indices[imin];
+                hit->i = indices[imin];
                 hit->t = tmin;
                 hit->P = r->orig + tmin * r->dir;
                 hit->N = lerp(umin, vmin, tris[indices[imin]].v0.n, tris[indices[imin]].v1.n, tris[indices[imin]].v2.n);

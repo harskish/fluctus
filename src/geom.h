@@ -66,8 +66,8 @@ typedef struct
     Vertex v0;
     Vertex v1;
     Vertex v2;
-    cl_uint matId; // all triangles have a material
-} Triangle;
+    cl_int matId;
+} Triangle; // this struct is used interchangeably with RTTriangle...sizes must match!
 
 typedef struct
 {

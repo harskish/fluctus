@@ -29,6 +29,7 @@ public:
     ~Scene();
 
     std::vector<RTTriangle> &getTriangles() { return triangles; }
+    std::vector<Material> &getMaterials() { return materials; }
     EnvironmentMap *getEnvMap() { return envmap; }
 
     std::string hashString();
