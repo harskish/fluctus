@@ -86,13 +86,25 @@ inline void sampleHemisphere(float3 *pos, float3 *n, float *costh, uint *seed, f
     *p = *costh / M_PI_F; //pdf
 }
 
-inline void getTextureParameters(Hit hit, global Sphere *scene, float3 *Kd, float3 *N, float3 *Ks, float *refr)
+inline void getMaterialParameters(Hit hit, global Triangle *tris, global Material *materials, float3 *Kd, float3 *N, float3 *Ks, float *refr)
 {
     // Dummy method for now, should read from textures (if available)
-    *Kd = scene[hit.i].Kd;
-    *N = hit.N;
-    *Ks = (float3)(1.0f);
-    if(hit.i == 0) *refr = 1.5f;
+    const int matId = tris[hit.i].matId;
+    if (matId > -1) // use provided material
+    {
+        const Material mat = materials[matId];
+        *Kd = mat.Kd;
+        *Ks = mat.Ks;
+        *refr = mat.Ni;
+        *N = hit.N; // no normal maps yet
+    }
+    else // default material appearance
+    {
+        *Kd = (float3)(0.5f);
+        *Ks = (float3)(0.8f);
+        *N = hit.N;
+        *refr = 0.0f;
+    }
 }
 
 #endif

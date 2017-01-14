@@ -1,6 +1,75 @@
 #include "tracer.hpp"
 #include "geom.h"
 
+inline void calcRps(const unsigned int numRays, double launchTime)
+{
+    static double lastPrinted = 0;
+    double now = glfwGetTime();
+    if (now - lastPrinted > 1.0)
+    {
+        lastPrinted = now;
+        double mRps = numRays * 1e-6 / launchTime;
+        printf("\rKernel rays/s: %.0fM", mRps);
+    }
+}
+
+void Tracer::update()
+{
+    // React to key presses
+    glfwPollEvents();
+    pollKeys();
+
+    // Update RenderParams in GPU memory if needed
+    if(paramsUpdatePending)
+    {
+        // Update render dimensions
+        const float renderScale = Settings::getInstance().getRenderScale();
+        window->getFBSize(params.width, params.height);
+        params.width = static_cast<unsigned int>(params.width * renderScale);
+        params.height = static_cast<unsigned int>(params.height * renderScale);
+
+        clctx->updateParams(params);
+        paramsUpdatePending = false;
+        iteration = 0; // accumulation reset
+    }
+
+    if (useMK)
+    {
+        glFinish(); // locks execution to refresh rate of display (GL)
+
+        double kStart = glfwGetTime();
+
+        // Generate new camera rays
+        clctx->executeRayGenKernel(params);
+
+        // Trace rays
+        clctx->executeNextVertexKernel(params);
+
+        // Splat results
+        clctx->executeSplatKernel(params, frontBuffer, iteration);
+
+        calcRps(params.width * params.height, glfwGetTime() - kStart);
+    }
+    else
+    {
+        glFinish();
+
+        double kStart = glfwGetTime();
+
+        // Advance render state
+        clctx->executeMegaKernel(params, frontBuffer, iteration);
+
+        calcRps(params.width * params.height, glfwGetTime() - kStart);
+    }
+
+    // Draw progress to screen
+    window->repaint(frontBuffer);
+    frontBuffer = 1 - frontBuffer;
+
+    // Update iteration counter
+    iteration++;
+}
+
 Tracer::Tracer(int width, int height)
 {
     // done only once (VS debugging stops working if context is recreated)
@@ -10,7 +79,7 @@ Tracer::Tracer(int width, int height)
     initCamera();
     initAreaLight();
     loadState(); // useful when debugging
-    
+
     // done whenever a new scene is selected
     init(width, height);
 }
@@ -94,69 +163,6 @@ void Tracer::resizeBuffers()
     clctx->createTextures(window->getTexPtr());
     paramsUpdatePending = true;
     std::cout << std::endl;
-}
-
-inline void calcRps(const unsigned int numRays, double launchTime)
-{
-    static double lastPrinted = 0;
-    double now = glfwGetTime();
-    if (now - lastPrinted > 1.0)
-    {
-        lastPrinted = now;
-        double mRps = numRays * 1e-6 / launchTime;
-        printf("Kernel rays/s: %.0fM\n", mRps);
-    }
-}
-
-void Tracer::update()
-{
-    // React to key presses
-    glfwPollEvents();
-    pollKeys();
-
-    // Update RenderParams in GPU memory if needed
-    if(paramsUpdatePending)
-    {
-        // Update render dimensions
-        const float renderScale = Settings::getInstance().getRenderScale();
-        window->getFBSize(params.width, params.height);
-        params.width = static_cast<unsigned int>(params.width * renderScale);
-        params.height = static_cast<unsigned int>(params.height * renderScale);
-
-        clctx->updateParams(params);
-        paramsUpdatePending = false;
-        iteration = 0; // accumulation reset
-    }
-    
-    if (0)
-    {
-        glFinish(); // locks execution to refresh rate of display (GL)
-        
-        double kStart = glfwGetTime();
-
-        // Generate new camera rays
-        clctx->executeRayGenKernel(params);
-
-        // Trace rays
-        clctx->executeNextVertexKernel(params);
-
-        // Splat results
-        clctx->executeSplatKernel(params, frontBuffer, iteration);
-
-        calcRps(params.width * params.height, glfwGetTime() - kStart);
-    }
-    else
-    {
-        // Advance render state
-        clctx->executeMegaKernel(params, frontBuffer, iteration);
-    }
-
-    // Draw progress to screen
-    window->repaint(frontBuffer);
-    frontBuffer = 1 - frontBuffer;
-
-    // Update iteration counter
-    iteration++;
 }
 
 inline void writeVec(std::ofstream &out, FireRays::float3 &vec)
@@ -307,6 +313,7 @@ void Tracer::handleKeypress(int key)
     {
         match(GLFW_KEY_M, init(params.width, params.height));
         match(GLFW_KEY_H, params.flashlight = !params.flashlight);
+        match(GLFW_KEY_7, useMK = !useMK);
         match(GLFW_KEY_F1, initCamera());
         match(GLFW_KEY_F2, saveState());
         match(GLFW_KEY_F3, loadState());
@@ -334,7 +341,11 @@ void Tracer::pollKeys()
     check(GLFW_KEY_PERIOD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
     check(GLFW_KEY_SEMICOLON,   cam.fov = std::max(cam.fov - 1.0f, 5.0f));
     check(GLFW_KEY_KP_ADD,      cameraSpeed += 0.1f);
+    check(GLFW_KEY_0,           cameraSpeed *= 1.1f);
     check(GLFW_KEY_KP_SUBTRACT, cameraSpeed = std::max(0.05f, cameraSpeed - 0.05f));
+
+    check(GLFW_KEY_8,           params.areaLight.size /= 1.1f);
+    check(GLFW_KEY_9,           params.areaLight.size *= 1.1f);
 
     if(paramsUpdatePending)
     {

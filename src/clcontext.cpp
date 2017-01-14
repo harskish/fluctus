@@ -37,18 +37,6 @@ inline bool platformIsNvidia(cl::Platform platform)
     return name.find("NVIDIA") != std::string::npos;
 }
 
-inline void calcRps(const unsigned int numRays, double launchTime)
-{
-    static double lastPrinted = 0;
-    double now = glfwGetTime();
-    if (now - lastPrinted > 1.0)
-    {
-        lastPrinted = now;
-        double mRps = numRays * 1e-6 / launchTime;
-        printf("\rKernel rays/s: %.0fM", mRps);
-    }
-}
-
 inline std::string getAbsolutePath(std::string filename)
 {
     const int MAX_LENTH = 4096;
@@ -468,12 +456,10 @@ void CLContext::executeMegaKernel(const RenderParams &params, const int frontBuf
     cl::NDRange global(wgMultipleWidth, wgMutipleHeight);
     cl::NDRange local(ndRangeSizes[0], ndRangeSizes[1]);
 
-    // Enqueue commands to be executed in order
-    glFinish();
+    // Enqueue commands to be executed in order (glFinish called in tracer.cpp)
     err = cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
     verify("Failed to enqueue GL object acquisition!");
 
-    double kStart = glfwGetTime();
     #ifdef CPU_DEBUGGING
         err = cmdQueue.enqueueNDRangeKernel(
             kernel_monolith,
@@ -495,8 +481,6 @@ void CLContext::executeMegaKernel(const RenderParams &params, const int frontBuf
     
     err = cmdQueue.finish();
     verify("Failed to finish command queue!");
-
-    calcRps(params.width * params.height, glfwGetTime() - kStart);
 }
 
 // Return info about error

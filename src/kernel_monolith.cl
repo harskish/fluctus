@@ -195,7 +195,7 @@ inline float3 traceRay(float2 pos, global Sphere *scene, global PointLight *ligh
 }
 
 // Path tracing!
-inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global PointLight *lights, global Triangle *tris, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
 {
     float3 Ei = (float3)(0.0f);         // Irradiance
     float3 throughput = (float3)(1.0f); // BRDF
@@ -203,14 +203,14 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
 
     Ray r = getCameraRay(pos, params);
     Hit hit = raycast(&r, FLT_MAX, scene, tris, nodes, indices, params);
-    
+
     // TEST: show white area light on screen
     float tAreaLight = FLT_MAX;
     if (rayHitsLight(&r, params, &tAreaLight) && tAreaLight < hit.t)
     {
         return (float3)(1.0f);
     }
-    
+
     if (hit.i < 0) return evalEnvMap(envMap, r.dir);
 
     AreaLight areaLight = params->areaLight;
@@ -220,15 +220,15 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
     // State
     /* LordCRC: move seed to local store?? */
     uint seed = get_global_id(1) * params->width + get_global_id(0) + iter * params->width * params->height; // unique for each pixel
-    const int MAX_BOUNCES = 3;
+    const int MAX_BOUNCES = 8;
     float3 dir = r.dir; // updated at each bounce
     int i = 0;
-    
+
     while(i < MAX_BOUNCES && prob > 0.0f)
     {
         float3 Kd, Ks, n; // fetched from texture/material
         float refr = 0.0f;
-        getTextureParameters(hit, scene, &Kd, &n, &Ks, &refr);
+        getMaterialParameters(hit, tris, materials, &Kd, &n, &Ks, &refr);
 
         // Backside of triangle hit
         bool backside = (dot(n, dir) > 0.0f);
@@ -237,7 +237,7 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
         }
 
         /* REFRACTION */
-        if (false && refr && i <= MAX_BOUNCES) { // only for object, not walls (except wall 0)
+        if (refr > 1.0f && i <= MAX_BOUNCES) { // only for object, not walls (except wall 0)
             float3 orig;// , dir;
             const float EPS_REFR = 1e-5f;
             float cosI = dot(-normalize(dir), n);
@@ -307,7 +307,7 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
         L = normalize(L);
         Ray rLight = { orig, L };
         Hit hitLight = raycast(&rLight, lenL, scene, tris, nodes, indices, params);
-        
+
         if(hitLight.i == -1) // light not obstructed
         {
             float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
@@ -328,7 +328,7 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
 
         if (hit.i < 0)
             break;
-        
+
         i++;
     }
 
@@ -353,10 +353,10 @@ kernel void trace(read_only image2d_t src, write_only image2d_t dst, global Sphe
 
     // Ray tracing
     float3 pixelColor = traceRay((float2)(x, y), scene, lights, tris, materials, nodes, indices, envMap, params);
-    
+
     // Path tracing + accumulation
     /*
-    float3 pixelColor = tracePath((float2)(x, y), iteration, scene, lights, tris, nodes, indices, envMap, params);
+    float3 pixelColor = tracePath((float2)(x, y), iteration, scene, lights, tris, materials, nodes, indices, envMap, params);
     const float tex_weight = iteration * native_recip((float)(iteration) + 1.0f);
     float3 prev = read_imagef(src, (int2)(x, y)).xyz;
     pixelColor = clamp(mix(pixelColor, prev, tex_weight), (float3)(0.0f), (float3)(1.0f));

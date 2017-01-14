@@ -61,4 +61,6 @@ private:
     std::vector<RTTriangle>* m_triangles;
     cl_uint iteration;
     int frontBuffer = 0;
+
+    bool useMK = true;
 };
