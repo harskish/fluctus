@@ -60,9 +60,8 @@ inline void bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
         }
         else // Internal node
         {
-            float3 N_tmp;
-            bool leftWasHit = intersectSlab(r, &(nodes[ni + 1].box), &lnear, &lfar, &N_tmp);
-            bool rightWasHit = intersectSlab(r, &(nodes[n.rightChild].box), &rnear, &rfar, &N_tmp);
+            bool leftWasHit = intersectAABB(r, &(nodes[ni + 1].box), &lnear, &lfar);
+            bool rightWasHit = intersectAABB(r, &(nodes[n.rightChild].box), &rnear, &rfar);
 
             if (leftWasHit && rightWasHit)
             {

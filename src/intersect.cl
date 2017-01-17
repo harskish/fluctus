@@ -37,121 +37,24 @@ inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
     return true;
 }
 
-#define NORMAL_X ((float3)(-1, 0, 0))
-#define NORMAL_Y ((float3)(0, -1, 0))
-#define NORMAL_Z ((float3)(0, 0, -1))
-
 // Assign normal according to face hit
-inline bool intersectSlab(Ray *r, global AABB *box, float *tminRet, float *tMaxRet, float3 *N)
+inline bool intersectAABB(Ray *r, global AABB *box, float *tminRet, float *tMaxRet)
 {
-    float3 n;
-    float3 dinv = 1.0f / r->dir;
+    const float3 dinv = native_recip(r->dir);
+    const float3 tmp = (box->min - r->orig) * dinv;
+    float3 tmaxv = (box->max - r->orig) * dinv;
+    const float3 tminv = fmin(tmp, tmaxv);
+    tmaxv = fmax(tmp, tmaxv);
 
-    // X-axis
-    n = NORMAL_X;
-    float dinvx = dinv.x;
-    float tmin = (box->min.x - r->orig.x) * dinvx;
-    float tmax = (box->max.x - r->orig.x) * dinvx;
+    float tmin = fmax( fmax( tminv.x, tminv.y ), tminv.z );
+    float tmax = fmin( fmin( tmaxv.x, tmaxv.y ), tmaxv.z );
 
-    if (dinvx < 0)
-    {
-        swap(&tmin, &tmax);
-        n *= -1.0f;
-    }
-
-    if (tmax < 0)
-    {
-        return false;
-    }
-
-    *N = n;
-
-    // Y-axis
-    n = NORMAL_Y;
-    float dinvy = dinv.y;
-    float tminy = (box->min.y - r->orig.y) * dinvy;
-    float tmaxy = (box->max.y - r->orig.y) * dinvy;
-
-    if (dinvy < 0)
-    {
-        swap(&tminy, &tmaxy);
-        n *= -1.0f;
-    }
-
-    if (tmin > tmaxy || tmax < tminy)
-    {
-        return false;
-    }
-
-    if (tminy > tmin)
-    {
-        tmin = tminy;
-        *N = n;
-    }
-
-    if (tmaxy < tmax)
-    {
-        tmax = tmaxy;
-    }
-
-    if (tmax < 0)
-    {
-        return false;
-    }
-
-    // Z-axis
-    n = NORMAL_Z;
-    float dinvz = dinv.z;
-    float tminz = (box->min.z - r->orig.z) * dinvz;
-    float tmaxz = (box->max.z - r->orig.z) * dinvz;
-
-    if (dinvz < 0)
-    {
-        swap(&tminz, &tmaxz);
-        n *= -1.0f;
-    }
-
-    if (tmin > tmaxz || tmax < tminz)
-    {
-        return false;
-    }
-
-    if (tminz > tmin)
-    {
-        tmin = tminz;
-        *N = n;
-    }
-
-    if (tmaxz < tmax)
-    {
-        tmax = tmaxz;
-    }
-
-    if (tmax < 0)
-    {
-        return false;
-    }
+    if (tmax < 0) return false;
+    if (tmin > tmax) return false;
 
     // Assign output variables
     *tminRet = tmin;
     *tMaxRet = tmax;
-    
-    return true;
-}
-
-inline bool box_intersect(Ray *r, AABB *box, float *tcurr, float *tminRet)
-{
-    float3 tmin = (box->min - r->orig) / r->dir;
-    float3 tmax = (box->max - r->orig) / r->dir;
-
-    float3 t1 = min(tmin, tmax);
-    float3 t2 = max(tmin, tmax);
-
-    float ts = max(t1.x, max(t1.y, t1.z));
-    float te = min(t2.x, min(t2.y, t2.z));
-
-    if (te < 0.0f || ts > *tcurr || ts > te) return false;
-    *tminRet = max(0.0f, ts);
 
     return true;
 }
