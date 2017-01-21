@@ -521,6 +521,9 @@ void CLContext::verify(std::string msg)
     {
         std::string message = msg + " (" + errorString() + ")";
         std::cout << message << std::endl;
+#ifdef WIN32
+        system("pause");
+#endif
         exit(1);
     }
 }

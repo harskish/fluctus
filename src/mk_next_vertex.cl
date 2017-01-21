@@ -20,14 +20,14 @@ kernel void nextVertex(global Ray *rays, global GPUTaskState *tasks, global Mate
     // TEST: show intersection immediately
     if (hit.i > -1)
     {
-        task->T = (hit.matId > -1) ? materials[hit.matId].Kd : float3(1.0f);
+        task->T = (hit.matId > -1) ? materials[hit.matId].Kd : (float3)(1.0f);
         task->pdf = hit.t; // TEST
         task->phase = MK_SPLAT_SAMPLE;
     }
     else
     {
         // Need to clear screen
-        task->T = float3(0.0f);
+        task->T = (float3)(0.0f);
         task->pdf = FLT_MAX; // TEST
         task->phase = MK_SPLAT_SAMPLE;
     }
