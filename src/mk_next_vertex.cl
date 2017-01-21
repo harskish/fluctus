@@ -20,7 +20,7 @@ kernel void nextVertex(global Ray *rays, global GPUTaskState *tasks, global Mate
     // TEST: show intersection immediately
     if (hit.i > -1)
     {
-        task->T = (hit.matId > -1) ? materials[hit.matId].Kd : (float3)(1.0f);
+        task->T = materials[hit.matId].Kd;
         task->pdf = hit.t; // TEST
         task->phase = MK_SPLAT_SAMPLE;
     }

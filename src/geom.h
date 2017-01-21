@@ -90,7 +90,7 @@ typedef struct
     float3 Kd;     // diffuse reflectivity
     float3 Ks;     // specular reflectivity 
     float3 Ke;     // emission
-    cl_float Ns;   // specular exponent (shininess)
+    cl_float Ns;   // specular exponent (shininess), normally in [0, 1000]
     cl_float Ni;   // index of refraction
     cl_int map_Kd; // diffuse texture idx
     cl_int map_Ks; // specular texture idx

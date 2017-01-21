@@ -178,8 +178,7 @@ inline float3 traceRay(float2 pos, global Sphere *scene, global PointLight *ligh
             //pixelColor = (float3)(hit.t / 8.0f);
 
             // Intersection shading
-            const int matId = tris[hit.i].matId;
-            pixelColor = (matId >= 0) ? materials[matId].Kd : (float3)(0.5f, 0.5f, 0.5f);
+            pixelColor = materials[hit.matId].Kd;
 
             //pixelColor = (float3)(1.0f, 0.0f, 0.0f) / (2.0f * hit.t);
         }
@@ -218,9 +217,8 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
     float3 nLight = areaLight.N;
 
     // State
-    /* LordCRC: move seed to local store?? */
     uint seed = get_global_id(1) * params->width + get_global_id(0) + iter * params->width * params->height; // unique for each pixel
-    const int MAX_BOUNCES = 8;
+    const int MAX_BOUNCES = 1;
     float3 dir = r.dir; // updated at each bounce
     int i = 0;
 
@@ -237,7 +235,7 @@ inline float3 tracePath(float2 pos, uint iter, global Sphere *scene, global Poin
         }
 
         /* REFRACTION */
-        if (refr > 1.0f && i <= MAX_BOUNCES) { // only for object, not walls (except wall 0)
+        if (false && refr > 1.0f && i <= MAX_BOUNCES) { // only for object, not walls (except wall 0)
             float3 orig;// , dir;
             const float EPS_REFR = 1e-5f;
             float cosI = dot(-normalize(dir), n);
@@ -352,10 +350,10 @@ kernel void trace(read_only image2d_t src, write_only image2d_t dst, global Sphe
     if(x >= params->width || y >= params->height) return;
 
     // Ray tracing
-    float3 pixelColor = traceRay((float2)(x, y), scene, lights, tris, materials, nodes, indices, envMap, params);
+    //float3 pixelColor = traceRay((float2)(x, y), scene, lights, tris, materials, nodes, indices, envMap, params);
 
     // Path tracing + accumulation
-    /*
+    //*
     float3 pixelColor = tracePath((float2)(x, y), iteration, scene, lights, tris, materials, nodes, indices, envMap, params);
     const float tex_weight = iteration * native_recip((float)(iteration) + 1.0f);
     float3 prev = read_imagef(src, (int2)(x, y)).xyz;

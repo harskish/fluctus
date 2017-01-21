@@ -4,7 +4,19 @@
 
 Scene::Scene(const std::string filename)
 {
-    loadModel(filename); // Assume file is a model, not a scene. Just for now ;)
+    // Init default material
+    Material def;
+    def.Kd = float3(0.8f, 0.0f, 0.4f);
+    def.Ks = float3(1.0f);
+    def.Ke = float3(0.0f);
+    def.Ns = 30;
+    def.Ni = 0.0f;
+    def.map_Kd = -1;
+    def.map_Ks = -1;
+    materials.push_back(def);
+
+    // Load scene data
+    loadModel(filename); // Supports just single-file scenes for now
 
     // Test
     //envmap = new EnvironmentMap("assets/env_maps/dawn.hdr");
@@ -215,7 +227,7 @@ void Scene::loadObjWithMaterials(const std::string filePath)
                 V[0].n = V[1].n = V[2].n = normalize(cross(V[1].p - V[0].p, V[2].p - V[0].p));
 
             RTTriangle tri(V[0], V[1], V[2]);
-            tri.matId = shape.mesh.material_ids[f];
+            tri.matId = shape.mesh.material_ids[f] + 1; // -1 becomes 0 (default material)
             triangles.push_back(tri);
         }
     }
