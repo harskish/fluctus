@@ -25,6 +25,10 @@ Scene::Scene(const std::string filename)
 Scene::~Scene()
 {
     if(envmap) delete envmap;
+    for (Texture *t : textures)
+    {
+        delete t;
+    }
 }
 
 void Scene::computeHash(const std::string filename)
@@ -233,20 +237,38 @@ void Scene::loadObjWithMaterials(const std::string filePath)
     }
 
     // Read materialsVec into own format
-    for (size_t i = 0; i < materialsVec.size(); i++)
+    for (tinyobj::material_t &t_mat : materialsVec)
     {
         Material m;
-        m.Kd = float3(materialsVec[i].diffuse[0], materialsVec[i].diffuse[1], materialsVec[i].diffuse[2]);
-        m.Ks = float3(materialsVec[i].specular[0], materialsVec[i].specular[1], materialsVec[i].specular[2]);
-        m.Ke = float3(materialsVec[i].emission[0], materialsVec[i].emission[1], materialsVec[i].emission[2]);
-        m.Ns = materialsVec[i].shininess;
-        m.Ni = materialsVec[i].ior;
-        // no texture support yet
-        m.map_Kd = -1;
-        m.map_Ks = -1;
+        m.Kd = float3(t_mat.diffuse[0], t_mat.diffuse[1], t_mat.diffuse[2]);
+        m.Ks = float3(t_mat.specular[0], t_mat.specular[1], t_mat.specular[2]);
+        m.Ke = float3(t_mat.emission[0], t_mat.emission[1], t_mat.emission[2]);
+        m.Ns = t_mat.shininess;
+        m.Ni = t_mat.ior;
+        m.map_Kd = tryImportTexture(folderPath + t_mat.diffuse_texname, t_mat.diffuse_texname);
+        m.map_Ks = tryImportTexture(folderPath + t_mat.specular_texname, t_mat.specular_texname);
 
         materials.push_back(m);
     }
+}
+
+// Import texture if it exists and hasn't been loaded yet, set index in material
+cl_int Scene::tryImportTexture(const std::string path, std::string name)
+{
+    if (name.length() == 0) return -1;
+
+    auto prev = std::find_if(textures.begin(), textures.end(), [name](Texture *t) { return t->getName() == name; });
+    if (prev != textures.end())
+    {
+        return (cl_int)(prev - textures.begin());
+    }
+
+    // Texture doesn't exist, load it 
+    Texture *tex = new Texture(path, name);
+    if (tex->getName() == "error") return -1;
+
+    textures.push_back(tex);
+    return (cl_int)(textures.size() - 1);
 }
 
 void Scene::loadObjModel(const std::string filename)

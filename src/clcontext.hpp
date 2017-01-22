@@ -77,6 +77,7 @@ private:
     void printDevices();
     void setupScene();
     void verify(std::string msg);
+    void packTextures(Scene *scene);
     
     void setupKernels();
     void setupRayGenKernel();
@@ -123,5 +124,7 @@ private:
     cl::Buffer nodeBuffer;
     cl::Buffer indexBuffer;
     cl::Buffer materialBuffer;
+    cl::Buffer texDescriptorBuffer;
+    cl::Buffer texDataBuffer;
     cl_uint nodes = 0; // needed outside of building?
 };

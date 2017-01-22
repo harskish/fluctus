@@ -15,11 +15,12 @@
 #include <ctime>
 #include <chrono>
 
+#include "geom.h"
 #include "triangle.hpp"
 #include "envmap.hpp"
 #include "rtutil.hpp"
 #include "math/float3.hpp"
-#include "geom.h"
+#include "texture.hpp"
 
 using FireRays::float3;
 
@@ -30,6 +31,7 @@ public:
 
     std::vector<RTTriangle> &getTriangles() { return triangles; }
     std::vector<Material> &getMaterials() { return materials; }
+    std::vector<Texture*> &getTextures() { return textures; }
     EnvironmentMap *getEnvMap() { return envmap; }
 
     std::string hashString();
@@ -41,6 +43,7 @@ private:
 
     // With tiny_obj_loader
     void loadObjWithMaterials(const std::string filename);
+    cl_int tryImportTexture(const std::string path, const std::string name);
 
     void unpackIndexedData(const std::vector<float3> &positions,
                            const std::vector<float3>& normals,
@@ -52,5 +55,6 @@ private:
   EnvironmentMap *envmap = nullptr;
   std::vector<RTTriangle> triangles;
   std::vector<Material> materials;
+  std::vector<Texture*> textures;
   size_t hash;
 };

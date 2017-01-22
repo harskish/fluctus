@@ -1,7 +1,7 @@
 assets/
 hierarchies/
 Debug/
-Release/
+/Release/
 .vs/
 settings.json
 state.dat

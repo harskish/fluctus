@@ -92,9 +92,16 @@ typedef struct
     float3 Ke;     // emission
     cl_float Ns;   // specular exponent (shininess), normally in [0, 1000]
     cl_float Ni;   // index of refraction
-    cl_int map_Kd; // diffuse texture idx
-    cl_int map_Ks; // specular texture idx
+    cl_int map_Kd; // diffuse texture descriptor idx
+    cl_int map_Ks; // specular texture descriptor idx
 } Material;
+
+typedef struct
+{
+    cl_uint offset; // start of texture data in global array
+    cl_uint width;
+    cl_uint height;
+} TexDescriptor;
 
 typedef struct
 {

@@ -350,6 +350,7 @@ void CLContext::uploadSceneData(BVH *bvh, Scene *scene)
     if(m_bytes > 0) materialBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, m_bytes, NULL, &err);
     verify("Material buffer creation failed!");
 
+
     // Write data to buffers
     err = cmdQueue.enqueueWriteBuffer(triangleBuffer, CL_TRUE, 0, t_bytes, tris->data());
     verify("Triangle buffer writing failed!");
@@ -363,8 +364,54 @@ void CLContext::uploadSceneData(BVH *bvh, Scene *scene)
     if(m_bytes > 0) err = cmdQueue.enqueueWriteBuffer(materialBuffer, CL_TRUE, 0, m_bytes, materials->data());
     verify("Material buffer writing failed!");
 
+    // Pack texture data into aggregate array
+    packTextures(scene);
+
     // Ensures that the kernels have the correct arguments
     setupKernels();
+}
+
+// Upload texture data to GPU
+// Avoids intermediate buffers to keep RAM usage low
+void CLContext::packTextures(Scene *scene)
+{
+    std::vector<Texture*> textures = scene->getTextures();
+    
+    // Calculate total size required for texture data
+    size_t t_bytes = 0;
+    for (Texture *tex : textures)
+    {
+        t_bytes += tex->getWidth() * tex->getHeight() * 4 * 1; // RGBA
+    }
+
+    // Create buffers for texture data & descriptors
+    size_t d_bytes = textures.size() * sizeof(TexDescriptor);
+    texDescriptorBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, d_bytes, NULL, &err);
+    verify("Texture descriptor buffer creation failed!");
+    texDataBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, t_bytes, NULL, &err);
+    verify("Texture data buffer creation failed!");
+    
+    // Upload data, create descriptors
+    std::vector<TexDescriptor> descs;
+    cl_uint offset = 0;
+    for (Texture *tex : textures)
+    {
+        TexDescriptor desc;
+        desc.offset = offset;
+        desc.width = tex->getWidth();
+        desc.height = tex->getHeight();
+        descs.push_back(desc);
+
+        cl_uint len = tex->getWidth() * tex->getHeight() * 4 * 1; // RGBA
+        err = cmdQueue.enqueueWriteBuffer(texDataBuffer, CL_TRUE, offset, len, tex->getData());
+        verify("Texture data buffer writing failed!");
+
+        offset += len;
+    }
+
+    // Upload descriptors
+    err = cmdQueue.enqueueWriteBuffer(texDescriptorBuffer, CL_TRUE, 0, d_bytes, descs.data());
+    verify("Texture descriptor buffer writing failed!");
 }
 
 // Passing structs to kernels is broken in several drivers (e.g. GT 750M on MacOS)
