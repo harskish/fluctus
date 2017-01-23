@@ -116,6 +116,8 @@ typedef struct
     cl_int matId; // index of hit material
 } Hit;
 
+#define EMPTY_HIT(tmax) { (float3)(0.0f), (float3)(0.0f), tmax, (float2)(0.0f), -1, -1 }
+
 typedef struct
 {
     float3 pos;     // 16B

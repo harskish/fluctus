@@ -233,6 +233,8 @@ void CLContext::setupNextVertexKernel()
     err |= mk_next_vertex.setArg(i++, raysBuffer);
     err |= mk_next_vertex.setArg(i++, tasksBuffer);
     err |= mk_next_vertex.setArg(i++, materialBuffer);
+    err |= mk_next_vertex.setArg(i++, texDataBuffer);
+    err |= mk_next_vertex.setArg(i++, texDescriptorBuffer);
     err |= mk_next_vertex.setArg(i++, triangleBuffer);
     err |= mk_next_vertex.setArg(i++, nodeBuffer);
     err |= mk_next_vertex.setArg(i++, indexBuffer);
@@ -450,7 +452,7 @@ void CLContext::executeRayGenKernel(const RenderParams &params)
 void CLContext::executeNextVertexKernel(const RenderParams &params)
 {
     // Set updated RenderParams
-    err = mk_next_vertex.setArg(6, renderParams);
+    err = mk_next_vertex.setArg(8, renderParams);
     verify("Failed to set mk_next_vertex RenderParams!");
 
     // Enqueue 1D range

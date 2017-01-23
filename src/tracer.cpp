@@ -70,7 +70,7 @@ void Tracer::update()
     iteration++;
 }
 
-Tracer::Tracer(int width, int height)
+Tracer::Tracer(int width, int height) : useMK(true)
 {
     // done only once (VS debugging stops working if context is recreated)
     window = new PTWindow(width, height, this); // this = glfw user pointer

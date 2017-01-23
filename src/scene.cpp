@@ -193,6 +193,7 @@ void Scene::loadObjWithMaterials(const std::string filePath)
     std::cout << "# of materials : " << materialsVec.size() << std::endl;
 
     const bool hasNormals = attrib.normals.size() > 0;
+    const bool hasTexCoords = attrib.texcoords.size() > 0;
 
     // Loop over shapesVec in file
     for (size_t i = 0; i < shapesVec.size(); i++)
@@ -226,7 +227,7 @@ void Scene::loadObjWithMaterials(const std::string filePath)
                 }
 
                 // Tex coord
-                if (ind.normal_index > -1)
+                if (ind.texcoord_index > -1 && hasTexCoords)
                     V[v].t = float3(attrib.texcoords[2 * ind.texcoord_index + 0], attrib.texcoords[2 * ind.texcoord_index + 1], 0.0f);
                 else
                     V[v].t = float3(0.0f);

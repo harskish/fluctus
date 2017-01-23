@@ -62,5 +62,5 @@ private:
     cl_uint iteration;
     int frontBuffer = 0;
 
-    bool useMK = true;
+    bool useMK;
 };
