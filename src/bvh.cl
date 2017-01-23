@@ -56,6 +56,7 @@ inline void bvh_intersect_stack(Ray *r, Hit *hit, global Triangle *tris, global 
                 hit->t = tmin;
                 hit->P = r->orig + tmin * r->dir;
                 hit->N = lerp(umin, vmin, tris[indices[imin]].v0.n, tris[indices[imin]].v1.n, tris[indices[imin]].v2.n);
+                hit->uvTex = lerp(umin, vmin, tris[indices[imin]].v0.t, tris[indices[imin]].v1.t, tris[indices[imin]].v2.t).xy;
             }
         }
         else // Internal node

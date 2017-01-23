@@ -6,7 +6,10 @@ typedef int cl_int;
 typedef unsigned int cl_uint;
 typedef char cl_uchar;
 typedef bool cl_bool;
+typedef float2 cl_float2;
 #else
+#define CL_HPP_MINIMUM_OPENCL_VERSION 120
+#define CL_HPP_TARGET_OPENCL_VERSION 120
 #include "cl2.hpp"
 #include "math/float2.hpp"
 #include "math/float3.hpp"
@@ -108,6 +111,7 @@ typedef struct
     float3 P;
     float3 N;
     cl_float t;
+    cl_float2 uvTex;
     cl_int i; // index of hit triangle, -1 by default
     cl_int matId; // index of hit material
 } Hit;

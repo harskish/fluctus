@@ -1,4 +1,6 @@
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+
+#include <tiny_obj_loader.h>
 #include "tiny_obj_loader.h"
 #include "scene.hpp"
 
@@ -224,7 +226,10 @@ void Scene::loadObjWithMaterials(const std::string filePath)
                 }
 
                 // Tex coord
-                V[v].t = float3(0.0f);
+                if (ind.normal_index > -1)
+                    V[v].t = float3(attrib.texcoords[2 * ind.texcoord_index + 0], attrib.texcoords[2 * ind.texcoord_index + 1], 0.0f);
+                else
+                    V[v].t = float3(0.0f);
             }
 
             if(!allNormals)

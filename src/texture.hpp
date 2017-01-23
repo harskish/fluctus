@@ -14,7 +14,7 @@
 class Texture
 {
 public:
-    Texture() : width(0), height(0), name("uninitialized"), data(NULL) {} // default constructor
+    //Texture() : width(0), height(0), data(NULL) {} // default constructor
     Texture(const std::string path, const std::string name);
     ~Texture() { if (data) delete[] data; }
 

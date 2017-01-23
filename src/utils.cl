@@ -86,10 +86,32 @@ inline void sampleHemisphere(float3 *pos, float3 *n, float *costh, uint *seed, f
     *p = *costh / M_PI_F; //pdf
 }
 
-inline void getMaterialParameters(Hit hit, global Triangle *tris, global Material *materials, float3 *Kd, float3 *N, float3 *Ks, float *refr)
+inline int2 getTexelCoords(float2 uv, uint width, uint height)
+{
+    uv.x *= width;
+    uv.y *= height;
+    int tx = ((int)(floor(uv.x)) % width + width) % width;
+    int ty = ((int)(floor(uv.y)) % height + height) % height;
+
+    return clamp((int2)(tx + uv.x - floor(uv.x), ty + uv.y - floor(uv.y)), (int2)(0), (int2)(width - 1, height - 1));
+    //return Vec2f(tx + uv.x - floor(uv.x), ty + uv.y - floor(uv.y)).clamp(Vec2f(0), Vec2f(size)-Vec2f(1));
+}
+
+inline float3 readTexture(float2 uvTex, TexDescriptor tex, global uchar *data)
+{
+    int2 coords = getTexelCoords(uvTex, tex.width, tex.height);
+    global uchar *pix = data + tex.offset + coords.x * 4 + coords.y * tex.width * 4;
+    float3 c = (float3)(*(pix + 0), *(pix + 1), *(pix + 2));
+
+    return c / 255.0f;
+}
+
+inline void getMaterialParameters(Hit hit, global Triangle *tris, global Material *materials, global uchar *texData, global TexDescriptor *textures, float3 *Kd, float3 *N, float3 *Ks, float *refr)
 {
     // Dummy method for now, should read from textures (if available)
     const Material mat = materials[hit.matId];
+
+    //*Kd = (mat.map_Kd != -1) ? readTexture(hit.uvTex, textures[mat.map_Kd], texData) : mat.Kd;
     *Kd = mat.Kd;
     *Ks = mat.Ks;
     *refr = mat.Ni;

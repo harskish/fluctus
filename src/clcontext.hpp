@@ -31,6 +31,7 @@
 #include "settings.hpp"
 #include "bvh.hpp"
 #include "scene.hpp"
+#include "texture.hpp"
 
 using FireRays::float3;
 

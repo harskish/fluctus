@@ -196,7 +196,8 @@ void CLContext::setupMegaKernel()
     err = 0;
     err |= kernel_monolith.setArg(i++, sharedMemory[1]); // src
     err |= kernel_monolith.setArg(i++, sharedMemory[0]); // dst
-    err |= kernel_monolith.setArg(i++, sphereBuffer);
+    err |= kernel_monolith.setArg(i++, texDataBuffer);
+    err |= kernel_monolith.setArg(i++, texDescriptorBuffer);
     err |= kernel_monolith.setArg(i++, lightBuffer);
     err |= kernel_monolith.setArg(i++, triangleBuffer);
     err |= kernel_monolith.setArg(i++, materialBuffer);
@@ -376,6 +377,8 @@ void CLContext::uploadSceneData(BVH *bvh, Scene *scene)
 void CLContext::packTextures(Scene *scene)
 {
     std::vector<Texture*> textures = scene->getTextures();
+
+    if (textures.size() == 0) return;
     
     // Calculate total size required for texture data
     size_t t_bytes = 0;
@@ -484,8 +487,8 @@ void CLContext::executeMegaKernel(const RenderParams &params, const int frontBuf
     err = 0;
     err |= kernel_monolith.setArg(0, sharedMemory[1 - frontBuffer]); // src
     err |= kernel_monolith.setArg(1, sharedMemory[frontBuffer]); // dst
-    err |= kernel_monolith.setArg(9, renderParams);
-    err |= kernel_monolith.setArg(10, iteration);
+    err |= kernel_monolith.setArg(10, renderParams);
+    err |= kernel_monolith.setArg(11, iteration);
     verify("Failed to set megakernel arguments!");
 
     size_t max_wg_size;
