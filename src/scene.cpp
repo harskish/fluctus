@@ -251,7 +251,7 @@ void Scene::loadObjWithMaterials(const std::string filePath)
         m.Ke = float3(t_mat.emission[0], t_mat.emission[1], t_mat.emission[2]);
         m.Ns = t_mat.shininess;
         m.Ni = t_mat.ior;
-        m.map_Kd = tryImportTexture(folderPath + t_mat.diffuse_texname, t_mat.diffuse_texname);
+        m.map_Kd = tryImportTexture(unixifyPath(folderPath + t_mat.diffuse_texname), unixifyPath(t_mat.diffuse_texname));
         m.map_Ks = tryImportTexture(folderPath + t_mat.specular_texname, t_mat.specular_texname);
 
         materials.push_back(m);

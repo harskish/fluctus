@@ -20,6 +20,9 @@ int main(int argc, char* argv[])
 
     ilInit();
     iluInit();
+    ilEnable(IL_ORIGIN_SET);
+    ilOriginFunc(IL_ORIGIN_LOWER_LEFT);
+
     if (!glfwInit())
     {
         exit(EXIT_FAILURE);
