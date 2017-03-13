@@ -138,6 +138,7 @@ typedef struct
     cl_uint n_lights;      // number of lights in scene
     cl_uint useEnvMap;
     cl_uint flashlight;
+    cl_uint maxBounces;
 } RenderParams;
 
 

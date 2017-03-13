@@ -198,10 +198,10 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
 
     // State
     uint seed = get_global_id(1) * params->width + get_global_id(0) + iter * params->width * params->height; // unique for each pixel
-    const int MAX_BOUNCES = 4;
     float3 dir = r.dir; // updated at each bounce
     int i = 0;
 
+    const int MAX_BOUNCES = params->maxBounces;
     while(i < MAX_BOUNCES && prob > 0.0f)
     {
         float3 Kd, Ks, n; // fetched from texture/material
@@ -215,7 +215,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
         }
 
         /* REFRACTION */
-        if (false && refr > 1.0f && i <= MAX_BOUNCES) { // only for object, not walls (except wall 0)
+        if (refr > 1.0f && i <= MAX_BOUNCES) {
             float3 orig;// , dir;
             const float EPS_REFR = 1e-5f;
             float cosI = dot(-normalize(dir), n);

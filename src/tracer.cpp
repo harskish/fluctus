@@ -95,6 +95,7 @@ void Tracer::init(int width, int height)
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
     params.useEnvMap = 0;
     params.flashlight = 0;
+    params.maxBounces = 2;
 
     selectScene();
     initEnvMap();
@@ -318,6 +319,8 @@ void Tracer::handleKeypress(int key)
         match(GLFW_KEY_F2, saveState());
         match(GLFW_KEY_F3, loadState());
         match(GLFW_KEY_SPACE, updateAreaLight());
+        match(GLFW_KEY_PAGE_UP, std::cout << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
+        match(GLFW_KEY_PAGE_DOWN, std::cout << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
     }
 }
 #undef match
