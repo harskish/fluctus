@@ -215,7 +215,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
         }
 
         /* REFRACTION */
-        if (refr > 1.0f && i <= MAX_BOUNCES) {
+        if (false && refr > 1.0f && i <= MAX_BOUNCES) {
             float3 orig;// , dir;
             const float EPS_REFR = 1e-5f;
             float cosI = dot(-normalize(dir), n);
@@ -290,6 +290,8 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             float costh = max(dot(n, L), 0.0f);
             Ei += brdf * throughput * emission * max(dot(-L, nLight), 0.0f) * costh / (lenL * lenL) / pdf1 / prob;
         }
+
+        if (i+1 == MAX_BOUNCES) break;
 
         // Indirect
         float pdf, costh;

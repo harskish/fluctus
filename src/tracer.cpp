@@ -48,7 +48,8 @@ void Tracer::update()
         // Splat results
         clctx->executeSplatKernel(params, frontBuffer, iteration);
 
-        calcRps(params.width * params.height, glfwGetTime() - kStart);
+        // TODO: add statistic tracking from kernels
+        calcRps(params.width * params.height * 1, glfwGetTime() - kStart);
     }
     else
     {
@@ -59,7 +60,8 @@ void Tracer::update()
         // Advance render state
         clctx->executeMegaKernel(params, frontBuffer, iteration);
 
-        calcRps(params.width * params.height, glfwGetTime() - kStart);
+        // Primary and extension rays (no shadow rays). Not same as Samples/sec
+        calcRps(params.width * params.height * (1 + params.maxBounces), glfwGetTime() - kStart);
     }
 
     // Draw progress to screen
@@ -319,8 +321,8 @@ void Tracer::handleKeypress(int key)
         match(GLFW_KEY_F2, saveState());
         match(GLFW_KEY_F3, loadState());
         match(GLFW_KEY_SPACE, updateAreaLight());
-        match(GLFW_KEY_PAGE_UP, std::cout << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
-        match(GLFW_KEY_PAGE_DOWN, std::cout << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
+        match(GLFW_KEY_I, std::cout << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
+        match(GLFW_KEY_K, std::cout << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
     }
 }
 #undef match
@@ -346,7 +348,6 @@ void Tracer::pollKeys()
     check(GLFW_KEY_KP_ADD,      cameraSpeed += 0.1f);
     check(GLFW_KEY_0,           cameraSpeed *= 1.1f);
     check(GLFW_KEY_KP_SUBTRACT, cameraSpeed = std::max(0.05f, cameraSpeed - 0.05f));
-
     check(GLFW_KEY_8,           params.areaLight.size /= 1.1f);
     check(GLFW_KEY_9,           params.areaLight.size *= 1.1f);
 
