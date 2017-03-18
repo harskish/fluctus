@@ -38,7 +38,7 @@ inline bool sphereIntersect(Ray *r, global Sphere *s, float *t)
 }
 
 // Assign normal according to face hit
-inline bool intersectAABB(Ray *r, global AABB *box, float *tminRet, float *tMaxRet)
+inline bool intersectAABB(Ray *r, global AABB *box, float *tminRet, float *tMaxRet, float tMaxPrev)
 {
     const float3 dinv = native_recip(r->dir);
     const float3 tmp = (box->min - r->orig) * dinv;
@@ -56,7 +56,7 @@ inline bool intersectAABB(Ray *r, global AABB *box, float *tminRet, float *tMaxR
     *tminRet = tmin;
     *tMaxRet = tmax;
 
-    return true;
+    return tmin < tMaxPrev; // not behind current best hit
 }
 
 // Möller-Trumbore

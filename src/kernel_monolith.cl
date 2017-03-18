@@ -52,7 +52,7 @@ inline Ray getCameraRay(const float2 pos, global RenderParams *params)
 inline Hit raycast(Ray *r, float tMax, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
 {
     Hit hit = EMPTY_HIT(tMax);
-    bvh_intersect_stack(r, &hit, tris, nodes, indices);
+    bvh_intersect(r, &hit, tris, nodes, indices);
     return hit;
 }
 

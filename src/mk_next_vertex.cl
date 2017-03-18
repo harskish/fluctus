@@ -16,7 +16,8 @@ kernel void nextVertex(global Ray *rays, global GPUTaskState *tasks, global Mate
 
     Ray r = rays[gid];
     Hit hit = EMPTY_HIT(FLT_MAX); // TODO: Max distance?
-    bvh_intersect_stack(&r, &hit, tris, nodes, indices);
+    
+    bvh_intersect(&r, &hit, tris, nodes, indices);
 
     // TEST: show intersection immediately
     if (hit.i > -1)
