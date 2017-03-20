@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <map>
 #include "json.hpp"
 
 class Settings
@@ -17,6 +18,7 @@ public:
     // Getters
     std::string getPlatformName() { return platformName; }
     std::string getDeviceName() { return deviceName; }
+    std::map<unsigned int, std::string> getShortcuts() { return shortcuts; }
     int getWindowWidth() { return windowWidth; };
     int getWindowHeight() { return windowHeight; };
     float getRenderScale() { return renderScale; };
@@ -30,6 +32,7 @@ private:
     // Contents of settings singleton
     std::string platformName;
     std::string deviceName;
+    std::map<unsigned int, std::string> shortcuts;
     int windowWidth;
     int windowHeight;
     float renderScale;

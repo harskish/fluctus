@@ -86,7 +86,7 @@ Tracer::Tracer(int width, int height) : useMK(true)
 }
 
 // Run whenever a scene is laoded
-void Tracer::init(int width, int height)
+void Tracer::init(int width, int height, std::string sceneFile)
 {
     float renderScale = Settings::getInstance().getRenderScale();
 
@@ -98,7 +98,7 @@ void Tracer::init(int width, int height)
     params.flashlight = 0;
     params.maxBounces = 2;
 
-    selectScene();
+    selectScene(sceneFile);
     loadState();
     initEnvMap();
     initHierarchy();
@@ -110,13 +110,17 @@ void Tracer::init(int width, int height)
     delete bvh;
 }
 
-void Tracer::selectScene()
+// Empty file name means scene selector is opened
+void Tracer::selectScene(std::string file)
 {
-    char const * pattern[] = { "*.obj", "*.ply" };
-    char const *files = tinyfd_openFileDialog("Select a scene file", "assets/", 2, pattern, NULL, 0); // allow only single selection
+    if (file == "")
+    {
+        char const * pattern[] = { "*.obj", "*.ply" };
+        char const *selected = tinyfd_openFileDialog("Select a scene file", "assets/", 2, pattern, NULL, 0); // allow only single selection
+        file = (selected) ? std::string(selected) : "assets/teapot.ply";
+    }
 
-    std::string selected = (files) ? std::string(files) : "assets/teapot.ply";
-    scene = new Scene(selected);
+    scene = new Scene(file);
     sceneHash = scene->hashString();
 }
 
@@ -311,13 +315,26 @@ void Tracer::updateAreaLight()
     params.areaLight.pos = params.camera.pos - 0.01f * params.camera.dir;
 }
 
+// Load a scene with keys 1-5 based on shortcuts in settings.json
+void Tracer::quickLoadScene(unsigned int key)
+{
+    auto mapping = Settings::getInstance().getShortcuts();
+    auto it = mapping.find(key);
+    if (it != mapping.end()) init(params.width, params.height, it->second);
+}
+
 // Functional keys that need to be triggered only once per press
 #define match(key, expr) case key: expr; paramsUpdatePending = true; break;
 void Tracer::handleKeypress(int key)
 {
     switch (key)
     {
-        match(GLFW_KEY_M,           init(params.width, params.height));
+        match(GLFW_KEY_1,           quickLoadScene(1));
+        match(GLFW_KEY_2,           quickLoadScene(2));
+        match(GLFW_KEY_3,           quickLoadScene(3));
+        match(GLFW_KEY_4,           quickLoadScene(4));
+        match(GLFW_KEY_5,           quickLoadScene(5));
+        match(GLFW_KEY_M,           init(params.width, params.height));  // opens scene selector
         match(GLFW_KEY_H,           params.flashlight = !params.flashlight);
         match(GLFW_KEY_7,           useMK = !useMK);
         match(GLFW_KEY_F1,          initCamera());

@@ -58,4 +58,15 @@ void Settings::import(json j)
     if (contains(j, "renderScale")) this->renderScale = j["renderScale"].get<float>();
     if (contains(j, "windowWidth")) this->windowWidth = j["windowWidth"].get<int>();
     if (contains(j, "windowHeight")) this->windowHeight = j["windowHeight"].get<int>();
+
+    // Map of numbers 1-5 to scenes (shortcuts)
+    if (contains(j, "shortcuts"))
+    {
+        json map = j["shortcuts"];
+        for (unsigned int i = 1; i < 6; i++)
+        {
+            std::string numeral = std::to_string(i);
+            if (contains(map, numeral)) this->shortcuts[i] = map[numeral].get<std::string>();
+        }
+    }
 }

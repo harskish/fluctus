@@ -36,9 +36,10 @@ public:
     void saveState();
     void loadState();
 
-    void selectScene();
+    void selectScene(std::string file);
+    void quickLoadScene(unsigned int num);
     void initEnvMap();
-    void init(int width, int height);
+    void init(int width, int height, std::string sceneFile = "");
 
     // Create/load/export BVH
     void initHierarchy();
