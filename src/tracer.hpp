@@ -59,6 +59,7 @@ private:
     Scene *scene;
     BVH *bvh;
     std::vector<RTTriangle>* m_triangles;
+    std::string sceneHash;
     cl_uint iteration;
     int frontBuffer = 0;
 

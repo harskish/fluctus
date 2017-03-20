@@ -80,7 +80,6 @@ Tracer::Tracer(int width, int height) : useMK(true)
     clctx = new CLContext(window->getTexPtr());
     initCamera();
     initAreaLight();
-    loadState(); // useful when debugging
 
     // done whenever a new scene is selected
     init(width, height);
@@ -100,6 +99,7 @@ void Tracer::init(int width, int height)
     params.maxBounces = 2;
 
     selectScene();
+    loadState();
     initEnvMap();
     initHierarchy();
 
@@ -117,6 +117,7 @@ void Tracer::selectScene()
 
     std::string selected = (files) ? std::string(files) : "assets/teapot.ply";
     scene = new Scene(selected);
+    sceneHash = scene->hashString();
 }
 
 void Tracer::initEnvMap()
@@ -132,7 +133,7 @@ void Tracer::initEnvMap()
 // Check if old hierarchy can be reused
 void Tracer::initHierarchy()
 {
-    std::string hashFile = "hierarchies/hierarchy-" + scene->hashString() + ".bin" ;
+    std::string hashFile = "data/hierarchies/hierarchy_" + sceneHash + ".bin" ;
     std::ifstream input(hashFile, std::ios::in);
 
     if (input.good())
@@ -177,13 +178,14 @@ inline void writeVec(std::ofstream &out, FireRays::float3 &vec)
 
 void Tracer::saveState()
 {
-    std::ofstream out("state.dat", std::ios::binary);
+    std::ofstream out("data/states/state_" + sceneHash + ".dat", std::ios::binary);
 
     // Write camera state to file
     if (out.good())
     {
         write(out, cameraRotation.x);
         write(out, cameraRotation.y);
+        write(out, cameraSpeed);
         write(out, params.camera.fov);
         writeVec(out, params.camera.dir);
         writeVec(out, params.camera.pos);
@@ -214,11 +216,12 @@ inline void readVec(std::ifstream &in, FireRays::float3 &vec)
 
 void Tracer::loadState()
 {
-    std::ifstream in("state.dat");
+    std::ifstream in("data/states/state_" + sceneHash + ".dat");
     if (in.good())
     {
         read(in, cameraRotation.x);
         read(in, cameraRotation.y);
+        read(in, cameraSpeed);
         read(in, params.camera.fov);
         readVec(in, params.camera.dir);
         readVec(in, params.camera.pos);
@@ -314,15 +317,18 @@ void Tracer::handleKeypress(int key)
 {
     switch (key)
     {
-        match(GLFW_KEY_M, init(params.width, params.height));
-        match(GLFW_KEY_H, params.flashlight = !params.flashlight);
-        match(GLFW_KEY_7, useMK = !useMK);
-        match(GLFW_KEY_F1, initCamera());
-        match(GLFW_KEY_F2, saveState());
-        match(GLFW_KEY_F3, loadState());
-        match(GLFW_KEY_SPACE, updateAreaLight());
-        match(GLFW_KEY_I, std::cout << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
-        match(GLFW_KEY_K, std::cout << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
+        match(GLFW_KEY_M,           init(params.width, params.height));
+        match(GLFW_KEY_H,           params.flashlight = !params.flashlight);
+        match(GLFW_KEY_7,           useMK = !useMK);
+        match(GLFW_KEY_F1,          initCamera());
+        match(GLFW_KEY_F2,          saveState());
+        match(GLFW_KEY_F3,          loadState());
+        match(GLFW_KEY_SPACE,       updateAreaLight());
+        match(GLFW_KEY_I,           std::cout << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
+        match(GLFW_KEY_K,           std::cout << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
+        match(GLFW_KEY_KP_ADD,      cameraSpeed += 0.1f);
+        match(GLFW_KEY_0,           cameraSpeed *= 1.1f);
+        match(GLFW_KEY_KP_SUBTRACT, cameraSpeed = std::max(0.05f, cameraSpeed - 0.05f));
     }
 }
 #undef match
@@ -345,9 +351,6 @@ void Tracer::pollKeys()
     check(GLFW_KEY_RIGHT,       cameraRotation.x += 1.0f);
     check(GLFW_KEY_PERIOD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
     check(GLFW_KEY_SEMICOLON,   cam.fov = std::max(cam.fov - 1.0f, 5.0f));
-    check(GLFW_KEY_KP_ADD,      cameraSpeed += 0.1f);
-    check(GLFW_KEY_0,           cameraSpeed *= 1.1f);
-    check(GLFW_KEY_KP_SUBTRACT, cameraSpeed = std::max(0.05f, cameraSpeed - 0.05f));
     check(GLFW_KEY_8,           params.areaLight.size /= 1.1f);
     check(GLFW_KEY_9,           params.areaLight.size *= 1.1f);
 
@@ -377,7 +380,7 @@ void Tracer::handleMouseButton(int key, int action)
             break;
         case GLFW_MOUSE_BUTTON_MIDDLE:
             if(action == GLFW_PRESS) mouseButtonState[1] = true;
-            if(action == GLFW_RELEASE) mouseButtonState[2] = false;
+            if(action == GLFW_RELEASE) mouseButtonState[1] = false;
             break;
         case GLFW_MOUSE_BUTTON_RIGHT:
             if(action == GLFW_PRESS) mouseButtonState[2] = true;
