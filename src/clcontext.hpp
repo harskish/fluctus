@@ -70,6 +70,11 @@ public:
     void executeSplatKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
 
     void setupParams();
+    void setupStats();
+    void resetStats();
+    void fetchStatsAsync();
+    const RenderStats &getStats();
+
     void updateParams(const RenderParams &params);
     void uploadSceneData(BVH *bvh, Scene *scene);
     void createTextures(GLuint *tex_arr);
@@ -113,6 +118,8 @@ private:
     cl::Buffer sphereBuffer;
     cl::Buffer lightBuffer;
     cl::Buffer renderParams;                // contains only one RenderParam
+    cl::Buffer renderStats;                 // ray + sample counts
+    RenderStats statsAsync;                 // fetched asynchronously from device after each iteration
     
     // Microkernel buffers
     cl::Buffer raysBuffer;

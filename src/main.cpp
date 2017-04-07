@@ -14,7 +14,7 @@ int main(int argc, char* argv[])
 {
     Settings &s = Settings::getInstance();
 
-    // Initial size of window
+    // Initial size of windowg
     int width = (argc > 1) ? atoi(argv[1]) : s.getWindowWidth();
     int height = (argc > 2) ? atoi(argv[2]) : s.getWindowHeight();
 

@@ -133,7 +133,7 @@ inline float3 reflectionShading(Hit *hit, read_only image2d_t envMap, global Ren
 }
 
 // Ray tracing!
-inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, global RenderStats *stats)
 {
     float3 pixelColor = (float3)(0.0f);
 
@@ -145,6 +145,7 @@ inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *
         pos += sampleRegular(n, dim);
         Ray r = getCameraRay(pos, params);
         Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
+        atomic_inc(&stats->primaryRays);
 
         if (hit.i > -1)
         {
@@ -155,7 +156,7 @@ inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *
             //pixelColor += reflectionShading(&hit, envMap, params);
 
             // Depth shading
-            //pixelColor = (float3)(hit.t / 8.0f);
+            // pixelColor = (float3)(hit.t / 8.0f);
 
             // Intersection shading
             pixelColor = materials[hit.matId].Kd;
@@ -170,11 +171,12 @@ inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *
     }
 
     pixelColor /= (float)SAMPLES;
+    atomic_add(&stats->samples, SAMPLES);
     return pixelColor;
 }
 
 // Path tracing!
-inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params)
+inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, global RenderStats *stats)
 {
     float3 Ei = (float3)(0.0f);         // Irradiance
     float3 throughput = (float3)(1.0f); // BRDF
@@ -182,6 +184,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
 
     Ray r = getCameraRay(pos, params);
     Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
+    atomic_inc(&stats->primaryRays);
 
     // TEST: show white area light on screen
     float tAreaLight = FLT_MAX;
@@ -259,6 +262,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             r.orig = orig;
             r.dir = dir;
             hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
+            atomic_inc(&stats->extensionRays);
             if (hit.i < 0) break;
 
             i++;
@@ -283,6 +287,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
         L = normalize(L);
         Ray rLight = { orig, L };
         Hit hitLight = raycast(&rLight, lenL, tris, nodes, indices, params);
+        atomic_inc(&stats->shadowRays); // TODO: actually use optimized shadow ray traversal
 
         if(hitLight.i == -1) // light not obstructed
         {
@@ -303,6 +308,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
 
         Ray rNew = { orig, dir };
         hit = raycast(&rNew, FLT_MAX, tris, nodes, indices, params);
+        atomic_inc(&stats->extensionRays);
 
         if (hit.i < 0)
             break;
@@ -310,6 +316,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
         i++;
     }
 
+    atomic_inc(&stats->samples);
     return Ei;
 }
 
@@ -322,7 +329,7 @@ OPENCL MEMORY SPACES:
 | Local    | __local        | Work-group-wide | Shared   | __shared__   |
 | Private  | __private      | Work-item-wide  | Local    |              |
 */
-kernel void trace(read_only image2d_t src, write_only image2d_t dst, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, uint iteration)
+kernel void trace(read_only image2d_t src, write_only image2d_t dst, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, global RenderStats *stats, uint iteration)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
@@ -330,16 +337,15 @@ kernel void trace(read_only image2d_t src, write_only image2d_t dst, global ucha
     if(x >= params->width || y >= params->height) return;
 
     // Ray tracing
-    //float3 pixelColor = traceRay((float2)(x, y), texData, textures, lights, tris, materials, nodes, indices, envMap, params);
+    //float3 pixelColor = traceRay((float2)(x, y), texData, textures, lights, tris, materials, nodes, indices, envMap, params, stats);
 
     // Path tracing + accumulation
     //*
-    float3 pixelColor = tracePath((float2)(x, y), iteration, texData, textures, lights, tris, materials, nodes, indices, envMap, params);
+    float3 pixelColor = tracePath((float2)(x, y), iteration, texData, textures, lights, tris, materials, nodes, indices, envMap, params, stats);
     const float tex_weight = iteration * native_recip((float)(iteration) + 1.0f);
     float3 prev = read_imagef(src, (int2)(x, y)).xyz;
     pixelColor = clamp(mix(pixelColor, prev, tex_weight), (float3)(0.0f), (float3)(1.0f));
     //*/
 
-    //vstore4((float4)(pixelColor, 0.0f), (y * params->width + x), out); // (value, offset, ptr)
     write_imagef(dst, (int2)(x, y), (float4)(pixelColor, 0.0f));
 }

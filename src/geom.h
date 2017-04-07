@@ -158,3 +158,11 @@ typedef struct
     float pdf;
     cl_uint seed;
 } GPUTaskState;
+
+typedef struct
+{
+    cl_uint primaryRays;
+    cl_uint extensionRays;
+    cl_uint shadowRays;
+    cl_uint samples;
+} RenderStats;

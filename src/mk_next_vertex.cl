@@ -3,7 +3,18 @@
 #include "utils.cl"
 
 // x and y include offsets when supersampling
-kernel void nextVertex(global Ray *rays, global GPUTaskState *tasks, global Material *materials, global uchar *texData, global TexDescriptor *textures, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params, uint numTasks)
+kernel void nextVertex(
+    global Ray *rays,
+    global GPUTaskState *tasks,
+    global Material *materials,
+    global uchar *texData,
+    global TexDescriptor *textures,
+    global Triangle *tris,
+    global GPUNode *nodes,
+    global uint *indices,
+    global RenderParams *params,
+    global RenderStats *stats,
+    uint numTasks)
 {
     const size_t gid = get_global_id(0);
     const uint limit = min(params->width * params->height, numTasks); // TODO: remove need for params, use only numTasks!
@@ -18,6 +29,10 @@ kernel void nextVertex(global Ray *rays, global GPUTaskState *tasks, global Mate
     Hit hit = EMPTY_HIT(FLT_MAX); // TODO: Max distance?
     
     bvh_intersect(&r, &hit, tris, nodes, indices);
+
+    // Update render statistics
+    // TODO: local atomic_inc within workgroup (check on different hardware)
+    atomic_inc(&stats->primaryRays);
 
     // TEST: show intersection immediately
     if (hit.i > -1)

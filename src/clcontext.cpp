@@ -110,6 +110,9 @@ CLContext::CLContext(GLuint *textures)
     // Setup RenderParams
     setupParams();
 
+    // Setup RenerStats
+    setupStats();
+
     // Create OpenCL buffer from OpenGL PBO
     createTextures(textures);
 
@@ -205,6 +208,7 @@ void CLContext::setupMegaKernel()
     err |= kernel_monolith.setArg(i++, indexBuffer);
     err |= kernel_monolith.setArg(i++, environmentMap);
     err |= kernel_monolith.setArg(i++, renderParams);
+    err |= kernel_monolith.setArg(i++, renderStats);
     err |= kernel_monolith.setArg(i++, 0); // iteration
     verify("Failed to set kernel arguments!");
 }
@@ -239,6 +243,7 @@ void CLContext::setupNextVertexKernel()
     err |= mk_next_vertex.setArg(i++, nodeBuffer);
     err |= mk_next_vertex.setArg(i++, indexBuffer);
     err |= mk_next_vertex.setArg(i++, renderParams);
+    err |= mk_next_vertex.setArg(i++, renderStats);
     err |= mk_next_vertex.setArg(i++, NUM_TASKS);
     verify("Failed to set mk_next_vertex arguments!");
 }
@@ -423,10 +428,36 @@ void CLContext::packTextures(Scene *scene)
 // Allocating memory for the rendering params is more compatible
 void CLContext::setupParams()
 {
-    renderParams = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(RenderParams), NULL, &err);
+    renderParams = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(RenderParams) * 1, NULL, &err);
     verify("Params buffer creation failed!");
-
     std::cout << "RenderParam allocation succeeded!" << std::endl;
+}
+
+void CLContext::setupStats()
+{
+    renderStats = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(RenderStats) * 1, NULL, &err);
+    verify("RenderStats creation failed!");
+    std::cout << "RenderStats allocation succeeded!" << std::endl;
+
+    resetStats();
+}
+
+void CLContext::resetStats()
+{
+    RenderStats s = { 0, 0, 0, 0 };
+    err = cmdQueue.enqueueWriteBuffer(renderStats, CL_TRUE, 0, sizeof(RenderStats), &s);
+    verify("Stats buffer reset failed!");
+}
+
+void CLContext::fetchStatsAsync()
+{
+    err = cmdQueue.enqueueReadBuffer(renderStats, CL_FALSE, 0, sizeof(RenderStats), &statsAsync);
+    verify("Failed to enqueue async stat transfer!");
+}
+
+const RenderStats &CLContext::getStats()
+{
+    return statsAsync;
 }
 
 void CLContext::updateParams(const RenderParams &params)
@@ -434,8 +465,6 @@ void CLContext::updateParams(const RenderParams &params)
     // Blocking write!
     err = cmdQueue.enqueueWriteBuffer(renderParams, CL_TRUE, 0, sizeof(RenderParams), &params);
     verify("RenderParam writing failed");
-
-    // std::cout << "RenderParams updated!" << std::endl;
 }
 
 void CLContext::executeRayGenKernel(const RenderParams &params)
@@ -490,7 +519,7 @@ void CLContext::executeMegaKernel(const RenderParams &params, const int frontBuf
     err |= kernel_monolith.setArg(0, sharedMemory[1 - frontBuffer]); // src
     err |= kernel_monolith.setArg(1, sharedMemory[frontBuffer]); // dst
     err |= kernel_monolith.setArg(10, renderParams);
-    err |= kernel_monolith.setArg(11, iteration);
+    err |= kernel_monolith.setArg(12, iteration);
     verify("Failed to set megakernel arguments!");
 
     size_t max_wg_size;

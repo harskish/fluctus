@@ -1,15 +1,23 @@
 #include "tracer.hpp"
 #include "geom.h"
 
-inline void calcRps(const unsigned int numRays, double launchTime)
+inline void printStats(const RenderStats &stats, CLContext *ctx)
 {
     static double lastPrinted = 0;
     double now = glfwGetTime();
-    if (now - lastPrinted > 1.0)
+    double delta = now - lastPrinted;
+    if (delta > 1.0)
     {
         lastPrinted = now;
-        double mRps = numRays * 1e-6 / launchTime;
-        printf("\rKernel rays/s: %.0fM", mRps);
+        double scale = 1e6 * delta;
+        double prim = stats.primaryRays / scale;
+        double ext = stats.extensionRays / scale;
+        double shdw = stats.shadowRays / scale;
+        double samp = stats.samples / scale;
+        printf("%.1fM primary, %.2fM extension, %.2fM shadow, %.2fM samples, total: %.2fMRays/s\r", prim, ext, shdw, samp, prim + ext + shdw);
+
+        // Reset stat counters (synchronously...)
+        ctx->resetStats();
     }
 }
 
@@ -33,12 +41,10 @@ void Tracer::update()
         iteration = 0; // accumulation reset
     }
 
+    glFinish(); // locks execution to refresh rate of display (GL)
+
     if (useMK)
     {
-        glFinish(); // locks execution to refresh rate of display (GL)
-
-        double kStart = glfwGetTime();
-
         // Generate new camera rays
         clctx->executeRayGenKernel(params);
 
@@ -47,22 +53,18 @@ void Tracer::update()
 
         // Splat results
         clctx->executeSplatKernel(params, frontBuffer, iteration);
-
-        // TODO: add statistic tracking from kernels
-        calcRps(params.width * params.height * 1, glfwGetTime() - kStart);
     }
     else
     {
-        glFinish();
-
-        double kStart = glfwGetTime();
-
         // Advance render state
         clctx->executeMegaKernel(params, frontBuffer, iteration);
-
-        // Primary and extension rays (no shadow rays). Not same as Samples/sec
-        calcRps(params.width * params.height * (1 + params.maxBounces), glfwGetTime() - kStart);
     }
+
+
+    // Display render statistics (MRays/s) of previous frame
+    // Asynchronously transfer render statistics from device
+    printStats(clctx->getStats(), clctx);
+    clctx->fetchStatsAsync();
 
     // Draw progress to screen
     window->repaint(frontBuffer);
