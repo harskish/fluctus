@@ -26,6 +26,7 @@ public:
     void resizeBuffers();
     void handleMouseButton(int key, int action);
     void handleCursorPos(double x, double y);
+	void handleMouseScroll(double yoffset);
 
     void pollKeys();              // movement keys
     void handleKeypress(int key); // function keys

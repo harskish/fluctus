@@ -51,6 +51,14 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) //st
     instance->handleCursorPos(xpos, ypos);
 }
 
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	void *ptr = glfwGetWindowUserPointer(window);
+	Tracer *instance = reinterpret_cast<Tracer*>(ptr);
+
+	instance->handleMouseScroll(yoffset);
+}
+
 PTWindow::PTWindow(int width, int height, void *tracer)
 {
     window = glfwCreateWindow(width, height, "HOLDTHEDOOR!", NULL, NULL); // monitor, share
@@ -66,6 +74,7 @@ PTWindow::PTWindow(int width, int height, void *tracer)
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_position_callback);
+	glfwSetScrollCallback(window, scroll_callback);
     glfwSetWindowUserPointer(window, tracer);
 
     // For key polling

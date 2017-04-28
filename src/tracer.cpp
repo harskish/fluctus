@@ -424,3 +424,9 @@ void Tracer::handleCursorPos(double x, double y)
         paramsUpdatePending = true;
     }
 }
+
+void Tracer::handleMouseScroll(double yoffset)
+{
+	float newSpeed = (yoffset > 0) ? cameraSpeed * 1.2f : cameraSpeed / 1.2f;
+	cameraSpeed = std::max(1e-3f, std::min(1e6f, newSpeed));
+}
