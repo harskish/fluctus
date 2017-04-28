@@ -7,10 +7,13 @@ kernel void splat(global Ray *rays, global GPUTaskState *tasks, read_only image2
     const size_t gid = get_global_id(0) + get_global_id(1) * params->width;
     const uint limit = min(params->width * params->height, numTasks); // TODO: remove need for params, use only numTasks!
 
+    if (gid >= limit)
+        return;
+
     // Read the path state
     global GPUTaskState *task = &tasks[gid];
     PathPhase phase = task->phase;
-    if (phase != MK_SPLAT_SAMPLE || gid >= limit)
+    if (phase != MK_SPLAT_SAMPLE)
         return;
 
     //const uint x = gid % params->width;

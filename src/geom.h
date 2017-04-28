@@ -6,7 +6,6 @@ typedef int cl_int;
 typedef unsigned int cl_uint;
 typedef char cl_uchar;
 typedef bool cl_bool;
-typedef float2 cl_float2;
 #else
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
 #define CL_HPP_TARGET_OPENCL_VERSION 120
@@ -28,9 +27,9 @@ typedef struct
 
 typedef struct
 {
-    cl_float R;  // 4B (padded to 16B?)
     float3 P;    // 16B
     float3 Kd;   // 16B
+    cl_float R;  // 4B (padded to 16B?)
 } Sphere;        // 48B
 
 typedef struct
@@ -103,13 +102,13 @@ typedef struct
 {
     float3 P;
     float3 N;
+    float2 uvTex;
     cl_float t;
-    cl_float2 uvTex;
     cl_int i; // index of hit triangle, -1 by default
     cl_int matId; // index of hit material
 } Hit;
 
-#define EMPTY_HIT(tmax) { (float3)(0.0f), (float3)(0.0f), tmax, (float2)(0.0f), -1, -1 }
+#define EMPTY_HIT(tmax) { (float3)(0.0f), (float3)(0.0f), (float2)(0.0f), tmax, -1, -1 }
 
 typedef struct
 {

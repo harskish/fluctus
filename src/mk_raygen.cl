@@ -4,13 +4,16 @@
 kernel void genCameraRays(global Ray *rays, global GPUTaskState *tasks, global RenderParams *params, uint numTasks)
 {
     // Enqueued with 1D workgroups
-    const size_t gid = get_global_id(0);
+    const size_t gid = get_global_id(0) + get_global_id(1) * params->width;
     const uint limit = min(params->width * params->height, numTasks); // TODO: remove need for params, use only numTasks!
+
+    if (gid >= limit)
+        return;
 
     // Read the path state
     global GPUTaskState *task = &tasks[gid];
     PathPhase phase = task->phase;
-    if (phase != MK_GENERATE_CAMERA_RAY || gid >= limit)
+    if (phase != MK_GENERATE_CAMERA_RAY)
         return;
 
     

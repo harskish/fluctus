@@ -1,10 +1,6 @@
 #include "clcontext.hpp"
 #include <stdlib.h>
 
-#ifdef _DEBUG
-#define CPU_DEBUGGING
-#endif
-
 /* UTILS */
 
 cl::Platform &CLContext::getPlatformByName(std::vector<cl::Platform> &platforms, std::string name) {
@@ -59,7 +55,7 @@ CLContext::CLContext(GLuint *textures)
         _putenv_s("CUDA_CACHE_DISABLE", "1");
     #endif
 
-    //printDevices();
+    // printDevices();
 
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);

@@ -112,7 +112,6 @@ inline void getMaterialParameters(Hit hit, global Triangle *tris, global Materia
     const Material mat = materials[hit.matId];
 
     *Kd = (mat.map_Kd != -1) ? readTexture(hit.uvTex, textures[mat.map_Kd], texData) : mat.Kd;
-    //*Kd = mat.Kd;
     *Ks = mat.Ks;
     *refr = mat.Ni;
     *N = hit.N; // no normal maps yet

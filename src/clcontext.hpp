@@ -1,5 +1,12 @@
 #pragma once
 
+#ifdef _DEBUG
+#define CPU_DEBUGGING
+#ifndef _WIN64
+static_assert(false, "Debugger might segfault on Win32 builds, proceed with caution!");
+#endif
+#endif
+
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
 #define CL_HPP_TARGET_OPENCL_VERSION 120
 
@@ -41,12 +48,12 @@ static Sphere test_spheres[] =
     // radius, position, Kd
     //{ 1.0f, float4(0.0f, 0.0f, 0.0f, 0.0f), RGB2f3(255, 0, 0) },             // big sphere
     //{ 0.0f, float4(0.0f, 1.5f, 0.0f, 0.0f), RGB2f3(255, 255, 255) },             // small sphere
-    { 1000.0f, float4(0.0f, 0.0f, +1008.0f, 0.0f), RGB2f3(180, 190, 180) },  // back wall
-    { 1000.0f, float4(0.0f, 0.0f, -1008.0f, 0.0f), RGB2f3(180, 190, 180) },  // front (visible) wall
-    { 1000.0f, float4(0.0f, -1001.0f, 0.0f, 0.0f), RGB2f3(0, 0, 255) },      // floor
-    { 1000.0f, float4(-1008.0f, 0.0f, 0.0f, 0.0f), RGB2f3(205, 110, 15) },   // left wall
-    { 1000.0f, float4(+1008.0f, 0.0f, 0.0f, 0.0f), RGB2f3(255, 0, 255) },    // right wall
-    { 1000.0f, float4(0.0f, +1020.0f, 0.0f, 0.0f), RGB2f3(0, 0, 255) },      // ceiling
+    { float4(0.0f, 0.0f, +1008.0f, 0.0f), RGB2f3(180, 190, 180), 1000.0f },  // back wall
+    { float4(0.0f, 0.0f, -1008.0f, 0.0f), RGB2f3(180, 190, 180), 1000.0f },  // front (visible) wall
+    { float4(0.0f, -1001.0f, 0.0f, 0.0f), RGB2f3(0, 0, 255), 1000.0f },      // floor
+    { float4(-1008.0f, 0.0f, 0.0f, 0.0f), RGB2f3(205, 110, 15), 1000.0f },   // left wall
+    { float4(+1008.0f, 0.0f, 0.0f, 0.0f), RGB2f3(255, 0, 255), 1000.0f },    // right wall
+    { float4(0.0f, +1020.0f, 0.0f, 0.0f), RGB2f3(0, 0, 255), 1000.0f },      // ceiling
 };
 
 static PointLight test_lights[] =
@@ -100,7 +107,11 @@ private:
 
     int err;                                // error code returned from api calls
     size_t ndRangeSizes[2];                 // kernel workgroup sizes
-    const size_t NUM_TASKS = 1920 * 1080;   // the amount of paths in flight simultaneously, limited by VRAM
+#ifdef CPU_DEBUGGING
+    const cl_uint NUM_TASKS = 1;
+#else
+    const cl_uint NUM_TASKS = 1920 * 1080;   // the amount of paths in flight simultaneously, limited by VRAM
+#endif
 
     std::vector<cl::Device> clDevices;
     cl::Device device;
