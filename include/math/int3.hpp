@@ -10,8 +10,9 @@ namespace FireRays
     {
     public:
         int x, y, z, w;
-
-        int3(int xx = 0, int yy = 0, int zz = 0, int ww = 0) : x(xx), y(yy), z(zz), w(ww) {}
+        
+        int3(int v = 0) : x(v), y(v), z(v), w(ww) {}
+        int3(int xx, int yy, int zz, int ww = 0) : x(xx), y(yy), z(zz), w(ww) {}
 
         int&  operator [](int i)       { return *(&x + i); }
         int   operator [](int i) const { return *(&x + i); }

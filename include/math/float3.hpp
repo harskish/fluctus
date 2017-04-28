@@ -33,7 +33,8 @@ namespace FireRays
     public:
         float x, y, z, w;
 
-        float3(float xx = 0.f, float yy = 0.f, float zz = 0.f, float ww = 0.f) : x(xx), y(yy), z(zz), w(ww) {}
+        float3(float v = 0.f) : x(v), y(v), z(v), w(v) {}
+        float3(float xx, float yy, float zz, float ww = 0.f) : x(xx), y(yy), z(zz), w(ww) {}
 
         float& operator [](int i)       { return *(&x + i); }
         float  operator [](int i) const { return *(&x + i); }

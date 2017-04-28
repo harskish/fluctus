@@ -32,7 +32,8 @@ namespace FireRays
     public:
         float x, y;
 
-        float2(float xx = 0.f, float yy = 0.f) : x(xx), y(yy) {}
+        float2(float v = 0.f) : x(v), y(v) {}
+        float2(float xx, float yy) : x(xx), y(yy) {}
 
         float& operator [](int i)       { return *(&x + i); }
         float  operator [](int i) const { return *(&x + i); }
