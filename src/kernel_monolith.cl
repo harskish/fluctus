@@ -182,9 +182,10 @@ inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *
 // Path tracing!
 inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, global RenderStats *stats)
 {
-    float3 Ei = (float3)(0.0f);         // Irradiance
-    float3 throughput = (float3)(1.0f); // BRDF
-    float prob = 1.0f;                  // PDF
+    uint seed = get_global_id(1) * params->width + get_global_id(0) + iter * params->width * params->height; // unique for each pixel
+
+    // Jittered AA
+    pos += (float2)(rand(&seed), rand(&seed));
 
     Ray r = getCameraRay(pos, params);
     Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, params->sampleImpl);
@@ -196,10 +197,12 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     float3 emission = areaLight.E;
     float3 nLight = areaLight.N;
 
-    // State
-    uint seed = get_global_id(1) * params->width + get_global_id(0) + iter * params->width * params->height; // unique for each pixel
-    float lastPdfW = 1.0f; // for MIS
-    bool lastSpecular = false;
+    // Path state
+    float3 Ei = (float3)(0.0f);         // Irradiance
+    float3 throughput = (float3)(1.0f); // BRDF
+    float prob = 1.0f;                  // PDF
+    float lastPdfW = 1.0f;              // for MIS
+    bool lastSpecular = false;          // prevents NEE
     int i = 0;
 
     const int MAX_BOUNCES = params->maxBounces;
