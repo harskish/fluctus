@@ -27,9 +27,16 @@ public:
     void handleMouseButton(int key, int action);
     void handleCursorPos(double x, double y);
 	void handleMouseScroll(double yoffset);
+    void handleKeypress(int key); // function keys
+
+private:
+    // Create/load/export BVH
+    void initHierarchy();
+    void loadHierarchy(const std::string filename, std::vector<RTTriangle> &triangles);
+    void saveHierarchy(const std::string filename);
+    void constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode);
 
     void pollKeys();              // movement keys
-    void handleKeypress(int key); // function keys
     void updateCamera();
     void updateAreaLight();
     void initCamera();
@@ -39,16 +46,10 @@ public:
 
     void selectScene(std::string file);
     void quickLoadScene(unsigned int num);
+    void toggleSamplingMode();
     void initEnvMap();
     void init(int width, int height, std::string sceneFile = "");
 
-    // Create/load/export BVH
-    void initHierarchy();
-    void loadHierarchy(const std::string filename, std::vector<RTTriangle> &triangles);
-    void saveHierarchy(const std::string filename);
-    void constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode);
-
-private:
     PTWindow *window;
     CLContext *clctx;
     RenderParams params;    // copied into GPU memory

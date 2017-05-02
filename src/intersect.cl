@@ -114,15 +114,18 @@ inline bool intersectTriangleLocal(Ray *r, Triangle *tri, float *tres)
 
     float t = dot(s2, qvec) * iDet;
 
-    if (t < 0.0f) return false;
+    if (t < 0.0f || t > *tres) return false;
 
     *tres = t;
     return true;
 }
 
 // For debugging: check if ray hits area light (for drawing a white square)
-inline bool rayHitsLight(Ray *r, global RenderParams *params, float *tres)
+inline void intersectLight(Hit *hit, Ray *r, global RenderParams *params)
 {
+    // Reject on backside hit
+    if (dot(r->dir, params->areaLight.N) > 0) return;
+
     float3 tl = (float3)(params->areaLight.pos + params->areaLight.size.x * params->areaLight.right + params->areaLight.size.y * params->areaLight.up);
     float3 tr = (float3)(params->areaLight.pos - params->areaLight.size.x * params->areaLight.right + params->areaLight.size.y * params->areaLight.up);
     float3 bl = (float3)(params->areaLight.pos + params->areaLight.size.x * params->areaLight.right - params->areaLight.size.y * params->areaLight.up);
@@ -132,15 +135,23 @@ inline bool rayHitsLight(Ray *r, global RenderParams *params, float *tres)
     T1.v0.p = tl;
     T1.v1.p = bl;
     T1.v2.p = br;
-    if (intersectTriangleLocal(r, &T1, tres)) return true;
-
+    
     Triangle T2;
     T2.v0.p = tl;
     T2.v1.p = br;
     T2.v2.p = tr;
-    if (intersectTriangleLocal(r, &T2, tres)) return true;
 
-    return false;
+    bool first = intersectTriangleLocal(r, &T1, &hit->t);
+    bool second = intersectTriangleLocal(r, &T2, &hit->t);
+    
+    if (first || second)
+    {
+        hit->areaLightHit = 1;
+        hit->P = r->orig + hit->t * r->dir;
+        hit->N = params->areaLight.N;
+        hit->i = 0; // use first triangle
+        hit->matId = 0; // use default material (always available)
+    }
 }
 
 #endif

@@ -117,4 +117,10 @@ inline void getMaterialParameters(Hit hit, global Triangle *tris, global Materia
     *N = hit.N; // no normal maps yet
 }
 
+// Product area measure => solid angle measure
+inline float pdfAtoW(const float pdf, const float dist, const float cosine)
+{
+    return pdf * (dist * dist) / fabs(cosine);
+}
+
 #endif

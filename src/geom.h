@@ -105,10 +105,11 @@ typedef struct
     float2 uvTex;
     cl_float t;
     cl_int i; // index of hit triangle, -1 by default
+    cl_int areaLightHit;
     cl_int matId; // index of hit material
 } Hit;
 
-#define EMPTY_HIT(tmax) { (float3)(0.0f), (float3)(0.0f), (float2)(0.0f), tmax, -1, -1 }
+#define EMPTY_HIT(tmax) { (float3)(0.0f), (float3)(0.0f), (float2)(0.0f), tmax, -1, 0, -1 }
 
 typedef struct
 {
@@ -131,6 +132,8 @@ typedef struct
     cl_uint useEnvMap;
     cl_uint flashlight;
     cl_uint maxBounces;
+    cl_uint sampleImpl;    // use implicit light source sampling
+    cl_uint sampleExpl;    // use next event estimation
 } RenderParams;
 
 

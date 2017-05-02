@@ -49,10 +49,14 @@ inline Ray getCameraRay(const float2 pos, global RenderParams *params)
     return r;
 }
 
-inline Hit raycast(Ray *r, float tMax, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
+inline Hit raycast(Ray *r, float tMax, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params, bool sampleImplicit)
 {
     Hit hit = EMPTY_HIT(tMax);
     bvh_intersect(r, &hit, tris, nodes, indices);
+
+    if (sampleImplicit)
+        intersectLight(&hit, r, params);
+
     return hit;
 }
 
@@ -64,7 +68,7 @@ inline float3 calcLighting(PointLight light, float3 V, Hit *hit, global Material
     L = normalize(L);
 
     Ray shadowRay = { (hit->P + 1e-3f * hit->N), L };
-    Hit shdw = raycast(&shadowRay, dist, tris, nodes, indices, params);
+    Hit shdw = raycast(&shadowRay, dist, tris, nodes, indices, params, false);
     float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
 
     // Testing material:
@@ -144,7 +148,7 @@ inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *
     {
         pos += sampleRegular(n, dim);
         Ray r = getCameraRay(pos, params);
-        Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
+        Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, false);
         atomic_inc(&stats->primaryRays);
 
         if (hit.i > -1)
@@ -183,15 +187,8 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     float prob = 1.0f;                  // PDF
 
     Ray r = getCameraRay(pos, params);
-    Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
+    Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, params->sampleImpl);
     atomic_inc(&stats->primaryRays);
-
-    // TEST: show white area light on screen
-    float tAreaLight = FLT_MAX;
-    if (rayHitsLight(&r, params, &tAreaLight) && tAreaLight < hit.t)
-    {
-        return (float3)(1.0f);
-    }
 
     if (hit.i < 0) return evalEnvMap(envMap, r.dir);
 
@@ -201,7 +198,8 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
 
     // State
     uint seed = get_global_id(1) * params->width + get_global_id(0) + iter * params->width * params->height; // unique for each pixel
-    float3 dir = r.dir; // updated at each bounce
+    float lastPdfW = 1.0f; // for MIS
+    bool lastSpecular = false;
     int i = 0;
 
     const int MAX_BOUNCES = params->maxBounces;
@@ -209,105 +207,149 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     {
         float3 Kd, Ks, n; // fetched from texture/material
         float refr = 0.0f;
-        getMaterialParameters(hit, tris, materials, texData, textures, &Kd, &n, &Ks, &refr);
+        if (hit.areaLightHit)
+            n = hit.N;
+        else
+            getMaterialParameters(hit, tris, materials, texData, textures, &Kd, &n, &Ks, &refr);
 
         // Backside of triangle hit
-        bool backside = (dot(n, dir) > 0.0f);
-        if (backside) {
+        bool backside = (dot(n, r.dir) > 0.0f);
+        if (backside && !hit.areaLightHit)
+        {
             n *= -1;
         }
 
+
+        // Implicit area light sampling (light hit by chance)
+        if (hit.areaLightHit)
+        {
+            float misWeight = 1.0f;
+            if (params->sampleExpl && i > 0 && !lastSpecular) // not very direct + MIS needed
+            {
+                const float directPdfA = 1.0f / (4.0f * params->areaLight.size.x * params->areaLight.size.y);
+                const float directPdfW = pdfAtoW(directPdfA, length(hit.P - r.orig), dot(normalize(-r.dir), hit.N));
+                const float lightPickProb = 1.0f;
+                misWeight = lastPdfW / (lastPdfW + directPdfW * lightPickProb);
+            }
+
+            // pdf (i.e. extension ray pdf = lastPdfW) included in prob
+            Ei += throughput * misWeight * emission / prob;
+            break; // lights don't reflect
+        }
+
+
         /* REFRACTION */
-        if (false && refr > 1.0f && i <= MAX_BOUNCES) {
+        if (refr > 1.0f && i <= MAX_BOUNCES)
+        {
             float3 orig;// , dir;
             const float EPS_REFR = 1e-5f;
-            float cosI = dot(-normalize(dir), n);
+            float cosI = dot(-normalize(r.dir), n);
             float n1, n2;
 
-            if (backside) { // inside of material
-                n1 = refr; // read from texture!
+            if (backside) // inside of material
+            {
+                n1 = refr;
                 n2 = 1.0f;
             }
-            else {
+            else
+            {
                 n1 = 1.0f;
                 n2 = refr;
             }
 
             float cosT = 1.0f - pow(n1 / n2, 2.0f) * (1.0f - pow(cosI, 2.0f));
-            float raylen = length(dir);
+            float raylen = length(r.dir);
 
             // Total internal reflection
-            if (cosT < 0.0f) {
+            if (cosT < 0.0f)
+            {
                 orig = hit.P + EPS_REFR * n;
-                dir = raylen * reflect(normalize(dir), n);
+                r.dir = raylen * reflect(normalize(r.dir), n);
             }
-            else {
+            else
+            {
                 cosT = sqrt(cosT);
                 // Fresnel: reflectance for unpolarized light
                 float fr = 0.5f * (pow((n1 * cosI - n2 * cosT) / (n1 * cosI + n2 * cosT), 2.0f) + pow((n2 * cosI - n1 * cosT) / (n1 * cosT + n2 * cosI), 2.0f));
 
-                if (rand(&seed) < fr) {
+                if (rand(&seed) < fr)
+                {
                     // Reflection
                     orig = hit.P + EPS_REFR * n;
-                    dir = raylen * reflect(normalize(dir), n);
+                    r.dir = raylen * reflect(normalize(r.dir), n);
                 }
-                else {
+                else
+                {
                     // Refraction
                     orig = hit.P - EPS_REFR * n;
-                    dir = raylen * (normalize(dir) * (n1 / n2) + n * ((n1 / n2) * cosI - cosT));
+                    r.dir = raylen * (normalize(r.dir) * (n1 / n2) + n * ((n1 / n2) * cosI - cosT));
                 }
             }
 
             // Cast continuation ray
             r.orig = orig;
-            r.dir = dir;
-            hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
+            hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, params->sampleImpl);
             atomic_inc(&stats->extensionRays);
             if (hit.i < 0) break;
 
+            lastSpecular = true;
+            throughput *= Ks;
             i++;
             continue;
         }
 
+        lastSpecular = false;
+        float3 orig = hit.P - 1e-3f * r.dir;  // avoid self-shadowing
 
-        /* SHADING */
-
-        // If triangle is emissive and this is the first ray (very direct light) -> add emission to radiance
-        // ...no emissive triangles in the current code...
-
-        // Sample light source
-        float pdf1;
-        float3 posL;
-        sampleAreaLight(areaLight, &pdf1, &posL, &seed);
-
-        // Geometry term
-        float3 orig = hit.P - 1e-3f * dir;  // avoid self-shadowing
-        float3 L = posL - orig;
-        float lenL = length(L);
-        L = normalize(L);
-        Ray rLight = { orig, L };
-        Hit hitLight = raycast(&rLight, lenL, tris, nodes, indices, params);
-        atomic_inc(&stats->shadowRays); // TODO: actually use optimized shadow ray traversal
-
-        if(hitLight.i == -1) // light not obstructed
+        // Explicit light source sampling (next event estimation)
+        if (params->sampleExpl && !lastSpecular)
         {
-            float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
-            float costh = max(dot(n, L), 0.0f);
-            Ei += brdf * throughput * emission * max(dot(-L, nLight), 0.0f) * costh / (lenL * lenL) / pdf1 / prob;
+            // Sample light source
+            float directPdfA;
+            float3 posL;
+            sampleAreaLight(areaLight, &directPdfA, &posL, &seed);
+
+            // Shadow ray
+            float3 L = posL - orig;
+            float lenL = length(L);
+            L = normalize(L);
+            Ray rLight = { orig, L };
+            Hit hitLight = raycast(&rLight, lenL, tris, nodes, indices, params, false); // no need to check area light
+            atomic_inc(&stats->shadowRays); // TODO: actually use optimized shadow ray traversal
+
+            float cosLight = max(dot(nLight, -L), 0.0f);
+
+            if (hitLight.i == -1 && cosLight > 1e-6f) // front of light accessible
+            {
+                const float lightPickProb = 1.0f;
+                const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
+                float cosTh = max(0.0f, dot(normalize(-r.dir), n)); // cos at surface
+                float directPdfW = pdfAtoW(directPdfA, lenL, cosLight); // 'how small area light looks'
+                float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
+                
+                float weight = 1.0f;
+                if (params->sampleExpl)
+                {
+                    weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
+                }
+
+                Ei += brdf * throughput * emission * weight * cosTh / (lightPickProb * directPdfW * prob);
+            }
         }
 
         if (i+1 == MAX_BOUNCES) break;
 
-        // Indirect
+        // Continuation ray
         float pdf, costh;
-        sampleHemisphere(&(hit.P), &n, &costh, &seed, &pdf, &dir); // direction updated
+        sampleHemisphere(&(hit.P), &n, &costh, &seed, &pdf, &r.dir); // direction updated
 
         float3 brdf = Kd / M_PI_F;
         throughput *= brdf * costh;
         prob *= pdf;
+        lastPdfW = pdf;
 
-        Ray rNew = { orig, dir };
-        hit = raycast(&rNew, FLT_MAX, tris, nodes, indices, params);
+        r.orig = orig;
+        hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, params->sampleImpl);
         atomic_inc(&stats->extensionRays);
 
         if (hit.i < 0)

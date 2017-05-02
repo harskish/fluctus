@@ -99,6 +99,8 @@ void Tracer::init(int width, int height, std::string sceneFile)
     params.useEnvMap = 0;
     params.flashlight = 0;
     params.maxBounces = 2;
+    params.sampleImpl = true;
+    params.sampleExpl = true;
 
     selectScene(sceneFile);
     loadState();
@@ -325,6 +327,27 @@ void Tracer::quickLoadScene(unsigned int key)
     if (it != mapping.end()) init(params.width, params.height, it->second);
 }
 
+// Controls the way light sources are sampled in path tracing
+void Tracer::toggleSamplingMode()
+{
+    if (params.sampleImpl && params.sampleExpl) // both => expl
+    {
+        params.sampleImpl = false;
+        std::cout << std::endl << "Sampling mode: explicit" << std::endl;
+    }
+    else if (params.sampleExpl) // expl => impl
+    {
+        params.sampleExpl = false;
+        params.sampleImpl = true;
+        std::cout << std::endl << "Sampling mode: implicit" << std::endl;
+    }
+    else // impl => both
+    {
+        params.sampleExpl = true;
+        std::cout << std::endl << "Sampling mode: MIS" << std::endl;
+    }
+}
+
 // Functional keys that need to be triggered only once per press
 #define match(key, expr) case key: expr; paramsUpdatePending = true; break;
 void Tracer::handleKeypress(int key)
@@ -336,18 +359,16 @@ void Tracer::handleKeypress(int key)
         match(GLFW_KEY_3,           quickLoadScene(3));
         match(GLFW_KEY_4,           quickLoadScene(4));
         match(GLFW_KEY_5,           quickLoadScene(5));
-        match(GLFW_KEY_M,           init(params.width, params.height));  // opens scene selector
+        match(GLFW_KEY_L,           init(params.width, params.height));  // opens scene selector
         match(GLFW_KEY_H,           params.flashlight = !params.flashlight);
         match(GLFW_KEY_7,           useMK = !useMK);
         match(GLFW_KEY_F1,          initCamera());
         match(GLFW_KEY_F2,          saveState());
         match(GLFW_KEY_F3,          loadState());
         match(GLFW_KEY_SPACE,       updateAreaLight());
-        match(GLFW_KEY_I,           std::cout << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
-        match(GLFW_KEY_K,           std::cout << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
-        match(GLFW_KEY_KP_ADD,      cameraSpeed += 0.1f);
-        match(GLFW_KEY_0,           cameraSpeed *= 1.1f);
-        match(GLFW_KEY_KP_SUBTRACT, cameraSpeed = std::max(0.05f, cameraSpeed - 0.05f));
+        match(GLFW_KEY_I,           std::cout << std::endl << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
+        match(GLFW_KEY_K,           std::cout << std::endl << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
+        match(GLFW_KEY_M,           toggleSamplingMode());
     }
 }
 #undef match
