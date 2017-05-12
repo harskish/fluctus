@@ -12,6 +12,9 @@ pkg_search_module(GLFW REQUIRED glfw3)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-writable-strings")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
+# Fix rgbe compilation on GCC
+set_source_files_properties(src/rgbe/rgbe.cpp PROPERTIES COMPILE_FLAGS "-Wno-write-strings -Wno-sign-compare -Wno-unused-but-set-variable")
+
 include_directories(
     ${GLEW_INCLUDE_DIR}
     ${GLFW_INCLUDE_DIRS}
