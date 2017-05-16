@@ -1,0 +1,13 @@
+{
+	"release": {
+		"windowWidth": 800,
+		"windowHeight": 600,
+		"renderScale": 1.0,
+		"platformName": "NVIDIA",
+		"deviceName": "GTX"
+	},
+	"debug": {
+		"platformName": "Intel",
+		"deviceName": "Intel(R) Core"
+	}
+}
