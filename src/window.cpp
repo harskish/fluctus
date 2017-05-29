@@ -144,6 +144,81 @@ void PTWindow::repaint(int frontBuffer)
         calcFPS(1.0, "HOLDTHEDOOR");
 }
 
+
+void PTWindow::drawTexture(int frontBuffer)
+{
+	glActiveTexture(GL_TEXTURE0); // make texture unit 0 active
+	
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, gl_textures[frontBuffer]);
+
+	float4 posLo(-1.0f, -1.0f, 0.0f, 1.0f);
+	float2 posHi(1.0f, 1.0f);
+	float2 texLo(0.0f, 0.0f);
+	float2 texHi(1.0f, 1.0f);
+
+	// Vertex attributes
+	F32 posAttrib[] =
+	{
+		posLo.x, posLo.y, posLo.z, posLo.w,
+		posHi.x, posLo.y, posLo.z, posLo.w,
+		posLo.x, posHi.y, posLo.z, posLo.w,
+		posHi.x, posHi.y, posLo.z, posLo.w,
+	};
+
+	F32 texAttrib[] =
+	{
+		texLo.x, texLo.y,
+		texHi.x, texLo.y,
+		texLo.x, texHi.y,
+		texHi.x, texHi.y,
+	};
+
+	// Create program.
+	static const char* progId = "PTWindow::drawTexture";
+	GLProgram* prog = GLProgram::get(progId);
+	if (!prog)
+	{
+		prog = new GLProgram(
+			GL_SHADER_SOURCE(
+				attribute vec4 posAttrib;
+				attribute vec2 texAttrib;
+				varying vec2 texVarying;
+				void main()
+				{
+					gl_Position = posAttrib;
+					texVarying = texAttrib;
+				}
+			),
+			GL_SHADER_SOURCE(
+				uniform sampler2D texSampler;
+				varying vec2 texVarying;
+				void main()
+				{
+					gl_FragColor = texture2D(texSampler, texVarying);
+				}
+			)
+		);
+
+		// Update static shader storage
+		GLProgram::set(progId, prog);
+	}
+
+	// Draw image
+	prog->use();
+	prog->setUniform(prog->getUniformLoc("texSampler"), 0); // texture unit 0
+	prog->setAttrib(prog->getAttribLoc("posAttrib"), 4, GL_FLOAT, 0, posAttrib);
+	prog->setAttrib(prog->getAttribLoc("texAttrib"), 2, GL_FLOAT, 0, texAttrib);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	prog->resetAttribs();
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glfwSwapBuffers(window);
+
+	if (show_fps)
+		calcFPS(1.0, "HOLDTHEDOOR");
+}
+
 // Create front and back buffers
 void PTWindow::createTextures()
 {

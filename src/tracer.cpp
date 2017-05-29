@@ -67,7 +67,8 @@ void Tracer::update()
     clctx->fetchStatsAsync();
 
     // Draw progress to screen
-    window->repaint(frontBuffer);
+	window->drawTexture(frontBuffer);
+	//window->repaint(frontBuffer);
     frontBuffer = 1 - frontBuffer;
 
     // Update iteration counter

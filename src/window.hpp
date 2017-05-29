@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include "clcontext.hpp"
+#include "GLProgram.hpp"
 #include "math/float2.hpp"
 
 using FireRays::float2;
@@ -16,6 +17,7 @@ public:
     ~PTWindow();
 
     void repaint(int frontBuffer);
+	void drawTexture(int frontBuffer);
 
     bool available()
     {

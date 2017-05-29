@@ -129,6 +129,7 @@
     <ClCompile Include="src\bvhnode.cpp" />
     <ClCompile Include="src\clcontext.cpp" />
     <ClCompile Include="src\envmap.cpp" />
+    <ClCompile Include="src\GLProgram.cpp" />
     <ClCompile Include="src\kernelreader.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\rgbe\rgbe.cpp" />
@@ -149,6 +150,7 @@
     <ClInclude Include="src\clcontext.hpp" />
     <ClInclude Include="src\envmap.hpp" />
     <ClInclude Include="src\geom.h" />
+    <ClInclude Include="src\GLProgram.hpp" />
     <ClInclude Include="src\kernelreader.hpp" />
     <ClInclude Include="src\rgbe\rgbe.hpp" />
     <ClInclude Include="src\rtutil.hpp" />
