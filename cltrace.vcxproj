@@ -163,6 +163,7 @@
     <ClInclude Include="src\window.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="settings.json" />
     <None Include="src\bvh.cl" />
     <None Include="src\intersect.cl" />
     <None Include="src\kernel_monolith.cl" />

@@ -147,8 +147,11 @@ void PTWindow::repaint(int frontBuffer)
 
 void PTWindow::drawTexture(int frontBuffer)
 {
+	unsigned int w, h;
+	getFBSize(w, h);
+	glViewport(0, 0, w, h);
+
 	glActiveTexture(GL_TEXTURE0); // make texture unit 0 active
-	
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, gl_textures[frontBuffer]);
 
