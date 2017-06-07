@@ -68,13 +68,17 @@ class CLContext
 friend class Tracer;
 
 public:
-    CLContext(GLuint *textures);
+    CLContext(GLuint *textures, GLuint gl_PBO);
     ~CLContext();
 
-    void executeMegaKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
-    void executeRayGenKernel(const RenderParams &params);
-    void executeNextVertexKernel(const RenderParams &params);
-    void executeSplatKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
+    void enqueueMegaKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
+	void enqueueResetKernel(const RenderParams &params);
+	void enqueueRayGenKernel(const RenderParams &params);
+    void enqueueNextVertexKernel(const RenderParams &params);
+    void enqueueExplSampleKernel(const RenderParams &params);
+    void enqueueSplatKernel(const RenderParams &params, const cl_uint iteration);
+    void enqueueSplatPreviewKernel(const RenderParams &params);
+    void finishQueue();
 
     void setupParams();
     void setupStats();
@@ -84,7 +88,7 @@ public:
 
     void updateParams(const RenderParams &params);
     void uploadSceneData(BVH *bvh, Scene *scene);
-    void createTextures(GLuint *tex_arr);
+    void setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO);
     void createEnvMap(float *data, int width, int height);
 private:
     void printDevices();
@@ -93,9 +97,12 @@ private:
     void packTextures(Scene *scene);
     
     void setupKernels();
+	void setupResetKernel();
     void setupRayGenKernel();
     void setupNextVertexKernel();
+    void setupExplSampleKernel();
     void setupSplatKernel();
+    void setupSplatPreviewKernel();
     void setupMegaKernel();
     void initMCBuffers();
 
@@ -110,7 +117,7 @@ private:
 #ifdef CPU_DEBUGGING
     const cl_uint NUM_TASKS = 1;
 #else
-    const cl_uint NUM_TASKS = 1920 * 1080;   // the amount of paths in flight simultaneously, limited by VRAM
+    const cl_uint NUM_TASKS = 2 << 20;   // the amount of paths in flight simultaneously, limited by VRAM
 #endif
 
     std::vector<cl::Device> clDevices;
@@ -121,19 +128,21 @@ private:
     
     // Kernels
     cl::Kernel kernel_monolith;
+	cl::Kernel mk_reset;
     cl::Kernel mk_raygen;
     cl::Kernel mk_next_vertex;
+    cl::Kernel mk_sample_explicit;
     cl::Kernel mk_splat;
+    cl::Kernel mk_splat_preview;
 
-    std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (two textures)
+    std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (tex1, tex2, mk_pixelbuffer)
     cl::Buffer sphereBuffer;
     cl::Buffer lightBuffer;
     cl::Buffer renderParams;                // contains only one RenderParam
     cl::Buffer renderStats;                 // ray + sample counts
     RenderStats statsAsync;                 // fetched asynchronously from device after each iteration
     
-    // Microkernel buffers
-    cl::Buffer raysBuffer;
+    // Microkernel buffer
     cl::Buffer tasksBuffer;
 
     cl::Image2D environmentMap;

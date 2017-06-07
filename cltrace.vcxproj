@@ -167,9 +167,12 @@
     <None Include="src\bvh.cl" />
     <None Include="src\intersect.cl" />
     <None Include="src\kernel_monolith.cl" />
+    <None Include="src\mk_reset.cl" />
+    <None Include="src\mk_sample_explicit.cl" />
     <None Include="src\mk_next_vertex.cl" />
     <None Include="src\mk_raygen.cl" />
     <None Include="src\mk_splat.cl" />
+    <None Include="src\mk_splat_preview.cl" />
     <None Include="src\random.cl" />
     <None Include="src\utils.cl" />
   </ItemGroup>

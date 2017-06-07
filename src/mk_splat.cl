@@ -1,7 +1,7 @@
 #include "geom.h"
 
 // x and y include offsets when supersampling
-kernel void splat(global Ray *rays, global GPUTaskState *tasks, read_only image2d_t src, write_only image2d_t dst, global RenderParams *params, uint numTasks)
+kernel void splat(global GPUTaskState *tasks, global float *pixels, global RenderParams *params, uint numTasks, uint iteration)
 {
     //const size_t gid = get_global_id(0);
     const size_t gid = get_global_id(0) + get_global_id(1) * params->width;
@@ -11,20 +11,34 @@ kernel void splat(global Ray *rays, global GPUTaskState *tasks, read_only image2
         return;
 
     // Read the path state
-    global GPUTaskState *task = &tasks[gid];
-    PathPhase phase = task->phase;
-    if (phase != MK_SPLAT_SAMPLE)
+    global PathPhase *phase = (global PathPhase*)&ReadI32(phase, tasks);
+    if (*phase != MK_SPLAT_SAMPLE)
         return;
 
-    //const uint x = gid % params->width;
-    //const uint y = gid / params->width;
     const uint x = get_global_id(0);
     const uint y = get_global_id(1);
 
-    // TEST: just show throughput as color
-    const float4 color = (float4)(task->T, 0.0f);
-    write_imagef(dst, (int2)(x, y), color);
+	// Accumulate radiance
+	global int *samples = (global int*)&ReadI32(samples, tasks);
+    float4 color = (float4)(ReadFloat3(Ei, tasks), 1.0f);
+	float4 prev = vload4((y * params->width + x), pixels);
+	if (*samples > 0) color += prev;
+	vstore4(color, (y * params->width + x), pixels);
+	*samples += 1;
+
+	// Reset path state
+	const float3 zero = (float3)(0.0f);
+	const float3 one = (float3)(1.0f);
+	WriteFloat3(Ei, tasks, zero);
+	WriteFloat3(T, tasks, one);
+	WriteF32(pdf, tasks, 1.0f);
+	WriteU32(pathLen, tasks, 0);
+
+	// Just keep accumulating seed
+    //uint seed = get_global_id(1) * params->width + get_global_id(0) + *samples * params->width * params->height; // unique for each pixel
+    //WriteU32(seed, tasks, seed);
+	// TODO: more
 
     // Update phase
-    task->phase = MK_GENERATE_CAMERA_RAY;
+    *phase = MK_GENERATE_CAMERA_RAY;
 }

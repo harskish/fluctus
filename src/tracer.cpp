@@ -27,6 +27,8 @@ void Tracer::update()
     glfwPollEvents();
     pollKeys();
 
+    glFinish(); // locks execution to refresh rate of display (GL)
+
     // Update RenderParams in GPU memory if needed
     if(paramsUpdatePending)
     {
@@ -41,25 +43,46 @@ void Tracer::update()
         iteration = 0; // accumulation reset
     }
 
-    glFinish(); // locks execution to refresh rate of display (GL)
-
     if (useMK)
     {
-        // Generate new camera rays
-        clctx->executeRayGenKernel(params);
+        if (iteration == 0)
+        {
+            // Interactive preview: 1 bounce indirect
+            clctx->enqueueResetKernel(params);
+            clctx->enqueueRayGenKernel(params);
+            
+            // Two segments
+            clctx->enqueueNextVertexKernel(params);
+            clctx->enqueueExplSampleKernel(params);
+            clctx->enqueueNextVertexKernel(params);
+            clctx->enqueueExplSampleKernel(params);
+            
+            // Preview => also splat incomplete paths
+            clctx->enqueueSplatPreviewKernel(params);
+        }
+        else
+        {
+            // Generate new camera rays
+            clctx->enqueueRayGenKernel(params);
 
-        // Trace rays
-        clctx->executeNextVertexKernel(params);
+            // Trace rays
+            clctx->enqueueNextVertexKernel(params);
 
-        // Splat results
-        clctx->executeSplatKernel(params, frontBuffer, iteration);
+            // Direct lighting
+            clctx->enqueueExplSampleKernel(params);
+
+            // Splat results
+            clctx->enqueueSplatKernel(params, frontBuffer);
+        }
     }
     else
     {
-        // Advance render state
-        clctx->executeMegaKernel(params, frontBuffer, iteration);
+        // Megakernel
+        clctx->enqueueMegaKernel(params, frontBuffer, iteration);
     }
 
+    // Finish command queue
+    clctx->finishQueue();
 
     // Display render statistics (MRays/s) of previous frame
     // Asynchronously transfer render statistics from device
@@ -67,9 +90,15 @@ void Tracer::update()
     clctx->fetchStatsAsync();
 
     // Draw progress to screen
-	window->drawTexture(frontBuffer);
-	//window->repaint(frontBuffer);
-    frontBuffer = 1 - frontBuffer;
+    if (useMK)
+    {
+        window->drawPixelBuffer();
+    }
+    else
+    {
+        window->drawTexture(frontBuffer);
+        frontBuffer = 1 - frontBuffer;
+    }
 
     // Update iteration counter
     iteration++;
@@ -80,7 +109,7 @@ Tracer::Tracer(int width, int height) : useMK(true)
     // done only once (VS debugging stops working if context is recreated)
     window = new PTWindow(width, height, this); // this = glfw user pointer
     window->setShowFPS(true);
-    clctx = new CLContext(window->getTexPtr());
+    clctx = new CLContext(window->getTexPtr(), window->getPBO());
     initCamera();
     initAreaLight();
 
@@ -99,7 +128,7 @@ void Tracer::init(int width, int height, std::string sceneFile)
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
     params.useEnvMap = 0;
     params.flashlight = 0;
-    params.maxBounces = 2;
+    params.maxBounces = 4;
     params.sampleImpl = true;
     params.sampleExpl = true;
 
@@ -173,7 +202,8 @@ bool Tracer::running()
 void Tracer::resizeBuffers()
 {
     window->createTextures();
-    clctx->createTextures(window->getTexPtr());
+    window->createPBO();
+    clctx->setupPixelStorage(window->getTexPtr(), window->getPBO());
     paramsUpdatePending = true;
     std::cout << std::endl;
 }
@@ -394,6 +424,8 @@ void Tracer::pollKeys()
     check(GLFW_KEY_SEMICOLON,   cam.fov = std::max(cam.fov - 1.0f, 5.0f));
     check(GLFW_KEY_8,           params.areaLight.size /= 1.1f);
     check(GLFW_KEY_9,           params.areaLight.size *= 1.1f);
+    check(GLFW_KEY_PAGE_DOWN,   params.areaLight.E /= 1.05f);
+    check(GLFW_KEY_PAGE_UP,     params.areaLight.E *= 1.05f);
 
     if(paramsUpdatePending)
     {
@@ -449,6 +481,6 @@ void Tracer::handleCursorPos(double x, double y)
 
 void Tracer::handleMouseScroll(double yoffset)
 {
-	float newSpeed = (yoffset > 0) ? cameraSpeed * 1.2f : cameraSpeed / 1.2f;
-	cameraSpeed = std::max(1e-3f, std::min(1e6f, newSpeed));
+    float newSpeed = (yoffset > 0) ? cameraSpeed * 1.2f : cameraSpeed / 1.2f;
+    cameraSpeed = std::max(1e-3f, std::min(1e6f, newSpeed));
 }

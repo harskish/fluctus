@@ -19,6 +19,34 @@ using FireRays::float3;
 #define PI 3.14159265358979323846f
 #define toRad(deg) (deg * PI / 180)
 
+// For handling SoA data, only used on GPU
+// Variable names gid, numTasks are assumed for brevity
+#ifndef USE_SOA
+#define ReadF32(member, ptr) ptr[gid].member
+#define WriteF32(member, ptr, value) ptr[gid].member = value
+#define ReadI32(member, ptr) ptr[gid].member
+#define WriteI32(member, ptr, value) ptr[gid].member = value
+#define ReadU32(member, ptr) ptr[gid].member
+#define WriteU32(member, ptr, value) ptr[gid].member = value
+#define ReadFloat2(member, ptr) ptr[gid].member
+#define ReadFloat3(member, ptr) ptr[gid].member
+#define WriteFloat2(member, ptr, value) ptr[gid].member = (float2)(value.x, value.y)
+#define WriteFloat3(member, ptr, value) ptr[gid].member = (float3)(value.x, value.y, value.z)
+#else
+#define OffsetOf(member) (uint)(&((GPUTaskState*)0)->member)
+#define ReadF32(member, ptr) ((global float*)ptr)[OffsetOf(member) / sizeof(float) * numTasks + gid]
+#define WriteF32(member, ptr, value) ReadF32(member, ptr) = value
+#define ReadF32Vec(member, cmp, ptr) ((global float*)ptr)[(OffsetOf(member) + cmp * sizeof(float)) / sizeof(float) * numTasks + gid]
+#define ReadI32(member, ptr) ((global int*)ptr)[OffsetOf(member) / sizeof(float) * numTasks + gid]
+#define WriteI32(member, ptr, value) ReadI32(member, ptr) = value
+#define ReadU32(member, ptr) ((global uint*)ptr)[OffsetOf(member) / sizeof(float) * numTasks + gid]
+#define WriteU32(member, ptr, value) ReadU32(member, ptr) = value
+#define ReadFloat2(member, ptr) (float2)(ReadF32Vec(member, 0, ptr), ReadF32Vec(member, 1, ptr))
+#define ReadFloat3(member, ptr) (float3)(ReadF32Vec(member, 0, ptr), ReadF32Vec(member, 1, ptr), ReadF32Vec(member, 2, ptr))
+#define WriteFloat2(member, ptr, value) ReadF32Vec(member, 0, ptr) = value.x; ReadF32Vec(member, 1, ptr) = value.y;
+#define WriteFloat3(member, ptr, value) ReadF32Vec(member, 0, ptr) = value.x; ReadF32Vec(member, 1, ptr) = value.y; ReadF32Vec(member, 2, ptr) = value.z;
+#endif
+
 typedef struct
 {
     float3 orig;
@@ -141,24 +169,43 @@ typedef struct
 typedef enum
 {
     MK_RT_NEXT_VERTEX = 0,
-    MK_HIT_NOTHING = 1,
-    MK_HIT_OBJECT = 2,
-    MK_DL_ILLUMINATE = 3,
-    MK_DL_SAMPLE_BSDF = 4,
-    MK_RT_DL = 5,
-    MK_GENERATE_NEXT_VERTEX_RAY = 6,
-    MK_SPLAT_SAMPLE = 7,
-    MK_NEXT_SAMPLE = 8,
-    MK_GENERATE_CAMERA_RAY = 9,
-    MK_DONE = 10
+    MK_SAMPLE_LIGHT_EXPL = 1,
+    MK_SAMPLE_LIGHT_IMPL = 2,
+    MK_HIT_NOTHING = 3,
+    MK_SAMPLE_BSDF = 4,
+    MK_SPLAT_SAMPLE = 5,
+    MK_GENERATE_CAMERA_RAY = 6,
+    MK_DONE = 7
 } PathPhase;
 
+
+// State for a single path in the microkernel paradigm.
+// Stored in SoA format, hence no structs (Laine 2013: 'Megakernels Considered Harmful')
+// Laine: 212 bytes per path
 typedef struct
 {
-    float3 T; // throughput
+    // Path state:
+    float3 orig;     // path segment origin
+    float3 dir;      // path segment direction
+    float3 T;        // throughput
+    float3 Ei;       // irradiance
+    // Last hit:
+    float3 P;
+    float3 N;
+    float2 uvTex;
+    // Path state:
     PathPhase phase;
-    float pdf;
+    cl_float pdf;
+	cl_float lastPdfW; // prev. brdf pdf, for MIS
+    cl_uint pathLen; // number of segments in path
     cl_uint seed;
+	cl_uint lastSpecular; // prevents NEE
+	cl_int samples;  // counted per pixel
+    // Last hit:
+    cl_float t;
+    cl_int i;        // index of hit triangle, -1 by default
+    cl_int areaLightHit;
+    cl_int matId;    // index of hit material
 } GPUTaskState;
 
 typedef struct

@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <cstdlib>
 #include <GL/glew.h>
 #include "math/float2.hpp"
 #include "math/float3.hpp"
@@ -56,7 +57,7 @@ public:
 	void             setUniform(int loc, const matrix& v) { if (loc >= 0) glUniformMatrix4fv(loc, 1, false, &v.m00); }
 
 	void			 setAttrib(int loc, int size, GLenum type, int stride, GLuint buffer, const void* pointer);
-	void             setAttrib(int loc, int size, GLenum type, int stride, const void* pointer) { setAttrib(loc, size, type, stride, NULL, pointer); }
+	void             setAttrib(int loc, int size, GLenum type, int stride, const void* pointer) { setAttrib(loc, size, type, stride, (GLuint)NULL, pointer); }
 	void			 resetAttribs(void);
 
 private:

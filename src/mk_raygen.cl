@@ -1,26 +1,30 @@
 #include "geom.h"
+#include "utils.cl"
 
 // x and y include offsets when supersampling
-kernel void genCameraRays(global Ray *rays, global GPUTaskState *tasks, global RenderParams *params, uint numTasks)
+kernel void genCameraRays(global GPUTaskState *tasks, global RenderParams *params, uint numTasks)
 {
     // Enqueued with 1D workgroups
     const size_t gid = get_global_id(0) + get_global_id(1) * params->width;
     const uint limit = min(params->width * params->height, numTasks); // TODO: remove need for params, use only numTasks!
+    uint seed = ReadU32(seed, tasks);
 
     if (gid >= limit)
         return;
 
     // Read the path state
-    global GPUTaskState *task = &tasks[gid];
-    PathPhase phase = task->phase;
-    if (phase != MK_GENERATE_CAMERA_RAY)
+    global PathPhase *phase = (global PathPhase*)&ReadI32(phase, tasks);
+    if (*phase != MK_GENERATE_CAMERA_RAY)
         return;
-
     
     // Camera plane is 1 unit away, by convention
     // Camera points in the negative z-direction
     float x = (float)(gid % params->width);
     float y = (float)(gid / params->width);
+
+    // Jittered AA
+    x += rand(&seed);
+    y += rand(&seed);
 
     // NDC-space, [0,1]x[0,1]
     float NDCx = x / params->width;
@@ -43,9 +47,10 @@ kernel void genCameraRays(global Ray *rays, global GPUTaskState *tasks, global R
     float3 rayDirection = normalize(rayTarget - params->camera.pos);
 
     // Construct camera ray
-    Ray r = { params->camera.pos, rayDirection };
-    rays[gid] = r;
+    WriteFloat3(orig, tasks, params->camera.pos);
+    WriteFloat3(dir, tasks, rayDirection);
 
-    // Update phase
-    task->phase = MK_RT_NEXT_VERTEX;
+    // Update path state
+    WriteU32(seed, tasks, seed);
+    *phase = MK_RT_NEXT_VERTEX;
 }

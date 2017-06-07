@@ -123,4 +123,38 @@ inline float pdfAtoW(const float pdf, const float dist, const float cosine)
     return pdf * (dist * dist) / fabs(cosine);
 }
 
+inline void writeHitSoA(Hit hit, global GPUTaskState *tasks, const size_t gid, const uint numTasks)
+{
+	WriteFloat3(P, tasks, hit.P);
+	WriteFloat3(N, tasks, hit.N);
+	WriteFloat2(uvTex, tasks, hit.uvTex);
+	WriteF32(t, tasks, hit.t);
+	WriteI32(i, tasks, hit.i);
+	WriteI32(areaLightHit, tasks, hit.areaLightHit);
+	WriteI32(matId, tasks, hit.matId);
+}
+
+inline Hit readHitSoA(global GPUTaskState *tasks, const size_t gid, const uint numTasks)
+{
+	Hit hit;
+	hit.P = ReadFloat3(P, tasks);
+	hit.N = ReadFloat3(N, tasks);
+	hit.uvTex = ReadFloat2(uvTex, tasks);
+	hit.t = ReadF32(t, tasks);
+	hit.i = ReadI32(i, tasks);
+	hit.areaLightHit = ReadI32(areaLightHit, tasks);
+	hit.matId = ReadI32(matId, tasks);
+	return hit;
+}
+
+inline void sampleAreaLight(AreaLight light, float *pdf, float3 *p, uint *seed)
+{
+	*pdf = 1.0f / (4.0f * light.size.x * light.size.y);
+	*p = light.pos;
+	float r1 = 2.0f * rand(seed) - 1.0f;
+	float r2 = 2.0f * rand(seed) - 1.0f;
+	*p += r1 * light.size.x * light.right;
+	*p += r2 * light.size.y * light.up;
+}
+
 #endif

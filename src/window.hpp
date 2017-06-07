@@ -17,6 +17,7 @@ public:
     ~PTWindow();
 
     void repaint(int frontBuffer);
+	void drawPixelBuffer();
 	void drawTexture(int frontBuffer);
 
     bool available()
@@ -27,6 +28,7 @@ public:
 
     void setShowFPS(bool show) { show_fps = show; }
     void createTextures();
+	void createPBO();
     void requestClose();
 
     float2 getCursorPos();
@@ -34,6 +36,7 @@ public:
 
     GLFWwindow *glfwWindowPtr() { return window; }
     GLuint *getTexPtr() { return gl_textures; }
+	GLuint getPBO() { return gl_PBO; }
     void getFBSize(unsigned int &w, unsigned int &h);
 
 private:
@@ -41,6 +44,8 @@ private:
 
     GLFWwindow *window;
     GLuint gl_textures[2] = { 0, 0 };
+	GLuint gl_PBO = 0;
+	GLuint gl_PBO_texture;
     unsigned int textureWidth, textureHeight;
     bool show_fps = false;
 };

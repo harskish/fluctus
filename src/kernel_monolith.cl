@@ -114,16 +114,6 @@ inline float3 whittedShading(Hit *hit, global Material *materials, global uchar 
     return res;
 }
 
-inline void sampleAreaLight(AreaLight light, float *pdf, float3 *p, uint *seed)
-{
-    *pdf = 1.0f / (4.0f * light.size.x * light.size.y);
-    *p = light.pos;
-    float r1 = 2.0f * rand(seed) - 1.0f;
-    float r2 = 2.0f * rand(seed) - 1.0f;
-    *p += r1 * light.size.x * light.right;
-    *p += r2 * light.size.y * light.up;
-}
-
 inline float3 reflectionShading(Hit *hit, read_only image2d_t envMap, global RenderParams *params)
 {
     float3 V = normalize(params->camera.pos - hit->P); // P to eye
@@ -247,18 +237,9 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             float3 orig;// , dir;
             const float EPS_REFR = 1e-5f;
             float cosI = dot(-normalize(r.dir), n);
-            float n1, n2;
 
-            if (backside) // inside of material
-            {
-                n1 = refr;
-                n2 = 1.0f;
-            }
-            else
-            {
-                n1 = 1.0f;
-                n2 = refr;
-            }
+			float n1 = 1.0f, n2 = refr;
+			if (backside) swap_m(n1, n2, float); // inside of material
 
             float cosT = 1.0f - pow(n1 / n2, 2.0f) * (1.0f - pow(cosI, 2.0f));
             float raylen = length(r.dir);
@@ -317,12 +298,12 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             float lenL = length(L);
             L = normalize(L);
             Ray rLight = { orig, L };
-            Hit hitLight = raycast(&rLight, lenL, tris, nodes, indices, params, false); // no need to check area light
-            atomic_inc(&stats->shadowRays); // TODO: actually use optimized shadow ray traversal
+            bool occluded = bvh_occluded(&rLight, &lenL, tris, nodes, indices); // no need to check area light
+            atomic_inc(&stats->shadowRays);
 
             float cosLight = max(dot(nLight, -L), 0.0f);
 
-            if (hitLight.i == -1 && cosLight > 1e-6f) // front of light accessible
+            if (!occluded && cosLight > 1e-6f) // front of light accessible
             {
                 const float lightPickProb = 1.0f;
                 const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
@@ -331,7 +312,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                 float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
                 
                 float weight = 1.0f;
-                if (params->sampleExpl)
+                if (params->sampleImpl)
                 {
                     weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
                 }
@@ -389,8 +370,8 @@ kernel void trace(read_only image2d_t src, write_only image2d_t dst, global ucha
     float3 pixelColor = tracePath((float2)(x, y), iteration, texData, textures, lights, tris, materials, nodes, indices, envMap, params, stats);
     const float tex_weight = iteration * native_recip((float)(iteration) + 1.0f);
     float3 prev = read_imagef(src, (int2)(x, y)).xyz;
-    pixelColor = clamp(mix(pixelColor, prev, tex_weight), (float3)(0.0f), (float3)(1.0f));
+    pixelColor = mix(pixelColor, prev, tex_weight); // don't clamp => can be tonemapped e.g. in GL shader
     //*/
 
-    write_imagef(dst, (int2)(x, y), (float4)(pixelColor, 0.0f));
+    write_imagef(dst, (int2)(x, y), (float4)(pixelColor, 1.0f));
 }

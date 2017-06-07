@@ -92,11 +92,13 @@ PTWindow::PTWindow(int width, int height, void *tracer)
     // ===============================================
 
     createTextures();
+	createPBO();
 }
 
 PTWindow::~PTWindow()
 {
-    if(gl_textures[0]) glDeleteTextures(2, gl_textures);
+    if (gl_textures[0]) glDeleteTextures(2, gl_textures);
+	if (gl_PBO) glDeleteBuffers(1, &gl_PBO);
 }
 
 void PTWindow::requestClose()
@@ -142,6 +144,89 @@ void PTWindow::repaint(int frontBuffer)
 
     if(show_fps)
         calcFPS(1.0, "HOLDTHEDOOR");
+}
+
+// https://devtalk.nvidia.com/default/topic/541646/opengl/draw-pbo-into-the-screen-performance/
+void PTWindow::drawPixelBuffer()
+{
+	unsigned int w, h;
+	getFBSize(w, h);
+	glViewport(0, 0, w, h);
+
+	glActiveTexture(GL_TEXTURE0); // make texture unit 0 active
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, gl_PBO_texture);
+
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_PBO);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, (GLsizei)this->textureWidth, (GLsizei)this->textureHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+	float4 posLo(-1.0f, -1.0f, 0.0f, 1.0f);
+	float2 posHi(1.0f, 1.0f);
+	float2 texLo(0.0f, 0.0f);
+	float2 texHi(1.0f, 1.0f);
+
+	// Vertex attributes
+	F32 posAttrib[] =
+	{
+		posLo.x, posLo.y, posLo.z, posLo.w,
+		posHi.x, posLo.y, posLo.z, posLo.w,
+		posLo.x, posHi.y, posLo.z, posLo.w,
+		posHi.x, posHi.y, posLo.z, posLo.w,
+	};
+
+	F32 texAttrib[] =
+	{
+		texLo.x, texLo.y,
+		texHi.x, texLo.y,
+		texLo.x, texHi.y,
+		texHi.x, texHi.y,
+	};
+
+	// Create program.
+	static const char* progId = "PTWindow::drawTexture";
+	GLProgram* prog = GLProgram::get(progId);
+	if (!prog)
+	{
+		prog = new GLProgram(
+			GL_SHADER_SOURCE(
+				attribute vec4 posAttrib;
+				attribute vec2 texAttrib;
+				varying vec2 texVarying;
+				void main()
+				{
+					gl_Position = posAttrib;
+					texVarying = texAttrib;
+				}
+			),
+			GL_SHADER_SOURCE(
+				uniform sampler2D texSampler;
+				varying vec2 texVarying;
+				void main()
+				{
+					vec4 color = texture2D(texSampler, texVarying);
+					gl_FragColor = color / color.a;
+				}
+			)
+		);
+
+		// Update static shader storage
+		GLProgram::set(progId, prog);
+	}
+
+	// Draw image
+	prog->use();
+	prog->setUniform(prog->getUniformLoc("texSampler"), 0); // texture unit 0
+	prog->setAttrib(prog->getAttribLoc("posAttrib"), 4, GL_FLOAT, 0, posAttrib);
+	prog->setAttrib(prog->getAttribLoc("texAttrib"), 2, GL_FLOAT, 0, texAttrib);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	prog->resetAttribs();
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glfwSwapBuffers(window);
+
+	if (show_fps)
+		calcFPS(1.0, "HOLDTHEDOOR");
 }
 
 
@@ -198,7 +283,8 @@ void PTWindow::drawTexture(int frontBuffer)
 				varying vec2 texVarying;
 				void main()
 				{
-					gl_FragColor = texture2D(texSampler, texVarying);
+					vec4 color = texture2D(texSampler, texVarying);
+					gl_FragColor = color / color.a;
 				}
 			)
 		);
@@ -251,6 +337,41 @@ void PTWindow::createTextures()
     }
     
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+// Create pixel buffer object used by microkernels
+void PTWindow::createPBO()
+{
+	if (gl_PBO) {
+		std::cout << "Removing old gl_PBO" << std::endl;
+		glDeleteBuffers(1, &gl_PBO);
+		glDeleteTextures(1, &gl_PBO_texture);
+	}
+
+	// Size of texture depends on render resolution scale
+	unsigned int width, height;
+	getFBSize(width, height);
+	float renderScale = Settings::getInstance().getRenderScale();
+	this->textureWidth = static_cast<unsigned int>(width * renderScale);
+	this->textureHeight = static_cast<unsigned int>(height * renderScale);
+
+	// STREAM_DRAW because of frequent updates
+	glGenBuffers(1, &gl_PBO);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_PBO);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, this->textureWidth * this->textureHeight * sizeof(GLfloat) * 4, 0, GL_STREAM_DRAW);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+	std::cout << "Created GL-PBO at " << gl_PBO << std::endl;
+
+	// Create GL-only texture for PBO displaying
+	glGenTextures(1, &gl_PBO_texture);
+	glBindTexture(GL_TEXTURE_2D, gl_PBO_texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 double PTWindow::calcFPS(double interval, std::string theWindowTitle)

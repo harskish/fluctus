@@ -16,6 +16,8 @@ void Settings::init()
     renderScale = 1.0f;
     windowWidth = 640;
     windowHeight = 480;
+    clUseBitstack = false;
+    clUseSoA = true;
 }
 
 inline bool contains(json j, std::string value)
@@ -58,6 +60,8 @@ void Settings::import(json j)
     if (contains(j, "renderScale")) this->renderScale = j["renderScale"].get<float>();
     if (contains(j, "windowWidth")) this->windowWidth = j["windowWidth"].get<int>();
     if (contains(j, "windowHeight")) this->windowHeight = j["windowHeight"].get<int>();
+    if (contains(j, "clUseBitstack")) this->clUseBitstack = j["clUseBitstack"].get<bool>();
+    if (contains(j, "clUseSoA")) this->clUseSoA = j["clUseSoA"].get<bool>();
 
     // Map of numbers 1-5 to scenes (shortcuts)
     if (contains(j, "shortcuts"))

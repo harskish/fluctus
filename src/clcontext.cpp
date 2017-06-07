@@ -1,31 +1,6 @@
 #include "clcontext.hpp"
+#include "geom.h"
 #include <stdlib.h>
-
-/* UTILS */
-
-cl::Platform &CLContext::getPlatformByName(std::vector<cl::Platform> &platforms, std::string name) {
-    for(cl::Platform &p: platforms) {
-        std::string platformName = p.getInfo<CL_PLATFORM_NAME>();
-        if(platformName.find(name) != std::string::npos) {
-            return p;
-        }
-    }
-
-    std::cout << "No platform name containing \"" << name << "\" found!" << std::endl;
-    return platforms[0];
-}
-
-cl::Device &CLContext::getDeviceByName(std::vector<cl::Device> &devices, std::string name) {
-    for(cl::Device &d: devices) {
-        std::string deviceName = d.getInfo<CL_DEVICE_NAME>();
-        if(deviceName.find(name) != std::string::npos) {
-            return d;
-        }
-    }
-
-    std::cout << "No device name containing \"" << name << "\" in selected context!" << std::endl;
-    return devices[0];
-}
 
 inline bool platformIsNvidia(cl::Platform platform)
 {
@@ -45,10 +20,7 @@ inline std::string getAbsolutePath(std::string filename)
     return std::string(resolved_path);
 }
 
-
-/* CLASS METHODS */
-
-CLContext::CLContext(GLuint *textures)
+CLContext::CLContext(GLuint *textures, GLuint gl_PBO)
 {
     // Remove kernel caching to always get build logs (on NVIDIA hardware)
     #ifdef _WIN32
@@ -110,7 +82,7 @@ CLContext::CLContext(GLuint *textures)
     setupStats();
 
     // Create OpenCL buffer from OpenGL PBO
-    createTextures(textures);
+    setupPixelStorage(textures, gl_PBO);
 
     // Allocate device memory for scene
     setupScene();
@@ -122,32 +94,91 @@ CLContext::CLContext(GLuint *textures)
 void CLContext::setupKernels()
 {
     initMCBuffers();
+	setupResetKernel();
     setupRayGenKernel();
     setupNextVertexKernel();
+    setupExplSampleKernel();
     setupSplatKernel();
+    setupSplatPreviewKernel();
     setupMegaKernel();
+}
+
+// For copying SoA data to host
+inline void copyToHost(GPUTaskState *dst, GPUTaskState *src, size_t NUM_TASKS)
+{
+    float *hostData = (float*)src;
+
+    for (int i = 0; i < NUM_TASKS; i++)
+    {
+        GPUTaskState curr;
+        for (int j = 0; j < sizeof(GPUTaskState) / sizeof(float); j++)
+        {
+            ((float*)&curr)[j] = hostData[j * NUM_TASKS + i];
+        }
+        dst[i] = curr;
+    }
 }
 
 // Init state buffers (rays, tasks) needed by microkernels
 void CLContext::initMCBuffers()
 {
+    // TODO: ensure 32bit divisibility in SoA mode
     const size_t t_bytes = NUM_TASKS * sizeof(GPUTaskState);
-    const size_t r_bytes = NUM_TASKS * sizeof(Ray);
-
-    raysBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, r_bytes, NULL, &err);
-    verify("Ray buffer creation failed!");
 
     tasksBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, t_bytes, NULL, &err);
     verify("Task buffer creation failed!");
 
     // Init tasks buffer
     GPUTaskState *initialTaskStates = new GPUTaskState[NUM_TASKS];
-    std::for_each(initialTaskStates + 0, initialTaskStates + NUM_TASKS, [](GPUTaskState &s) { s.phase = MK_GENERATE_CAMERA_RAY; s.pdf = 1.0f; s.T = float3(1.0f); s.seed = (unsigned int)rand(); });
+    
+    // Initial task state
+    auto getDefaultState = []()
+    {
+        GPUTaskState curr;
+        curr.orig = float3(0.0f); // overwritten in raygen kernel
+        curr.dir = float3(0.0f, 0.0f, -1.0f); // overwritten in raygen kernel
+        curr.T = float3(1.0f);
+        curr.Ei = float3(0.0f);
+        curr.phase = MK_GENERATE_CAMERA_RAY;
+        curr.pdf = 1.0f;
+        curr.pathLen = 0;
+        curr.seed = (unsigned int)rand();
+        curr.samples = 0;
+
+        return curr;
+    };
+
+    // Write initial state in SoA or AoS format
+    if (Settings::getInstance().getUseSoA())
+    {
+        // Maximum coalescing: 32bit boundaries
+        float *data = (float*)initialTaskStates;
+        for (int i = 0; i < NUM_TASKS; i++)
+        {
+            // Initialize struct normally
+            GPUTaskState curr = getDefaultState();
+
+            float *curr_data = (float*)(&curr);
+            for (int j = 0; j < sizeof(GPUTaskState) / sizeof(float); j++) // 32 bits at a time
+            {
+                data[j * NUM_TASKS + i] = curr_data[j];
+            }
+        }
+
+        // GPUTaskState *recovered = new GPUTaskState[NUM_TASKS];
+        // copyToHost(recovered, initialTaskStates, NUM_TASKS);
+        // delete[] recovered;
+    }
+    else
+    {
+        std::for_each(initialTaskStates + 0, initialTaskStates + NUM_TASKS, [&](GPUTaskState &s) { s = getDefaultState(); });
+    }
+    
     err = cmdQueue.enqueueWriteBuffer(tasksBuffer, CL_TRUE, 0, t_bytes, initialTaskStates);
     delete[] initialTaskStates;
     verify("Task buffer writing failed!");
 
-    const size_t memoryUsageMiB = (t_bytes + r_bytes) / (2 << 19);
+    const size_t memoryUsageMiB = t_bytes / (2 << 19);
     std::cout << "Microkernel state data: " << memoryUsageMiB << " MiB" << std::endl;
 }
 
@@ -167,19 +198,22 @@ void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::strin
 
     // Build kernel source (create compute program)
     // Define "GPU" to disable cl-prefixed types in shared headers (cl_float4 => float4 etc.)
-    std::string buildOpts = "-DGPU -I./src";
-
+    std::string buildOpts = "-DGPU -I./src -cl-denorms-are-zero";
     if (platformIsNvidia(platform)) buildOpts += " -cl-nv-verbose";
-
     #ifdef CPU_DEBUGGING
         buildOpts += " -g -s \"" + getAbsolutePath(kernelPath) + "\"";
     #endif
+
+    // Add bitstack and SoA toggles from settings
+    Settings &s = Settings::getInstance();
+    if (s.getUseBitstack()) buildOpts += " -DUSE_BITSTACK";
+    if (s.getUseSoA()) buildOpts += " -DUSE_SOA";
 
     err = program.build(clDevices, buildOpts.c_str());
     std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
 
     // Check build log
-    std::cout << "[" << fileName << " build log]\n" << buildLog << std::endl;
+    std::cout << "\n[" << fileName << " build log]:" << buildLog << std::endl;
     verify("Failed to build compute program!");
 
     // Creating compute kernel from program
@@ -209,6 +243,20 @@ void CLContext::setupMegaKernel()
     verify("Failed to set kernel arguments!");
 }
 
+void CLContext::setupResetKernel()
+{
+	buildKernel(mk_reset, "mk_reset.cl", "reset");
+
+	// Set initial kernel params
+	int i = 0;
+	err = 0;
+	err |= mk_reset.setArg(i++, tasksBuffer);
+	err |= mk_reset.setArg(i++, sharedMemory.back());
+	err |= mk_reset.setArg(i++, renderParams);
+	err |= mk_reset.setArg(i++, NUM_TASKS);
+	verify("Failed to set mk_reset arguments!");
+}
+
 void CLContext::setupRayGenKernel()
 {
     buildKernel(mk_raygen, "mk_raygen.cl", "genCameraRays");
@@ -216,7 +264,6 @@ void CLContext::setupRayGenKernel()
     // Set initial kernel params
     int i = 0;
     err = 0;
-    err |= mk_raygen.setArg(i++, raysBuffer);
     err |= mk_raygen.setArg(i++, tasksBuffer);
     err |= mk_raygen.setArg(i++, renderParams);
     err |= mk_raygen.setArg(i++, NUM_TASKS);
@@ -230,7 +277,6 @@ void CLContext::setupNextVertexKernel()
     // Set initial kernel params
     int i = 0;
     err = 0;
-    err |= mk_next_vertex.setArg(i++, raysBuffer);
     err |= mk_next_vertex.setArg(i++, tasksBuffer);
     err |= mk_next_vertex.setArg(i++, materialBuffer);
     err |= mk_next_vertex.setArg(i++, texDataBuffer);
@@ -244,6 +290,26 @@ void CLContext::setupNextVertexKernel()
     verify("Failed to set mk_next_vertex arguments!");
 }
 
+void CLContext::setupExplSampleKernel()
+{
+    buildKernel(mk_sample_explicit, "mk_sample_explicit.cl", "sampleLightExplicit");
+
+    // Set initial kernel params
+    int i = 0;
+    err = 0;
+    err |= mk_sample_explicit.setArg(i++, tasksBuffer);
+    err |= mk_sample_explicit.setArg(i++, materialBuffer);
+    err |= mk_sample_explicit.setArg(i++, texDataBuffer);
+    err |= mk_sample_explicit.setArg(i++, texDescriptorBuffer);
+    err |= mk_sample_explicit.setArg(i++, triangleBuffer);
+    err |= mk_sample_explicit.setArg(i++, nodeBuffer);
+    err |= mk_sample_explicit.setArg(i++, indexBuffer);
+    err |= mk_sample_explicit.setArg(i++, renderParams);
+    err |= mk_sample_explicit.setArg(i++, renderStats);
+    err |= mk_sample_explicit.setArg(i++, NUM_TASKS);
+    verify("Failed to set mk_sample_explicit arguments!");
+}
+
 void CLContext::setupSplatKernel()
 {
     buildKernel(mk_splat, "mk_splat.cl", "splat");
@@ -251,14 +317,25 @@ void CLContext::setupSplatKernel()
     // Set initial kernel params
     int i = 0;
     err = 0;
-    err |= mk_splat.setArg(i++, raysBuffer);
     err |= mk_splat.setArg(i++, tasksBuffer);
-    // The front/back buffers change every iteration
-    err |= mk_splat.setArg(i++, sharedMemory[1]); // src
-    err |= mk_splat.setArg(i++, sharedMemory[0]); // dst
+	err |= mk_splat.setArg(i++, sharedMemory.back()); // pixel buffer
     err |= mk_splat.setArg(i++, renderParams);
     err |= mk_splat.setArg(i++, NUM_TASKS);
     verify("Failed to set mk_splat arguments!");
+}
+
+void CLContext::setupSplatPreviewKernel()
+{
+    buildKernel(mk_splat_preview, "mk_splat_preview.cl", "splatPreview");
+
+    // Set initial kernel params
+    int i = 0;
+    err = 0;
+    err |= mk_splat_preview.setArg(i++, tasksBuffer);
+    err |= mk_splat_preview.setArg(i++, sharedMemory.back()); // pixel buffer
+    err |= mk_splat_preview.setArg(i++, renderParams);
+    err |= mk_splat_preview.setArg(i++, NUM_TASKS);
+    verify("Failed to set mk_splat_preview arguments!");
 }
 
 CLContext::~CLContext()
@@ -266,18 +343,29 @@ CLContext::~CLContext()
     std::cout << "Calling CLContext destructor!" << std::endl;
 }
 
-void CLContext::createTextures(GLuint *tex_arr)
+void CLContext::setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO)
 {
     if (sharedMemory.size() > 0)
     {
-        std::cout << "Removing old textures" << std::endl;
+        std::cout << "Removing old textures + PBO" << std::endl;
         sharedMemory.clear(); // memory freed by cl-cpp-wrapper
     }
 
-    sharedMemory.push_back(cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[0], &err));
-    sharedMemory.push_back(cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[1], &err));
+    sharedMemory.push_back(cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[0], &err)); // frontbuffer
+    sharedMemory.push_back(cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[1], &err)); // backbuffer
+	sharedMemory.push_back(cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err)); // microkernel pixel buffer
+    verify("CL pixel storage creation failed!");
 
-    verify("CL-texture creation failed!");
+	// Set new kernel args (pointers might have changed)
+	// Megakernel args reset anyway due to ping pong
+	err = 0;
+	if (mk_reset())
+		err |= mk_reset.setArg(1, sharedMemory.back());
+	if (mk_splat())
+		err |= mk_splat.setArg(1, sharedMemory.back());
+    if (mk_splat_preview())
+        err |= mk_splat_preview.setArg(1, sharedMemory.back());
+	verify("Failed to update kernel pixel storage args");
 }
 
 void CLContext::createEnvMap(float *data, int width, int height)
@@ -463,58 +551,75 @@ void CLContext::updateParams(const RenderParams &params)
     verify("RenderParam writing failed");
 }
 
-void CLContext::executeRayGenKernel(const RenderParams &params)
+void CLContext::enqueueResetKernel(const RenderParams &params)
 {
-    // Set updated RenderParams
-    err = mk_raygen.setArg(2, renderParams);
-    verify("Failed to set mk_raygen RenderParams!");
+	std::vector<cl::Memory> pixelBuffer { sharedMemory.back() };
+	err = 0;
+	err |= cmdQueue.enqueueAcquireGLObjects(&pixelBuffer); // Take hold of PBO
+	err |= cmdQueue.enqueueNDRangeKernel(mk_reset, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+	err |= cmdQueue.enqueueReleaseGLObjects(&pixelBuffer);
+	verify("Failed to enqueue reset kernel!");
+}
 
+void CLContext::enqueueRayGenKernel(const RenderParams &params)
+{
     // Enqueue 1D range
     err = cmdQueue.enqueueNDRangeKernel(mk_raygen, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
-    verify("Failed to enqueue kernel!");
+    verify("Failed to enqueue ray gen kernel!");
 }
 
-void CLContext::executeNextVertexKernel(const RenderParams &params)
+void CLContext::enqueueNextVertexKernel(const RenderParams &params)
 {
-    // Set updated RenderParams
-    err = mk_next_vertex.setArg(8, renderParams);
-    verify("Failed to set mk_next_vertex RenderParams!");
-
     // Enqueue 1D range
     err = cmdQueue.enqueueNDRangeKernel(mk_next_vertex, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
-    verify("Failed to enqueue kernel!");
+    verify("Failed to enqueue next vertex kernel!");
 }
 
-void CLContext::executeSplatKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration)
+void CLContext::enqueueExplSampleKernel(const RenderParams &params)
+{
+    // Enqueue 1D range
+    err = cmdQueue.enqueueNDRangeKernel(mk_sample_explicit, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue explicit sample kernel!");
+}
+
+void CLContext::enqueueSplatKernel(const RenderParams &params, const cl_uint iteration)
 {
     err = 0;
-    err |= mk_splat.setArg(2, sharedMemory[1 - frontBuffer]); // src
-    err |= mk_splat.setArg(3, sharedMemory[frontBuffer]); // dst
-    err |= mk_splat.setArg(4, renderParams);
+    err |= mk_splat.setArg(4, iteration);
     verify("Failed to set mk_splat arguments!");
 
     // Splat kernel must be aware of GL-CL sharing
-    err = cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
+	std::vector<cl::Memory> pixelBuffer { sharedMemory.back() };
+    err = cmdQueue.enqueueAcquireGLObjects(&pixelBuffer); // Take hold of PBO
     verify("Failed to enqueue GL object acquisition!");
 
-    // TODO: find out why my GTX 780 won't enqueue 1D kernels!
+    // TODO: find out why my GTX 780 won't enqueue 1D kernels! (due to image2d_type?)
     // TODO: also, look at having global wg be a multiple of local wg (or a multiple of 32/64)
     err = cmdQueue.enqueueNDRangeKernel(mk_splat, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
-    verify("Failed to enqueue kernel!");
+    verify("Failed to enqueue splat kernel!");
 
-    err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
+    err = cmdQueue.enqueueReleaseGLObjects(&pixelBuffer);
     verify("Failed to enqueue GL object release!");
-
-    err = cmdQueue.finish();
-    verify("Failed to finish command queue!");
 }
 
-void CLContext::executeMegaKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration)
+void CLContext::enqueueSplatPreviewKernel(const RenderParams &params)
+{
+    std::vector<cl::Memory> pixelBuffer{ sharedMemory.back() };
+    err = cmdQueue.enqueueAcquireGLObjects(&pixelBuffer); // Take hold of PBO
+    verify("Failed to enqueue GL object acquisition!");
+
+    err = cmdQueue.enqueueNDRangeKernel(mk_splat_preview, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+    verify("Failed to enqueue splat preview kernel!");
+
+    err = cmdQueue.enqueueReleaseGLObjects(&pixelBuffer);
+    verify("Failed to enqueue GL object release!");
+}
+
+void CLContext::enqueueMegaKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration)
 {
     err = 0;
     err |= kernel_monolith.setArg(0, sharedMemory[1 - frontBuffer]); // src
     err |= kernel_monolith.setArg(1, sharedMemory[frontBuffer]); // dst
-    err |= kernel_monolith.setArg(10, renderParams);
     err |= kernel_monolith.setArg(12, iteration);
     verify("Failed to set megakernel arguments!");
 
@@ -551,13 +656,40 @@ void CLContext::executeMegaKernel(const RenderParams &params, const int frontBuf
         // Let OpenCL implementation choose optimal local workgroup size
         err = cmdQueue.enqueueNDRangeKernel(kernel_monolith, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     #endif
-    verify("Failed to enqueue kernel!");
+    verify("Failed to enqueue megakernel!");
 
     err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
     verify("Failed to enqueue GL object release!");
-    
+}
+
+void CLContext::finishQueue()
+{
     err = cmdQueue.finish();
     verify("Failed to finish command queue!");
+}
+
+cl::Platform &CLContext::getPlatformByName(std::vector<cl::Platform> &platforms, std::string name) {
+    for (cl::Platform &p : platforms) {
+        std::string platformName = p.getInfo<CL_PLATFORM_NAME>();
+        if (platformName.find(name) != std::string::npos) {
+            return p;
+        }
+    }
+
+    std::cout << "No platform name containing \"" << name << "\" found!" << std::endl;
+    return platforms[0];
+}
+
+cl::Device &CLContext::getDeviceByName(std::vector<cl::Device> &devices, std::string name) {
+    for (cl::Device &d : devices) {
+        std::string deviceName = d.getInfo<CL_DEVICE_NAME>();
+        if (deviceName.find(name) != std::string::npos) {
+            return d;
+        }
+    }
+
+    std::cout << "No device name containing \"" << name << "\" in selected context!" << std::endl;
+    return devices[0];
 }
 
 // Return info about error

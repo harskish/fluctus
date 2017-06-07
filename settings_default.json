@@ -4,10 +4,15 @@
 		"windowHeight": 600,
 		"renderScale": 1.0,
 		"platformName": "NVIDIA",
-		"deviceName": "GTX"
+		"deviceName": "GTX",
+		"shortcuts": {
+			"1": "assets/teapot.ply"
+		}
 	},
 	"debug": {
 		"platformName": "Intel",
-		"deviceName": "Intel(R) Core"
+		"deviceName": "Intel(R) Core",
+		"clUseBitstack": true,
+		"clUseSoA": false
 	}
 }

@@ -22,6 +22,8 @@ public:
     int getWindowWidth() { return windowWidth; };
     int getWindowHeight() { return windowHeight; };
     float getRenderScale() { return renderScale; };
+    bool getUseBitstack() { return clUseBitstack; }
+    bool getUseSoA() { return clUseSoA; }
 
 private:
     Settings();
@@ -33,6 +35,8 @@ private:
     std::string platformName;
     std::string deviceName;
     std::map<unsigned int, std::string> shortcuts;
+    bool clUseBitstack;
+    bool clUseSoA;
     int windowWidth;
     int windowHeight;
     float renderScale;
