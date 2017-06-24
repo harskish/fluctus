@@ -151,7 +151,7 @@ void BVH::build(U32 nInd, U32 depth, F32 progressStart, F32 progressEnd) {
     U32 elems = m_build_nodes[nInd].spannedTris();
     if (elems > MAX_LEAF_ELEMS) {
         U32 split;
-        if(!sortElems(m_build_nodes[nInd], split)) { // parent is cheaper
+        if(!partition(m_build_nodes[nInd], split)) { // parent is cheaper
             metrics.leaves++;
             return;
         }
@@ -185,7 +185,7 @@ void BVH::build(U32 nInd, U32 depth, F32 progressStart, F32 progressEnd) {
     }
 }
 
-bool BVH::sortElems(BuildNode &n, U32 &split) {
+bool BVH::partition(BuildNode &n, U32 &split) {
     switch (m_mode) {
         case SplitMode_Sah:
             return sahSplit(n, split);
@@ -311,7 +311,7 @@ bool BVH::sahSplit(BuildNode &n, U32 &split) {
     } // END LOOP AXES
 
     // Worse than parent?
-    if (bestCost > parentCost) {
+    if (bestCost > parentCost && n.spannedTris() < 255) {
         return false;
     }
 

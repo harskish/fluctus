@@ -30,7 +30,7 @@ private:
     // Convert build nodes to small nodes
     void createSmallNodes();
 
-    bool sortElems(BuildNode &n, U32 &split); // writes index of first element of second group into split
+    bool partition(BuildNode &n, U32 &split); // writes index of first element of second group into split
     F32 centroidSplit(U32 iStart, U32 iEnd, U32 dimension);
 
     bool spatialMedianSplit(BuildNode &n, U32 &split);
