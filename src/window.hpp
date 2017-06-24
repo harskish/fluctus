@@ -22,7 +22,6 @@ public:
 
     bool available()
     {
-        glfwPollEvents();
         return !glfwWindowShouldClose(window);
     }
 
@@ -40,7 +39,7 @@ public:
     void getFBSize(unsigned int &w, unsigned int &h);
 
 private:
-    double calcFPS(double interval = 1.0, std::string theWindowTitle = "NONE");
+    double calcFPS(double interval = 1.0, std::string theWindowTitle = "");
 
     GLFWwindow *window;
     GLuint gl_textures[2] = { 0, 0 };

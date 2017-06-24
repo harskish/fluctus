@@ -394,7 +394,7 @@ double PTWindow::calcFPS(double interval, std::string theWindowTitle)
         float mSps = fps * this->textureWidth * this->textureHeight / 1e6;
  
         // If the user specified a window title to append the FPS value to...
-        if (theWindowTitle != "NONE")
+        if (theWindowTitle.length() > 0)
         {
             // Convert the fps value into a string using an output stringstream
             std::ostringstream stream;
