@@ -15,7 +15,7 @@ inline float3 evalEnvMap(read_only image2d_t envMap, float3 dir)
     float u = 1.0f + atan2(dir.x, -dir.z) / M_PI_F;
     float v = acos(dir.y) / M_PI_F;
 
-    return read_imagef(envMap, sampler, (float2)(u / 2.0f, v)).xyz;
+    return read_imagef(envMap, sampler, (float2)(0.5f * u, v)).xyz;
 }
 
 // x and y include offsets when supersampling
@@ -261,12 +261,14 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                     // Reflection
                     orig = hit.P + EPS_REFR * n;
                     r.dir = raylen * reflect(normalize(r.dir), n);
+                    //prob *= fr; // TODO: why does this produce weird results?
                 }
                 else
                 {
                     // Refraction
                     orig = hit.P - EPS_REFR * n;
                     r.dir = raylen * (normalize(r.dir) * (n1 / n2) + n * ((n1 / n2) * cosI - cosT));
+                    //prob *= (1 - fr); // TODO: why does this produce weird results?
                 }
             }
 
@@ -277,7 +279,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             if (hit.i < 0) break;
 
             lastSpecular = true;
-            throughput *= Ks;
+            throughput *= Ks; // simulate absorption
             i++;
             continue;
         }

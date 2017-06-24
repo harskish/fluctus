@@ -106,6 +106,8 @@ kernel void nextVertex(
 			float cosT = 1.0f - pow(n1 / n2, 2.0f) * (1.0f - pow(cosI, 2.0f));
 			float raylen = length(r.dir);
 
+            global float *pdf = &ReadF32(pdf, tasks);
+
 			// Total internal reflection
 			if (cosT < 0.0f)
 			{
@@ -123,20 +125,24 @@ kernel void nextVertex(
 					// Reflection
 					orig = hit.P + EPS_REFR * hit.N;
 					r.dir = raylen * reflect(normalize(r.dir), hit.N);
+                    //*pdf *= fr; // TODO: why does this produce weird results?
 				}
 				else
 				{
 					// Refraction
 					orig = hit.P - EPS_REFR * hit.N;
 					r.dir = raylen * (normalize(r.dir) * (n1 / n2) + hit.N * ((n1 / n2) * cosI - cosT));
+                    //*pdf *= (1 - fr); // TODO: why does this produce weird results?
 				}
 			}
+
+            // Simulate absorption by decreasing throughput
+            float3 newT = ReadFloat3(T, tasks) * Ks;
+            WriteFloat3(T, tasks, newT);
 
 			// Update state
 			WriteFloat3(orig, tasks, orig);
 			WriteFloat3(dir, tasks, r.dir);
-			float3 newT = ReadFloat3(T, tasks) * Ks;
-			WriteFloat3(T, tasks, newT);
 			WriteU32(seed, tasks, seed);
 			WriteU32(lastSpecular, tasks, 1);
 			*phase = MK_RT_NEXT_VERTEX;
