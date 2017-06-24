@@ -33,6 +33,7 @@ public:
     float2 getCursorPos();
     bool keyPressed(int key);
 
+    void setCLContextPtr(CLContext *ptr) { clctx = ptr; }
     GLFWwindow *glfwWindowPtr() { return window; }
     GLuint *getTexPtr() { return gl_textures; }
 	GLuint getPBO() { return gl_PBO; }
@@ -41,6 +42,7 @@ public:
 private:
     double calcFPS(double interval = 1.0, std::string theWindowTitle = "");
 
+    CLContext *clctx; // for showing stats
     GLFWwindow *window;
     GLuint gl_textures[2] = { 0, 0 };
 	GLuint gl_PBO = 0;

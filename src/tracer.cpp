@@ -84,11 +84,6 @@ void Tracer::update()
     // Finish command queue
     clctx->finishQueue();
 
-    // Display render statistics (MRays/s) of previous frame
-    // Asynchronously transfer render statistics from device
-    printStats(clctx->getStats(), clctx);
-    clctx->fetchStatsAsync();
-
     // Draw progress to screen
     if (useMK)
     {
@@ -100,6 +95,11 @@ void Tracer::update()
         frontBuffer = 1 - frontBuffer;
     }
 
+    // Display render statistics (MRays/s) of previous frame
+    // Asynchronously transfer render statistics from device
+    printStats(clctx->getStats(), clctx);
+    clctx->fetchStatsAsync();
+
     // Update iteration counter
     iteration++;
 }
@@ -110,6 +110,7 @@ Tracer::Tracer(int width, int height) : useMK(true)
     window = new PTWindow(width, height, this); // this = glfw user pointer
     window->setShowFPS(true);
     clctx = new CLContext(window->getTexPtr(), window->getPBO());
+    window->setCLContextPtr(clctx);
     initCamera();
     initAreaLight();
 

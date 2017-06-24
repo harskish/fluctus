@@ -61,7 +61,7 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 
 PTWindow::PTWindow(int width, int height, void *tracer)
 {
-    window = glfwCreateWindow(width, height, "HOLDTHEDOOR!", NULL, NULL); // monitor, share
+    window = glfwCreateWindow(width, height, "CLTrace", NULL, NULL); // monitor, share
     if (!window) {
         glfwTerminate();
         exit(EXIT_FAILURE);
@@ -143,7 +143,7 @@ void PTWindow::repaint(int frontBuffer)
     glfwSwapBuffers(window);
 
     if(show_fps)
-        calcFPS(1.0, "HOLDTHEDOOR");
+        calcFPS(1.0, "CLTrace");
 }
 
 // https://devtalk.nvidia.com/default/topic/541646/opengl/draw-pbo-into-the-screen-performance/
@@ -226,7 +226,7 @@ void PTWindow::drawPixelBuffer()
 	glfwSwapBuffers(window);
 
 	if (show_fps)
-		calcFPS(1.0, "HOLDTHEDOOR");
+		calcFPS(1.0, "CLTrace");
 }
 
 
@@ -305,7 +305,7 @@ void PTWindow::drawTexture(int frontBuffer)
 	glfwSwapBuffers(window);
 
 	if (show_fps)
-		calcFPS(1.0, "HOLDTHEDOOR");
+		calcFPS(1.0, "CLTrace");
 }
 
 // Create front and back buffers
@@ -391,7 +391,9 @@ double PTWindow::calcFPS(double interval, std::string theWindowTitle)
     if ((tNow - tLast) > interval)
     {
         fps = (double)frameCount / (tNow - tLast);
-        float mSps = fps * this->textureWidth * this->textureHeight / 1e6;
+        
+        const RenderStats &stats = clctx->getStats();
+        float MRps = (stats.primaryRays + stats.extensionRays + stats.shadowRays) / (1e6f * (tNow - tLast));
  
         // If the user specified a window title to append the FPS value to...
         if (theWindowTitle.length() > 0)
@@ -399,7 +401,7 @@ double PTWindow::calcFPS(double interval, std::string theWindowTitle)
             // Convert the fps value into a string using an output stringstream
             std::ostringstream stream;
             stream.precision(2);
-            stream << std::fixed << " | FPS: " << fps << " | Samples/sec: " << mSps << "M";
+            stream << std::fixed << " | FPS: " << fps << " | Rays/s: " << MRps << "M";
             std::string fpsString = stream.str();
  
             // Append the FPS and samples/sec to the window title details
