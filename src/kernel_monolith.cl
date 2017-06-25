@@ -261,14 +261,14 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                     // Reflection
                     orig = hit.P + EPS_REFR * n;
                     r.dir = raylen * reflect(normalize(r.dir), n);
-                    //prob *= fr; // TODO: why does this produce weird results?
+					// fr in pdf and T cancel out
                 }
                 else
                 {
                     // Refraction
                     orig = hit.P - EPS_REFR * n;
                     r.dir = raylen * (normalize(r.dir) * (n1 / n2) + n * ((n1 / n2) * cosI - cosT));
-                    //prob *= (1 - fr); // TODO: why does this produce weird results?
+					// (1 - fr) in pdf and T cancel out
                 }
             }
 

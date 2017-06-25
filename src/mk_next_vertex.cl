@@ -102,11 +102,10 @@ kernel void nextVertex(
 
 			float n1 = 1.0f, n2 = Ni;
 			if (backside) swap_m(n1, n2, float); // inside of material
+			float eta = n1 / n2;
 
-			float cosT = 1.0f - pow(n1 / n2, 2.0f) * (1.0f - pow(cosI, 2.0f));
+			float cosT = 1.0f - eta * eta * (1.0f - cosI * cosI);
 			float raylen = length(r.dir);
-
-            global float *pdf = &ReadF32(pdf, tasks);
 
 			// Total internal reflection
 			if (cosT < 0.0f)
@@ -120,25 +119,28 @@ kernel void nextVertex(
 				cosT = sqrt(cosT);
 				float fr = 0.5f * (pow((n1 * cosI - n2 * cosT) / (n1 * cosI + n2 * cosT), 2.0f) + pow((n2 * cosI - n1 * cosT) / (n1 * cosT + n2 * cosI), 2.0f));
 
+				// Simulate absorption by decreasing throughput
+				float3 newT = ReadFloat3(T, tasks) * Ks;
+
+				global float *pdf = &ReadF32(pdf, tasks);
 				if (rand(&seed) < fr)
 				{
 					// Reflection
 					orig = hit.P + EPS_REFR * hit.N;
 					r.dir = raylen * reflect(normalize(r.dir), hit.N);
-                    //*pdf *= fr; // TODO: why does this produce weird results?
+					// fr in pdf and T cancel out
 				}
 				else
 				{
 					// Refraction
 					orig = hit.P - EPS_REFR * hit.N;
-					r.dir = raylen * (normalize(r.dir) * (n1 / n2) + hit.N * ((n1 / n2) * cosI - cosT));
-                    //*pdf *= (1 - fr); // TODO: why does this produce weird results?
+					r.dir = raylen * (normalize(r.dir) * eta + hit.N * (eta * cosI - cosT));
+					newT *= eta * eta;
+					// (1 - fr) in pdf and T cancel out
 				}
-			}
 
-            // Simulate absorption by decreasing throughput
-            float3 newT = ReadFloat3(T, tasks) * Ks;
-            WriteFloat3(T, tasks, newT);
+				WriteFloat3(T, tasks, newT);
+			}
 
 			// Update state
 			WriteFloat3(orig, tasks, orig);
@@ -153,6 +155,5 @@ kernel void nextVertex(
 			WriteU32(lastSpecular, tasks, 0);
 			*phase = MK_SAMPLE_LIGHT_EXPL;
 		}
-        
     }
 }
