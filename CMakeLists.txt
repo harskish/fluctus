@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.3)
-project(CL_TRACE)
+project(Fluctus)
 
 set(CMAKE_LIBRARY_PATH /usr/local/cuda-8.0/lib64/)
 find_package(OpenCL REQUIRED)
@@ -56,9 +56,9 @@ set(SOURCE_FILES
     src/GLProgram.cpp
     src/GLProgram.hpp)
 
-add_executable(CL_TRACE ${SOURCE_FILES})
+add_executable(Fluctus ${SOURCE_FILES})
 
-target_link_libraries(CL_TRACE
+target_link_libraries(Fluctus
     ${OPENGL_LIBRARIES}
     ${GLEW_LIBRARY}
     ${OpenCL_LIBRARY}

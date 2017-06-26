@@ -61,7 +61,7 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 
 PTWindow::PTWindow(int width, int height, void *tracer)
 {
-    window = glfwCreateWindow(width, height, "CLTrace", NULL, NULL); // monitor, share
+    window = glfwCreateWindow(width, height, "Fluctus", NULL, NULL); // monitor, share
     if (!window) {
         glfwTerminate();
         exit(EXIT_FAILURE);
@@ -143,7 +143,7 @@ void PTWindow::repaint(int frontBuffer)
     glfwSwapBuffers(window);
 
     if(show_fps)
-        calcFPS(1.0, "CLTrace");
+        calcFPS(1.0, "Fluctus");
 }
 
 // https://devtalk.nvidia.com/default/topic/541646/opengl/draw-pbo-into-the-screen-performance/
@@ -226,7 +226,7 @@ void PTWindow::drawPixelBuffer()
 	glfwSwapBuffers(window);
 
 	if (show_fps)
-		calcFPS(1.0, "CLTrace");
+		calcFPS(1.0, "Fluctus");
 }
 
 
@@ -305,7 +305,7 @@ void PTWindow::drawTexture(int frontBuffer)
 	glfwSwapBuffers(window);
 
 	if (show_fps)
-		calcFPS(1.0, "CLTrace");
+		calcFPS(1.0, "Fluctus");
 }
 
 // Create front and back buffers

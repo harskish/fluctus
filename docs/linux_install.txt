@@ -1,5 +1,0 @@
-1. Ran `sudo apt-get install build-essential`
-2. Downloaded `cuda_8.0.27_linux.run` (for Ubuntu 16.04, runfile)
-3. `sudo sh cuda_8.0.27_linux-run`
-4. Ran installer, skipper driver part
-5. `sudo apt-get install opencl-headers` => installs CL/opencl.h

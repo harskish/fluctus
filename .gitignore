@@ -5,7 +5,7 @@ Debug/
 .vs/
 settings.json
 state.dat
-cltrace.VC.VC.opendb
-cltrace.VC.db
-cltrace.vcxproj.filters
-cltrace.vcxproj.user
+fluctus.VC.VC.opendb
+fluctus.VC.db
+fluctus.vcxproj.filters
+fluctus.vcxproj.user
