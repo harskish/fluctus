@@ -1,0 +1,1 @@
+Scene from assignment package of 'CS-E5520 - Advanced Computer Graphics' at Aalto University. Original by Anat Grynberg and Greg Ward.

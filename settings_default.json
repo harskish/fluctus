@@ -1,12 +1,14 @@
 {
 	"release": {
-		"windowWidth": 800,
-		"windowHeight": 600,
+		"windowWidth": 768,
+		"windowHeight": 576,
 		"renderScale": 1.0,
 		"platformName": "NVIDIA",
 		"deviceName": "GTX",
 		"shortcuts": {
-			"1": "assets/teapot.ply"
+			"1": "assets/egyptcat/egyptcat.obj",
+			"2": "assets/conference/conference.obj",
+			"3": "assets/luxball/luxball.obj"
 		}
 	},
 	"debug": {

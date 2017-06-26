@@ -1,0 +1,1 @@
+Scene from LuxRender repository (https://bitbucket.org/luxrender/luxrays).
