@@ -422,7 +422,7 @@ void Tracer::pollKeys()
     check(GLFW_KEY_LEFT,        cameraRotation.x -= 1.0f);
     check(GLFW_KEY_RIGHT,       cameraRotation.x += 1.0f);
     check(GLFW_KEY_PERIOD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
-    check(GLFW_KEY_SEMICOLON,   cam.fov = std::max(cam.fov - 1.0f, 5.0f));
+    check(GLFW_KEY_COMMA,       cam.fov = std::max(cam.fov - 1.0f, 5.0f));
     check(GLFW_KEY_8,           params.areaLight.size /= 1.1f);
     check(GLFW_KEY_9,           params.areaLight.size *= 1.1f);
     check(GLFW_KEY_PAGE_DOWN,   params.areaLight.E /= 1.05f);
