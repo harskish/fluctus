@@ -15,7 +15,8 @@ Windows dependencies included.
 	- Intel OpenCL SDK recommended for kernel debugging support on Intel CPUs
 	- Alternatives include NVIDIA CUDA Toolkit, AMD APP SDK
 - Open VS2015 solution (or run CMake)
-- Copy DevIL.dll, glew32.dll, ILU.dll and ILUT.dll from dependencies/ to binary output folder
+- Copy DevIL.dll, ILU.dll and ILUT.dll (non-unicode) from dependencies/ to binary output folder
+	- Also done as a custom build step
 - Run in debug mode for CPU kernel debugging, release mode for performance
 
 ## Mac
