@@ -27,6 +27,7 @@ static_assert(false, "Debugger might segfault on Win32 builds, proceed with caut
 
 #include <GLFW/glfw3.h> // texture conversion stuff
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <cmath>
 #include <vector>
@@ -93,7 +94,7 @@ public:
 private:
     void printDevices();
     void setupScene();
-    void verify(std::string msg);
+    void verify(std::string msg, int pred = -1);
     void packTextures(Scene *scene);
     
     void setupKernels();

@@ -219,6 +219,22 @@ void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::strin
     // Creating compute kernel from program
     target = cl::Kernel(program, methodName.c_str(), &err);
     verify("Failed to create compute kernel!");
+
+	// Read program binary (NVIDIA: PTX)
+	auto ptxs = program.getInfo<CL_PROGRAM_BINARIES>();
+	std::vector<unsigned char> ptx = ptxs[0];
+
+	// Open target file in overwrite-mode
+	std::ofstream stream;
+	std::string type = (platformIsNvidia(platform)) ? ".ptx" : ".bin";
+	stream.open("data/kernel_binaries/" + fileName + type, std::ofstream::out | std::ofstream::trunc);
+	verify("Failed to open kernel binary file", stream.good());
+	
+	// Write binary to file
+	stream << ptx.data() << std::endl;
+	verify("Failed to write kernel binary", stream.good());
+	stream.close();
+	ptx.clear();
 }
 
 void CLContext::setupMegaKernel()
@@ -724,9 +740,13 @@ std::string CLContext::errorString()
     return (ind >= 0 && ind < SIZE) ? errors[ind] : "unknown!";
 }
 
-void CLContext::verify(std::string msg)
+// Check error, second optional parameter acts as boolean predicate
+void CLContext::verify(std::string msg, int pred)
 {
-    if(err != CL_SUCCESS)
+	// Use default value if predicate is -1
+	int code = (pred > -1) ? !pred : this->err;
+
+    if(code != CL_SUCCESS)
     {
         std::string message = msg + " (" + errorString() + ")";
         std::cout << message << std::endl;
