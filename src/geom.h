@@ -34,12 +34,12 @@ using FireRays::float3;
 #define WriteFloat3(member, ptr, value) ptr[gid].member = (float3)(value.x, value.y, value.z)
 #else
 #define OffsetOf(member) (uint)(&((GPUTaskState*)0)->member)
-#define ReadF32(member, ptr) ((global float*)ptr)[OffsetOf(member) / sizeof(float) * numTasks + gid]
+#define ReadF32(member, ptr) ((global float*)ptr)[OffsetOf(member) / (uint)sizeof(float) * numTasks + gid]
 #define WriteF32(member, ptr, value) ReadF32(member, ptr) = value
-#define ReadF32Vec(member, cmp, ptr) ((global float*)ptr)[(OffsetOf(member) + cmp * sizeof(float)) / sizeof(float) * numTasks + gid]
-#define ReadI32(member, ptr) ((global int*)ptr)[OffsetOf(member) / sizeof(float) * numTasks + gid]
+#define ReadF32Vec(member, cmp, ptr) ((global float*)ptr)[(OffsetOf(member) + cmp * (uint)sizeof(float)) / (uint)sizeof(float) * numTasks + gid]
+#define ReadI32(member, ptr) ((global int*)ptr)[OffsetOf(member) / (uint)sizeof(int) * numTasks + gid]
 #define WriteI32(member, ptr, value) ReadI32(member, ptr) = value
-#define ReadU32(member, ptr) ((global uint*)ptr)[OffsetOf(member) / sizeof(float) * numTasks + gid]
+#define ReadU32(member, ptr) ((global uint*)ptr)[OffsetOf(member) / (uint)sizeof(uint) * numTasks + gid]
 #define WriteU32(member, ptr, value) ReadU32(member, ptr) = value
 #define ReadFloat2(member, ptr) (float2)(ReadF32Vec(member, 0, ptr), ReadF32Vec(member, 1, ptr))
 #define ReadFloat3(member, ptr) (float3)(ReadF32Vec(member, 0, ptr), ReadF32Vec(member, 1, ptr), ReadF32Vec(member, 2, ptr))
