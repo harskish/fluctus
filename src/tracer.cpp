@@ -237,6 +237,7 @@ void Tracer::saveState()
         writeVec(out, params.areaLight.pos);
         writeVec(out, params.areaLight.right);
         writeVec(out, params.areaLight.up);
+        writeVec(out, params.areaLight.E);
         write(out, params.areaLight.size.x);
         write(out, params.areaLight.size.y);
         std::cout << "AreaLight state exported" << std::endl;
@@ -273,6 +274,7 @@ void Tracer::loadState()
         readVec(in, params.areaLight.pos);
         readVec(in, params.areaLight.right);
         readVec(in, params.areaLight.up);
+        readVec(in, params.areaLight.E);
         read(in, params.areaLight.size.x);
         read(in, params.areaLight.size.y);
         std::cout << "AreaLight state imported" << std::endl;
