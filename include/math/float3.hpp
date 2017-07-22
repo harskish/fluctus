@@ -141,6 +141,11 @@ namespace FireRays
         v.z = std::max(v1.z, v2.z);
     }
 
+	inline float3 vclamp(float3 const& v, float3 const& lo, float3 const& hi)
+	{
+		return vmax(lo, vmin(hi, v));
+	}
+
     inline void float3::rotX(float phi)
     {
         phi *= (2 * M_PI) / 360;

@@ -10,6 +10,7 @@
 #include "math/float3.hpp"
 #include "math/matrix.hpp"
 #include "bvh.hpp"
+#include "sbvh.hpp"
 #include "scene.hpp"
 #include "tinyfiledialogs.h"
 

@@ -11,8 +11,9 @@ namespace FireRays
     public:
         int x, y, z, w;
         
-        int3(int v = 0) : x(v), y(v), z(v), w(ww) {}
+        int3(int v = 0) : x(v), y(v), z(v), w(v) {}
         int3(int xx, int yy, int zz, int ww = 0) : x(xx), y(yy), z(zz), w(ww) {}
+		int3(float3 v) : x(v.x), y(v.y), z(v.z), w(v.w) {}
 
         int&  operator [](int i)       { return *(&x + i); }
         int   operator [](int i) const { return *(&x + i); }
@@ -71,6 +72,11 @@ namespace FireRays
     {
         return int3(std::max(v1.x, v2.x), std::max(v1.y, v2.y), std::max(v1.z, v2.z), std::max(v1.w, v2.w));
     }
+
+	inline int3 vclamp(int3 const& v, int3 const& lo, int3 const& hi)
+	{
+		return vmax(lo, vmin(hi, v));
+	}
 }
 
 #endif // INT3_H

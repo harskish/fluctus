@@ -172,7 +172,7 @@ void Tracer::initEnvMap()
 // Check if old hierarchy can be reused
 void Tracer::initHierarchy()
 {
-    std::string hashFile = "data/hierarchies/hierarchy_" + sceneHash + ".bin" ;
+	std::string hashFile = "data/hierarchies/hierarchy_" + sceneHash + ".bin" ;
     std::ifstream input(hashFile, std::ios::in);
 
     if (input.good())
@@ -287,7 +287,7 @@ void Tracer::loadHierarchy(const std::string filename, std::vector<RTTriangle>& 
 {
     m_triangles = &triangles;
     params.n_tris = (cl_uint)m_triangles->size();
-    bvh = new BVH(m_triangles, filename);
+    bvh = new SBVH(m_triangles, filename);
 }
 
 void Tracer::saveHierarchy(const std::string filename)
@@ -299,7 +299,7 @@ void Tracer::constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode sp
 {
     m_triangles = &triangles;
     params.n_tris = (cl_uint)m_triangles->size();
-    bvh = new BVH(m_triangles, splitMode);
+    bvh = new SBVH(m_triangles, splitMode);
 }
 
 void Tracer::initCamera()

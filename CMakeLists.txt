@@ -37,6 +37,8 @@ set(SOURCE_FILES
     src/tracer.hpp
     src/bvh.hpp
     src/bvh.cpp
+    src/sbvh.hpp
+    src/sbvh.cpp
     src/bvhnode.hpp
     src/bvhnode.cpp
     src/rtutil.hpp

@@ -211,6 +211,7 @@ copy .\dependencies\windows\DevIL\lib\$(PlatformTarget)\Release\ILUT.dll $(Targe
     <ClCompile Include="src\kernelreader.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\rgbe\rgbe.cpp" />
+    <ClCompile Include="src\sbvh.cpp" />
     <ClCompile Include="src\scene.cpp" />
     <ClCompile Include="src\settings.cpp" />
     <ClCompile Include="src\texture.cpp" />
@@ -222,6 +223,7 @@ copy .\dependencies\windows\DevIL\lib\$(PlatformTarget)\Release\ILUT.dll $(Targe
     <ClInclude Include="include\cl2.hpp" />
     <ClInclude Include="include\math\float2.hpp" />
     <ClInclude Include="include\math\float3.hpp" />
+    <ClInclude Include="include\math\int3.hpp" />
     <ClInclude Include="include\math\matrix.hpp" />
     <ClInclude Include="src\bvh.hpp" />
     <ClInclude Include="src\bvhnode.hpp" />
@@ -232,6 +234,7 @@ copy .\dependencies\windows\DevIL\lib\$(PlatformTarget)\Release\ILUT.dll $(Targe
     <ClInclude Include="src\kernelreader.hpp" />
     <ClInclude Include="src\rgbe\rgbe.hpp" />
     <ClInclude Include="src\rtutil.hpp" />
+    <ClInclude Include="src\sbvh.hpp" />
     <ClInclude Include="src\scene.hpp" />
     <ClInclude Include="src\settings.hpp" />
     <ClInclude Include="src\texture.hpp" />

@@ -13,7 +13,7 @@ OpenCL wavefront path tracer
     -  Caustics through MIS
 - [Wavefront path tracing][wavefront] at interactive framerates
     - Optimized structure of arrays data layout
-    - Efficient SAH BVH accelerator
+    - Efficient BVH with [spatial splits][sbvh]
 - Supports a wide variety of systems
     - Cross-platform (Windows, MacOS, Linux)
     - NVIDIA, AMD and Intel GPUs and CPUs
@@ -73,3 +73,4 @@ See the [build instructions](./BUILDING.md).
 
 [intel_ocl]: https://software.intel.com/intel-opencl
 [wavefront]: http://research.nvidia.com/publication/megakernels-considered-harmful-wavefront-path-tracing-gpus
+[sbvh]: http://www.nvidia.com/object/nvidia_research_pub_012.html

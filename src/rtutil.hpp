@@ -7,6 +7,7 @@
 #include "triangle.hpp"
 #include "math/float3.hpp"
 #include <iostream>
+#include <cfloat>
 
 using FireRays::float3;
 using FireRays::float4;
@@ -25,9 +26,9 @@ enum SplitMode {
 
 struct AABB_t {
     float3 min, max;
-    inline AABB_t() : min(), max() {}
+    inline AABB_t() : min(FLT_MAX), max(-FLT_MAX) {}
     inline AABB_t(const float3& min, const float3& max) : min(min), max(max) {}
-    inline F32 area() const {
+	inline F32 area() const {
         float3 d(max - min);
         return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
     }
@@ -38,15 +39,24 @@ struct AABB_t {
 		if (d.z > d[axis]) axis = 2;
 		return axis;
 	}
+	inline float3 centroid() {
+		return 0.5f * (min + max);
+	}
 	inline void expand(const RTTriangle &t) {
-		if (length(max - min) == 0) { // First triangle
-			min = t.min();
-			max = t.max();
-		}
-		else {
-			min = vmin(min, t.min());
-			max = vmax(max, t.max());
-		}
+		min = vmin(min, t.min());
+		max = vmax(max, t.max());
+	}
+	inline void expand(const AABB_t &box) {
+		min = vmin(min, box.min);
+		max = vmax(max, box.max);
+	}
+	inline void expand(const float3 &p) {
+		min = vmin(min, p);
+		max = vmax(max, p);
+	}
+	inline void intersect(const AABB_t &box) {
+		min = vmax(min, box.min);
+		max = vmin(max, box.max);
 	}
 };
 
