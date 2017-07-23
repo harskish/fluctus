@@ -23,13 +23,13 @@ struct BuildNode
 	AABB_t box;								// Axis-aligned bounding box
 	U32 iStart, iEnd;						// Indices in the index list
 	S32 rightChild = -1;					// Index into node vector (left child always current + 1)
-    S32 parent;                             // -1 for root
+    S32 parent = -1;                        // -1 for root
 
 	void computeBB(std::vector<TriRef> &refs);
 	inline U32 spannedTris() const { return iEnd - iStart + 1; }
 
 	BuildNode(void) : iStart(1), iEnd(0) {} // => 0 spanned tris
-	BuildNode(U32 s, U32 e) : iStart(s), iEnd(e) {}
+	BuildNode(U32 s, U32 e, S32 p) : iStart(s), iEnd(e), parent(p) {}
 };
 
 /* Pointer-based node used in SBVH construction */

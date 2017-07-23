@@ -27,7 +27,7 @@ SBVH::SBVH(std::vector<RTTriangle>* tris, SplitMode mode)
 	std::reverse(m_indices.begin(), m_indices.end());
 
 	// Convert tree structure to small node vector
-	convertTree(root);
+	convertTree(root, -1);
 	root->deleteTree();
 	assert(metrics.depth <= MaxDepth);
 	assert(m_indices.size() >= m_triangles->size());
@@ -46,11 +46,12 @@ SBVH::SBVH(std::vector<RTTriangle>* tris, SplitMode mode)
 }
 
 // Convert pointer tree to linear node vector
-void SBVH::convertTree(SBVHNode *node)
+void SBVH::convertTree(SBVHNode *node, S32 parentId)
 {
 	U32 ind = m_nodes.size();
 	m_nodes.push_back(Node());
 	m_nodes[ind].box = node->box;
+    m_nodes[ind].parent = parentId;
 
 	if (node->isLeaf())
 	{
@@ -62,9 +63,9 @@ void SBVH::convertTree(SBVHNode *node)
 	}
 	else
 	{
-		convertTree(node->leftChild);
+		convertTree(node->leftChild, ind);
 		m_nodes[ind].rightChild = m_nodes.size(); // save current vector size
-		convertTree(node->rightChild);
+		convertTree(node->rightChild, ind);
 	}
 }
 

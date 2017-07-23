@@ -35,7 +35,7 @@ private:
 	void partitionSpatial(NodeSpec& left, NodeSpec& right, const NodeSpec& spec, const SplitInfo& split);
 	void splitReference(TriRef& left, TriRef& right, const TriRef& ref, int dim, F32 coord);
 	void lazyPrintBuildStatus(F32 progress);
-	void convertTree(SBVHNode *node);
+	void convertTree(SBVHNode *node, S32 parentId);
 
 	enum
 	{

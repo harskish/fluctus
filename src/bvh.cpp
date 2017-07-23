@@ -17,7 +17,7 @@ BVH::BVH(std::vector<RTTriangle>* tris, SplitMode mode)
 	// Shared vector to avoid reallocations
 	rightBoxes.resize(m_triangles->size());
 
-	BuildNode root(0, (U32)m_triangles->size() - 1);
+	BuildNode root(0, (U32)m_triangles->size() - 1, -1);
 	m_build_nodes.push_back(root);
 	nodes++;
     
@@ -56,6 +56,7 @@ void BVH::createSmallNodes()
 	{
 		Node n;
 		n.box = bn.box;
+        n.parent = bn.parent;
 		if (bn.rightChild == -1) { // leaf node
 			n.iStart = bn.iStart;
 			U32 sp = bn.spannedTris();
@@ -123,6 +124,7 @@ std::vector<Node> importNodes(std::ifstream &in)
 		read(in, bmax.z);
 		n.box = AABB_t(bmin, bmax);
 		read(in, n.iStart);
+        read(in, n.parent);
 		read(in, n.nPrims);
 		vec[i] = n;
 	}
@@ -154,6 +156,7 @@ void exportNode(std::ofstream &out, const Node &n)
 
 	// Parameters
 	write(out, n.iStart);
+    write(out, n.parent);
 	write(out, n.nPrims);
 }
 
@@ -212,12 +215,12 @@ void BVH::build(U32 nInd, U32 depth, F32 progressStart = 0.0f, F32 progressEnd =
 		F32 progressMid = lerp(progressStart, progressEnd, (F32)(info.i - m_build_nodes[nInd].iStart) / (F32)(elems));
 
 		// Left child
-		m_build_nodes.push_back(BuildNode(m_build_nodes[nInd].iStart, info.i));
+		m_build_nodes.push_back(BuildNode(m_build_nodes[nInd].iStart, info.i, nInd));
 		nodes++;
 		build(nodes - 1, depth + 1, progressStart, progressMid); // last pushed
 
 		// Right child
-		m_build_nodes.push_back(BuildNode(info.i + 1, m_build_nodes[nInd].iEnd));
+		m_build_nodes.push_back(BuildNode(info.i + 1, m_build_nodes[nInd].iEnd, nInd));
 		m_build_nodes[nInd].rightChild = nodes++;
 		build(nodes - 1, depth + 1, progressMid, progressEnd);
 	}
