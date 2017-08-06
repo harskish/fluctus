@@ -48,6 +48,14 @@ BVH::BVH(std::vector<RTTriangle>* tris, const std::string filename)
     importFrom(filename);
 }
 
+AABB_t BVH::getSceneBounds(void) const
+{
+    if (m_nodes.size() == 0)
+        throw std::runtime_error("Cannot get scene bounds from uninitialized BVH");
+
+    return m_nodes[0].box;
+}
+
 void BVH::createSmallNodes()
 {
 	m_nodes.clear();

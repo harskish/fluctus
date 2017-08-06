@@ -8,7 +8,7 @@ Scene::Scene(const std::string filename)
 {
     // Init default material
     Material def;
-    def.Kd = float3(0.8f, 0.0f, 0.4f);
+    def.Kd = float3(0.6f, 0.6f, 0.6f);
     def.Ks = float3(1.0f);
     def.Ke = float3(0.0f);
     def.Ns = 30;
@@ -19,9 +19,7 @@ Scene::Scene(const std::string filename)
 
     // Load scene data
     loadModel(filename); // Supports just single-file scenes for now
-
-    // Test
-    //envmap = new EnvironmentMap("assets/env_maps/dawn.hdr");
+    envmap = new EnvironmentMap("assets/env_maps/night.hdr");
 }
 
 Scene::~Scene()

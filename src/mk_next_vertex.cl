@@ -2,6 +2,7 @@
 #include "bvh.cl"
 #include "utils.cl"
 #include "intersect.cl"
+#include "env_map.cl"
 
 kernel void nextVertex(
     global GPUTaskState *tasks,
@@ -13,6 +14,8 @@ kernel void nextVertex(
     global uint *indices,
     global RenderParams *params,
     global RenderStats *stats,
+	read_only image2d_t envMap,
+    global float *pdfTable,
     uint numTasks)
 {
     const size_t gid = get_global_id(0) + get_global_id(1) * params->width;
@@ -41,7 +44,7 @@ kernel void nextVertex(
     // Trace ray
     Hit hit = EMPTY_HIT(FLT_MAX); // TODO: Max distance?
     bvh_intersect(&r, &hit, tris, nodes, indices);
-    if (params->sampleImpl) intersectLight(&hit, &r, params);
+    if (params->sampleImpl && params->useAreaLight) intersectLight(&hit, &r, params);
 
     // Write hit to path state
     writeHitSoA(hit, tasks, gid, numTasks);
@@ -51,12 +54,31 @@ kernel void nextVertex(
     atomic_inc((*len == 0) ? &stats->primaryRays : &stats->extensionRays);
     *len += 1;
 
-    // Environment map
+    // Implicit environment map sample
     if (hit.i < 0)
     {
-        *phase = MK_SPLAT_SAMPLE;
+        float3 bg = (float3)(0.0f, 0.0f, 0.0f);
+        if (params->useEnvMap && (*len == 1 || params->sampleImpl))
+            bg = evalEnvMapDir(envMap, r.dir) * params->envMapStrength;
+        
+        // MIS
+        float weight = 1.0f;
+        bool lastSpecular = ReadU32(lastSpecular, tasks);
+        if (params->sampleImpl && params->sampleExpl && params->useEnvMap && *len > 1 && !lastSpecular)
+        {
+            const float lightPickProb = 1.0f;
+            int2 dims = get_image_dim(envMap);
+            float directPdfW = envMapPdf(dims.x, dims.y, pdfTable, rayDir);
+            float actualPdfW = ReadF32(lastPdfW, tasks);
+            weight = (actualPdfW * lightPickProb) / (actualPdfW * lightPickProb + directPdfW);
+        }   
+
+        float3 T = ReadFloat3(T, tasks);
+		float3 newEi = ReadFloat3(Ei, tasks) + weight * T * bg / pdf;
+		WriteFloat3(Ei, tasks, newEi);
+		*phase = MK_SPLAT_SAMPLE;
     }
-    // Implicit light sample
+    // Implicit area light sample
     else if (hit.areaLightHit)
     {
 		float misWeight = 1.0f;

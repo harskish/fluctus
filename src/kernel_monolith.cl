@@ -3,20 +3,7 @@
 #include "intersect.cl"
 #include "utils.cl"
 #include "bvh.cl"
-
-// For reading the environment map texture
-constant sampler_t sampler =
-    CLK_NORMALIZED_COORDS_TRUE | // use UVs directly
-    CLK_ADDRESS_CLAMP_TO_EDGE |
-    CLK_FILTER_LINEAR;
-
-inline float3 evalEnvMap(read_only image2d_t envMap, float3 dir)
-{
-    float u = 1.0f + atan2(dir.x, -dir.z) / M_PI_F;
-    float v = acos(dir.y) / M_PI_F;
-
-    return read_imagef(envMap, sampler, (float2)(0.5f * u, v)).xyz;
-}
+#include "env_map.cl"
 
 // x and y include offsets when supersampling
 inline Ray getCameraRay(const float2 pos, global RenderParams *params)
@@ -123,7 +110,7 @@ inline float3 reflectionShading(Hit *hit, read_only image2d_t envMap, global Ren
         hit->N *= -1.0f;
     }
 
-    return evalEnvMap(envMap, reflect(-V, hit->N)) - (float3)(0.1f);
+    return evalEnvMapDir(envMap, reflect(-V, hit->N)) - (float3)(0.1f);
 }
 
 // Ray tracing!
@@ -160,7 +147,7 @@ inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *
         else if (params->useEnvMap)
         {
             // Ambient lighting
-            pixelColor += evalEnvMap(envMap, r.dir);
+            pixelColor += evalEnvMapDir(envMap, r.dir);
         }
     }
 
@@ -181,7 +168,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, params->sampleImpl);
     atomic_inc(&stats->primaryRays);
 
-    if (hit.i < 0) return evalEnvMap(envMap, r.dir);
+    if (hit.i < 0) return evalEnvMapDir(envMap, r.dir);
 
     AreaLight areaLight = params->areaLight;
     float3 emission = areaLight.E;

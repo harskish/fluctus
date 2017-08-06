@@ -1,5 +1,7 @@
 assets/
 hierarchies/
+data/states/
+data/kernel_binaries/
 Debug/
 /Release/
 .vs/

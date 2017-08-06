@@ -26,6 +26,8 @@ public:
 
     void exportTo(const std::string filename) const;
 
+    AABB_t getSceneBounds(void) const;
+
 private:
 	void build(U32 nInd, U32 depth, F32 progressStart, F32 progressEnd);
 

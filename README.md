@@ -35,6 +35,7 @@ Create settings.json to set default OpenCL device, render scale, default window 
 | **F1**                  | Reset camera                                                                          |
 | **F2**                  | Save camera/area light state                                                          |
 | **F3**                  | Load saved state                                                                      |
+| **H**                   | Toggle light sources (environment/area/both)                                          |
 | **I / K**               | Adjust max bounces                                                                    |
 | **L**                   | Open scene selector                                                                   |
 | **M**                   | Switch sampling mode                                                                  |

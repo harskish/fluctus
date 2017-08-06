@@ -16,7 +16,8 @@ using FireRays::float2;
 using FireRays::float3;
 #endif
 
-#define PI 3.14159265358979323846f
+#define PI (3.14159265358979323846f)
+#define M_2PI_F (6.2831853071795864f)
 #define toRad(deg) (deg * PI / 180)
 
 // For handling SoA data, only used on GPU
@@ -158,10 +159,13 @@ typedef struct
     cl_uint n_tris;
     cl_uint n_lights;      // number of lights in scene
     cl_uint useEnvMap;
+    cl_uint useAreaLight;
+    cl_float envMapStrength;
     cl_uint flashlight;
     cl_uint maxBounces;
     cl_uint sampleImpl;    // use implicit light source sampling
     cl_uint sampleExpl;    // use next event estimation
+    cl_float worldRadius;
 } RenderParams;
 
 

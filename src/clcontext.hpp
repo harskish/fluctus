@@ -76,7 +76,7 @@ public:
 	void enqueueResetKernel(const RenderParams &params);
 	void enqueueRayGenKernel(const RenderParams &params);
     void enqueueNextVertexKernel(const RenderParams &params);
-    void enqueueExplSampleKernel(const RenderParams &params);
+    void enqueueExplSampleKernel(const RenderParams &params, const cl_uint iteration);
     void enqueueSplatKernel(const RenderParams &params, const cl_uint iteration);
     void enqueueSplatPreviewKernel(const RenderParams &params);
     void finishQueue();
@@ -90,7 +90,7 @@ public:
     void updateParams(const RenderParams &params);
     void uploadSceneData(BVH *bvh, Scene *scene);
     void setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO);
-    void createEnvMap(float *data, int width, int height);
+    void createEnvMap(EnvironmentMap *map);
 private:
     void printDevices();
     void setupScene();
@@ -146,7 +146,12 @@ private:
     // Microkernel buffer
     cl::Buffer tasksBuffer;
 
+	// Environment map data
     cl::Image2D environmentMap;
+	cl::Buffer probTable;
+	cl::Buffer aliasTable;
+    cl::Buffer cdfTable;
+    cl::Buffer pdfTable;
 
     // Variables from BVH
     cl::Buffer triangleBuffer;

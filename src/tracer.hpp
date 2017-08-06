@@ -48,6 +48,7 @@ private:
     void selectScene(std::string file);
     void quickLoadScene(unsigned int num);
     void toggleSamplingMode();
+    void toggleLightSourceMode();
     void initEnvMap();
     void init(int width, int height, std::string sceneFile = "");
 
@@ -66,6 +67,7 @@ private:
     std::string sceneHash;
     cl_uint iteration;
     int frontBuffer = 0;
+    bool hasEnvMap = false;
 
     bool useMK;
 };

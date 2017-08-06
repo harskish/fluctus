@@ -71,10 +71,6 @@ CLContext::CLContext(GLuint *textures, GLuint gl_PBO)
     cmdQueue = cl::CommandQueue(context, device, 0, &err);
     verify("Failed to create command queue!");
 
-    // Create placeholder environment map
-    float rgb[3] = { 0.0f, 0.0f, 0.0f };
-    createEnvMap(rgb, 1, 1);
-
     // Setup RenderParams
     setupParams();
 
@@ -302,6 +298,8 @@ void CLContext::setupNextVertexKernel()
     err |= mk_next_vertex.setArg(i++, indexBuffer);
     err |= mk_next_vertex.setArg(i++, renderParams);
     err |= mk_next_vertex.setArg(i++, renderStats);
+    err |= mk_next_vertex.setArg(i++, environmentMap);
+    err |= mk_next_vertex.setArg(i++, pdfTable);
     err |= mk_next_vertex.setArg(i++, NUM_TASKS);
     verify("Failed to set mk_next_vertex arguments!");
 }
@@ -317,12 +315,20 @@ void CLContext::setupExplSampleKernel()
     err |= mk_sample_explicit.setArg(i++, materialBuffer);
     err |= mk_sample_explicit.setArg(i++, texDataBuffer);
     err |= mk_sample_explicit.setArg(i++, texDescriptorBuffer);
+
+    err |= mk_sample_explicit.setArg(i++, environmentMap);
+    err |= mk_sample_explicit.setArg(i++, probTable);
+    err |= mk_sample_explicit.setArg(i++, aliasTable);
+    err |= mk_sample_explicit.setArg(i++, cdfTable);
+    err |= mk_sample_explicit.setArg(i++, pdfTable);
+
     err |= mk_sample_explicit.setArg(i++, triangleBuffer);
     err |= mk_sample_explicit.setArg(i++, nodeBuffer);
     err |= mk_sample_explicit.setArg(i++, indexBuffer);
     err |= mk_sample_explicit.setArg(i++, renderParams);
     err |= mk_sample_explicit.setArg(i++, renderStats);
     err |= mk_sample_explicit.setArg(i++, NUM_TASKS);
+    err |= mk_sample_explicit.setArg(i++, 0);
     verify("Failed to set mk_sample_explicit arguments!");
 }
 
@@ -384,8 +390,11 @@ void CLContext::setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO)
 	verify("Failed to update kernel pixel storage args");
 }
 
-void CLContext::createEnvMap(float *data, int width, int height)
+void CLContext::createEnvMap(EnvironmentMap *map)
 {
+	int width = map->getWidth(), height = map->getHeight();
+	float *data = map->getData();
+
     // Convert rgb to rgba (OpenCL doesn't support floats for RGB-images)
     float *rgba = new float[width * height * 4];
     for (int h = 0; h < height; h++)
@@ -402,11 +411,29 @@ void CLContext::createEnvMap(float *data, int width, int height)
         }
     }
 
+	// Upload rgb colors
     const cl::ImageFormat format(CL_RGBA, CL_FLOAT);
     environmentMap = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, format, width, height, 0, rgba, &err);
     verify("Environment map creation failed!");
 
-    delete [] rgba;
+	// Upload probability and alias tables for importance sampling
+	size_t pBytes = (width + 1) * height * sizeof(float);
+	size_t aBytes = (width + 1) * height * sizeof(int);
+    size_t cBytes = (width + 2) * (height + 1) * sizeof(float);
+	probTable = cl::Buffer(context, CL_MEM_READ_ONLY, pBytes, NULL, &err);
+	aliasTable = cl::Buffer(context, CL_MEM_READ_ONLY, aBytes, NULL, &err);
+    cdfTable = cl::Buffer(context, CL_MEM_READ_ONLY, cBytes, NULL, &err);
+    pdfTable = cl::Buffer(context, CL_MEM_READ_ONLY, cBytes, NULL, &err); // same size as cdfTable
+	verify("Env map IS table creation failed");
+
+	err |= cmdQueue.enqueueWriteBuffer(probTable, CL_TRUE, 0, pBytes, map->getProbTable());
+	err |= cmdQueue.enqueueWriteBuffer(aliasTable, CL_TRUE, 0, aBytes, map->getAliasTable());
+    err |= cmdQueue.enqueueWriteBuffer(cdfTable, CL_TRUE, 0, cBytes, map->getCdfTable());
+    err |= cmdQueue.enqueueWriteBuffer(pdfTable, CL_TRUE, 0, cBytes, map->getPdfTable());
+	verify("Env map IS table writing failed");
+
+	// Cleanup
+    delete[] rgba;
 }
 
 void CLContext::setupScene()
@@ -428,6 +455,11 @@ void CLContext::setupScene()
 
     err = cmdQueue.enqueueWriteBuffer(lightBuffer, CL_TRUE, 0, l_bytes, test_lights);
     verify("Light buffer writing failed!");
+
+	// Dummy env map
+	float rgba[4] { 0.0f, 0.0f, 0.0f, 0.0f };
+	environmentMap = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, cl::ImageFormat(CL_RGBA, CL_FLOAT), 1, 1, 0, rgba, &err);
+	verify("Dummy env map creation failed");
 
     std::cout << "Scene initialization succeeded!" << std::endl;
 }
@@ -591,9 +623,11 @@ void CLContext::enqueueNextVertexKernel(const RenderParams &params)
     verify("Failed to enqueue next vertex kernel!");
 }
 
-void CLContext::enqueueExplSampleKernel(const RenderParams &params)
+void CLContext::enqueueExplSampleKernel(const RenderParams &params, const cl_uint iteration)
 {
     // Enqueue 1D range
+    err = 0;
+    err |= mk_sample_explicit.setArg(15, iteration);
     err = cmdQueue.enqueueNDRangeKernel(mk_sample_explicit, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue explicit sample kernel!");
 }

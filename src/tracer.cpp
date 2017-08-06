@@ -53,9 +53,9 @@ void Tracer::update()
             
             // Two segments
             clctx->enqueueNextVertexKernel(params);
-            clctx->enqueueExplSampleKernel(params);
+            clctx->enqueueExplSampleKernel(params, iteration);
             clctx->enqueueNextVertexKernel(params);
-            clctx->enqueueExplSampleKernel(params);
+            clctx->enqueueExplSampleKernel(params, iteration + 1);
             
             // Preview => also splat incomplete paths
             clctx->enqueueSplatPreviewKernel(params);
@@ -68,8 +68,8 @@ void Tracer::update()
             // Trace rays
             clctx->enqueueNextVertexKernel(params);
 
-            // Direct lighting
-            clctx->enqueueExplSampleKernel(params);
+            // Direct lighting + environment map IS
+            clctx->enqueueExplSampleKernel(params, iteration);
 
             // Splat results
             clctx->enqueueSplatKernel(params, frontBuffer);
@@ -128,15 +128,21 @@ void Tracer::init(int width, int height, std::string sceneFile)
     params.n_lights = sizeof(test_lights) / sizeof(PointLight);
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
     params.useEnvMap = 0;
+    params.useAreaLight = 1;
+    params.envMapStrength = 1.0f;
     params.flashlight = 0;
     params.maxBounces = 4;
-    params.sampleImpl = true;
-    params.sampleExpl = true;
+    params.sampleImpl = (cl_uint)true;
+    params.sampleExpl = (cl_uint)true;
 
     selectScene(sceneFile);
     loadState();
     initEnvMap();
     initHierarchy();
+
+    // Diagonal gives maximum ray length within the scene
+    AABB_t bounds = bvh->getSceneBounds();
+    params.worldRadius = (cl_float)(length(bounds.max - bounds.min) * 0.5f);
 
     clctx->uploadSceneData(bvh, scene);
 
@@ -162,10 +168,11 @@ void Tracer::selectScene(std::string file)
 void Tracer::initEnvMap()
 {
     EnvironmentMap *envMap = scene->getEnvMap();
-    if (envMap)
+    if (envMap && envMap->valid())
     {
-        params.useEnvMap = 1;
-        clctx->createEnvMap(envMap->getData(), envMap->getWidth(), envMap->getHeight());
+        params.useEnvMap = (cl_int)true;
+        this->hasEnvMap = true;
+        clctx->createEnvMap(envMap);
     }
 }
 
@@ -382,6 +389,30 @@ void Tracer::toggleSamplingMode()
     }
 }
 
+void Tracer::toggleLightSourceMode()
+{
+    if (!hasEnvMap)
+    {
+        std::cout << std::endl << "No environment map loaded!" << std::endl;
+    }
+    else if (params.useAreaLight && params.useEnvMap) // both => env
+    {
+        params.useAreaLight = false;
+        std::cout << std::endl << "Light mode: environment" << std::endl;
+    }
+    else if (params.useEnvMap) // env => area
+    {
+        params.useEnvMap = false;
+        params.useAreaLight = true;
+        std::cout << std::endl << "Light mode: area light" << std::endl;
+    }
+    else // area => both
+    {
+        params.useEnvMap = true;
+        std::cout << std::endl << "Light mode: both" << std::endl;
+    }
+}
+
 // Functional keys that need to be triggered only once per press
 #define match(key, expr) case key: expr; paramsUpdatePending = true; break;
 void Tracer::handleKeypress(int key)
@@ -394,7 +425,7 @@ void Tracer::handleKeypress(int key)
         match(GLFW_KEY_4,           quickLoadScene(4));
         match(GLFW_KEY_5,           quickLoadScene(5));
         match(GLFW_KEY_L,           init(params.width, params.height));  // opens scene selector
-        match(GLFW_KEY_H,           params.flashlight = !params.flashlight);
+        match(GLFW_KEY_H,           toggleLightSourceMode());
         match(GLFW_KEY_7,           useMK = !useMK);
         match(GLFW_KEY_F1,          initCamera());
         match(GLFW_KEY_F2,          saveState());
@@ -429,6 +460,8 @@ void Tracer::pollKeys()
     check(GLFW_KEY_9,           params.areaLight.size *= 1.1f);
     check(GLFW_KEY_PAGE_DOWN,   params.areaLight.E /= 1.05f);
     check(GLFW_KEY_PAGE_UP,     params.areaLight.E *= 1.05f);
+    check(GLFW_KEY_X,           params.envMapStrength *= 1.05f);
+    check(GLFW_KEY_Z,           params.envMapStrength /= 1.05f);
 
     if(paramsUpdatePending)
     {
