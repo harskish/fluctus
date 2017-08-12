@@ -309,7 +309,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             {
                 const float lightPickProb = 1.0f;
                 const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
-                float cosTh = max(0.0f, dot(normalize(-r.dir), n)); // cos at surface
+                float cosTh = max(0.0f, dot(L, n)); // cos at surface
                 float directPdfW = pdfAtoW(directPdfA, lenL, cosLight); // 'how small area light looks'
                 float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
                 
