@@ -202,10 +202,35 @@ void PTWindow::drawPixelBuffer()
 			GL_SHADER_SOURCE(
 				uniform sampler2D texSampler;
 				varying vec2 texVarying;
+
+				bool isnan( vec4 val )
+				{
+					for (int i = 0; i < 4; i++)
+						if ( !(val[i] < 0.0 || 0.0 < val[i] || val[i] == 0.0 ) ) return true;
+
+					return false;
+				}
+
+                bool isinf( vec4 val )
+                {
+                    for (int i = 0; i < 4; i++)
+                        if ( val[i] != val[i] ) return true;
+
+                    return false;
+                }
+
 				void main()
 				{
 					vec4 color = texture2D(texSampler, texVarying);
-					gl_FragColor = color / color.a;
+					if (color.a > 0.0)
+                        color = color / color.a;
+
+					if (isnan(color))
+						color = vec4(1.0, 0.0, 1.0, 1.0);
+                    if (isinf(color))
+                        color = vec4(0.0, 1.0, 1.0, 1.0);
+
+					gl_FragColor = color;
 				}
 			)
 		);

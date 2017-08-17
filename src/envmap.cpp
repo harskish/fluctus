@@ -1,7 +1,5 @@
 #include "envmap.hpp"
 
-constexpr auto M_PI = 3.14159265358979323846;
-
 EnvironmentMap::EnvironmentMap(const char *filename) : scale(1.0f)
 {
 	FILE * f = fopen(filename, "rb");
@@ -134,14 +132,13 @@ void EnvironmentMap::computeProbabilities()
 		float* pTable = probTable + (v * (width + 1));
 		int* aTable = aliasTable + (v * (width + 1));
 
-		const int n = width; // number of probabilities
 		std::stack<std::pair<float, int>> small, large;
 
 		// Distribute probabilities
 		std::vector<float>& pdfs = conditonalPdfs[v];
 		for (int i = 0; i < pdfs.size(); i++)
 		{
-			float p = pdfs[i];
+			float p = pdfs[i]; // n pre-divided (stepfunction pdf)
 			if (p < 1.0f)
 				small.push(std::make_pair(p, i));
 			else
@@ -181,14 +178,13 @@ void EnvironmentMap::computeProbabilities()
 
 	// Marginal pdf
 	{
-		const int n = height; // number of probabilities
 		std::stack<std::pair<float, int>> small, large;
 
 		// Distribute probabilities
 		std::vector<float>& pdfs = marginalPdf;
 		for (int i = 0; i < pdfs.size(); i++)
 		{
-			float p = pdfs[i];
+			float p = pdfs[i]; // n pre-divided (stepfunction pdf)
 			if (p < 1.0f)
 				small.push(std::make_pair(p, i));
 			else
