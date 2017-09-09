@@ -203,7 +203,7 @@ void PTWindow::drawPixelBuffer()
 				uniform sampler2D texSampler;
 				varying vec2 texVarying;
 
-				bool isnan( vec4 val )
+				bool isnan4( vec4 val )
 				{
 					for (int i = 0; i < 4; i++)
 						if ( !(val[i] < 0.0 || 0.0 < val[i] || val[i] == 0.0 ) ) return true;
@@ -211,7 +211,7 @@ void PTWindow::drawPixelBuffer()
 					return false;
 				}
 
-                bool isinf( vec4 val )
+                bool isinf4( vec4 val )
                 {
                     for (int i = 0; i < 4; i++)
                         if ( val[i] != val[i] ) return true;
@@ -225,9 +225,9 @@ void PTWindow::drawPixelBuffer()
 					if (color.a > 0.0)
                         color = color / color.a;
 
-					if (isnan(color))
+					if (isnan4(color))
 						color = vec4(1.0, 0.0, 1.0, 1.0);
-                    if (isinf(color))
+                    if (isinf4(color))
                         color = vec4(0.0, 1.0, 1.0, 1.0);
 
 					gl_FragColor = color;
