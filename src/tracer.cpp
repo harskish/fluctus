@@ -216,80 +216,78 @@ void Tracer::resizeBuffers()
     std::cout << std::endl;
 }
 
-inline void writeVec(std::ofstream &out, FireRays::float3 &vec)
+inline void writeVec(std::fstream &out, FireRays::float3 &vec)
 {
     write(out, vec.x);
     write(out, vec.y);
     write(out, vec.z);
 }
 
-void Tracer::saveState()
+inline void readVec(std::fstream &in, FireRays::float3 &vec)
 {
-    std::ofstream out("data/states/state_" + sceneHash + ".dat", std::ios::binary);
-
-    // Write camera state to file
-    if (out.good())
-    {
-        write(out, cameraRotation.x);
-        write(out, cameraRotation.y);
-        write(out, cameraSpeed);
-        write(out, params.camera.fov);
-        writeVec(out, params.camera.dir);
-        writeVec(out, params.camera.pos);
-        writeVec(out, params.camera.right);
-        writeVec(out, params.camera.up);
-        std::cout << "Camera state exported" << std::endl;
-
-        writeVec(out, params.areaLight.N);
-        writeVec(out, params.areaLight.pos);
-        writeVec(out, params.areaLight.right);
-        writeVec(out, params.areaLight.up);
-        writeVec(out, params.areaLight.E);
-        write(out, params.areaLight.size.x);
-        write(out, params.areaLight.size.y);
-        std::cout << "AreaLight state exported" << std::endl;
-    }
-    else
-    {
-        std::cout << "Could not create state file" << std::endl;
-    }
+	read(in, vec.x);
+	read(in, vec.y);
+	read(in, vec.z);
 }
 
-inline void readVec(std::ifstream &in, FireRays::float3 &vec)
+// Shared method for read/write => no forgotten members
+void Tracer::iterateStateItems(StateIO mode)
 {
-    read(in, vec.x);
-    read(in, vec.y);
-    read(in, vec.z);
+	#define rw(item) if(mode == StateIO::WRITE) write(stream, item); else read(stream, item);
+	#define rwVec(item) if(mode == StateIO::WRITE) writeVec(stream, item); else readVec(stream, item);
+
+	auto fileMode = std::ios::binary | ((mode == StateIO::WRITE) ? std::ios::out : std::ios::in);
+	std::fstream stream("data/states/state_" + sceneHash + ".dat", fileMode);
+
+	if (stream.good())
+	{
+		// Camera
+		rw(cameraRotation.x);
+		rw(cameraRotation.y);
+		rw(cameraSpeed);
+		rw(params.camera.fov);
+		rwVec(params.camera.dir);
+		rwVec(params.camera.pos);
+		rwVec(params.camera.right);
+		rwVec(params.camera.up);
+
+		// Lights
+		rwVec(params.areaLight.N);
+		rwVec(params.areaLight.pos);
+		rwVec(params.areaLight.right);
+		rwVec(params.areaLight.up);
+		rwVec(params.areaLight.E);
+		rw(params.areaLight.size.x);
+		rw(params.areaLight.size.y);
+		rw(params.envMapStrength);
+
+		// Sampling parameters
+		rw(params.maxBounces);
+		rw(params.useAreaLight);
+		rw(params.useEnvMap);
+		rw(params.sampleExpl);
+		rw(params.sampleImpl);
+
+		std::cout << ((mode == StateIO::WRITE) ? "State dumped" : "State imported") << std::endl;
+	}
+	else
+	{
+		std::cout << "Could not open state file" << std::endl;
+	}
+
+	#undef rw
+	#undef rwVec
+}
+
+
+void Tracer::saveState()
+{
+	iterateStateItems(StateIO::WRITE);
 }
 
 void Tracer::loadState()
 {
-    std::ifstream in("data/states/state_" + sceneHash + ".dat");
-    if (in.good())
-    {
-        read(in, cameraRotation.x);
-        read(in, cameraRotation.y);
-        read(in, cameraSpeed);
-        read(in, params.camera.fov);
-        readVec(in, params.camera.dir);
-        readVec(in, params.camera.pos);
-        readVec(in, params.camera.right);
-        readVec(in, params.camera.up);
-        std::cout << "Camera state imported" << std::endl;
-
-        readVec(in, params.areaLight.N);
-        readVec(in, params.areaLight.pos);
-        readVec(in, params.areaLight.right);
-        readVec(in, params.areaLight.up);
-        readVec(in, params.areaLight.E);
-        read(in, params.areaLight.size.x);
-        read(in, params.areaLight.size.y);
-        std::cout << "AreaLight state imported" << std::endl;
-    }
-    else
-    {
-        std::cout << "State file not found" << std::endl;
-    }
+	iterateStateItems(StateIO::READ);
 }
 
 void Tracer::loadHierarchy(const std::string filename, std::vector<RTTriangle>& triangles)

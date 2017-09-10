@@ -42,8 +42,12 @@ private:
     void updateAreaLight();
     void initCamera();
     void initAreaLight();
-    void saveState();
+    
+	
+	void saveState();
     void loadState();
+	enum StateIO { READ, WRITE };
+	void iterateStateItems(StateIO mode);
 
     void selectScene(std::string file);
     void quickLoadScene(unsigned int num);
