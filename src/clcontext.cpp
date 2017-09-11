@@ -34,7 +34,11 @@ CLContext::CLContext(GLuint *textures, GLuint gl_PBO)
     platform = getPlatformByName(platforms, Settings::getInstance().getPlatformName());
     std::cout << "PLATFORM: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
 
-    platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
+	#ifdef CPU_DEBUGGING
+		platform.getDevices(CL_DEVICE_TYPE_CPU, &clDevices);
+	#else
+		platform.getDevices(CL_DEVICE_TYPE_GPU, &clDevices);
+	#endif
 
     // Init shared context
     #ifdef __APPLE__

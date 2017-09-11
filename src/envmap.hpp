@@ -10,6 +10,7 @@
 #include <vector>
 #include <stack>
 #include "rgbe/rgbe.hpp"
+#include "geom.h"
 
 class EnvironmentMap
 {

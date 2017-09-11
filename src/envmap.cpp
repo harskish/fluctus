@@ -28,7 +28,7 @@ void EnvironmentMap::computeProbabilities()
 	#pragma omp parallel for
 	for (int v = 0; v < height; v++)
 	{
-		float sinTh = std::sin(M_PI * float(v + 0.5f) / float(height));
+		float sinTh = std::sin(PI * float(v + 0.5f) / float(height));
 		for (int u = 0; u < width; u++)
 		{
 			float r = data[3 * (v * width + u) + 0];
