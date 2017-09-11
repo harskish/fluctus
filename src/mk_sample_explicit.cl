@@ -15,9 +15,7 @@ kernel void sampleLightExplicit(
     read_only image2d_t envMap,
     global float *probTable,
     global int *aliasTable,
-    global float *cdfTable,
-    global float *pdfTable,
-	global float *pdfTable1D,
+	global float *pdfTable,
     global Triangle *tris,
     global GPUNode *nodes,
     global uint *indices,
@@ -68,17 +66,8 @@ kernel void sampleLightExplicit(
 
             float3 L;
             float directPdfW = 0.0f;
-            EnvMapContext ctx = { width, height, cdfTable, pdfTable, pdfTable1D, probTable, aliasTable };
-
-            #if 1
-                // Alias method (1D)
-                sampleEnvMapAlias(rand(&seed), &L, &directPdfW, ctx);
-            #else
-                // PBRT binary search method (2D)
-                float pdfW; // Intel OpenCL requires this for some reason
-                sampleEnvMapBinarySearch((float2)(rand(&seed), rand(&seed)), &L, &pdfW, ctx);
-                directPdfW = pdfW;
-            #endif
+            EnvMapContext ctx = { width, height, pdfTable, probTable, aliasTable };
+			sampleEnvMapAlias(rand(&seed), &L, &directPdfW, ctx);
 
             // Shadow ray
             float lenL = 2.0f * params->worldRadius;

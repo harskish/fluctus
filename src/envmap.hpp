@@ -22,9 +22,7 @@ public:
 		data(NULL),
 		probTable(NULL),
 		aliasTable(NULL),
-		cdfTable(NULL),
-		pdfTable(NULL),
-		pdfTable1D(NULL)
+		pdfTable(NULL)
 	{} // default constructor
 
 	EnvironmentMap(const char *filename);
@@ -34,25 +32,17 @@ public:
 		delete[] data; 
 		delete[] probTable;
 		delete[] aliasTable;
-        delete[] cdfTable;
-        delete[] pdfTable;
-		delete[] pdfTable1D;
+		delete[] pdfTable;
 	}
 
 	float *getData() { return data; }
 	float *getProbTable() { return probTable; }
 	int *getAliasTable() { return aliasTable; }
-    float *getCdfTable() { return cdfTable; }
-    float *getPdfTable() { return pdfTable; }
-	float *getPdfTable1D() { return pdfTable1D; }
+	float *getPdfTable() { return pdfTable; }
 	int getWidth() { return width; }
 	int getHeight() { return height; }
 
-	bool valid()
-	{ 
-		return data != NULL && probTable != NULL && aliasTable != NULL
-			&& pdfTable != NULL && pdfTable1D != NULL &&  width * height > 0;
-	}
+	bool valid() { return data != NULL && probTable != NULL && aliasTable != NULL && pdfTable != NULL && width * height > 0; }
 
 private:
 	void computeProbabilities();
@@ -62,13 +52,7 @@ private:
 	float *data; // used by clcontext to create cl::Image2D
 	
 	// For importance sampling (alias method)
-	float *pdfTable1D;
+	float *pdfTable;
 	float *probTable;
 	int *aliasTable;
-
-	// For importance sampling (pbrt binary search method)
-	// One per row (conditional pdfs) + one for marginal pdf
-	//    => (h * w + h) entries per table, last column for marginal
-    float *cdfTable;
-    float *pdfTable;
 };

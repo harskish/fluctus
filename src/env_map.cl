@@ -54,9 +54,7 @@ typedef struct
 {
     const int width;
     const int height;
-    global const float *cdfTable;
-    global const float *pdfTable;
-	global const float *pdfTable1D;
+	global const float *pdfTable;
     global const float *probTable;
     global const int *aliasTable;
 } EnvMapContext;
@@ -72,7 +70,7 @@ inline void sampleEnvMapAlias(float rnd, float3 *L, float *pdfW, EnvMapContext c
 	int i = min((int)floor(rand), width * height - 1);
     float mProb = ctx.probTable[i];
     int uvInd = (rand - i < mProb) ? i : ctx.aliasTable[i];
-    float pdf_uv = ctx.pdfTable1D[uvInd];
+    float pdf_uv = ctx.pdfTable[uvInd];
 
     // Compute outgoing dir
 	int uInd = uvInd % width;
@@ -91,82 +89,6 @@ inline void sampleEnvMapAlias(float rnd, float3 *L, float *pdfW, EnvMapContext c
         *pdfW = 0.0f;
 }
 
-// Uses PBRT's binary search method. Adapted from kernel_light.h in Blender's Cycles renderer.
-inline void sampleEnvMapBinarySearch(float2 rnd, float3 *L, float *pdfW, EnvMapContext ctx)
-{
-    const int width = ctx.width;
-    const int height = ctx.height;
-
-    // this is basically std::lower_bound as used by pbrt
-    int first = 0;
-    int count = height;
-
-    while (count > 0)
-    {
-        int step = count / 2;
-        int middle = first + step;
-
-        float cdf = ctx.cdfTable[middle * (width + 2) + width + 1];
-        if (cdf < rnd.y)
-        {
-            first = middle + 1;
-            count -= step + 1;
-        }
-        else
-            count = step;
-    }
-
-    int index_v = max(0, first - 1);
-
-    float2 cdf_v = ctx.cdfTable[index_v * (width + 2) + width + 1];
-    float pdf_v = ctx.pdfTable[index_v * (width + 2) + width + 1];
-    float2 cdf_next_v = ctx.cdfTable[(index_v + 1) * (width + 2) + width + 1];
-    float2 cdf_last_v = ctx.cdfTable[height * (width + 2) + width + 1];
-
-    // importance-sampled V direction
-    float dv = (rnd.y - cdf_v.y) / (cdf_next_v.y - cdf_v.y);
-    float v = (index_v + dv) / height;
-
-    // this is basically std::lower_bound as used by pbrt
-    first = 0;
-    count = width;
-    while (count > 0)
-    {
-        int step = count / 2;
-        int middle = first + step;
-
-        float cdf = ctx.cdfTable[index_v * (width + 2) + middle];
-        if (cdf < rnd.x)
-        {
-            first = middle + 1;
-            count -= step + 1;
-        }
-        else
-            count = step;
-    }
-
-    int index_u = max(0, first - 1);
-
-    float2 cdf_u = ctx.cdfTable[index_v * (width + 2) + index_u];
-    float pdf_u = ctx.pdfTable[index_v * (width + 2) + index_u];
-    float2 cdf_next_u = ctx.cdfTable[index_v * (width + 2) + index_u + 1];
-    float2 cdf_last_u = ctx.cdfTable[index_v * (width + 2) + width];
-
-    // importance-sampled U direction
-    float du = (rnd.x - cdf_u.y) / (cdf_next_u.y - cdf_u.y);
-    float u = (index_u + du) / width;
-
-    // compute pdf
-    float sin_theta = sin(M_PI_F * v);
-    if (sin_theta == 0.0f)
-        *pdfW = 0.0f;
-    else
-        *pdfW = (pdf_u * pdf_v) / (M_2PI_F * M_PI_F * sin_theta);
-
-    // compute direction
-    *L = UVToDirection(u, v);
-}
-
 // Get pdf of sampling 'direction', used in MIS
 float envMapPdf(int width, int height, global float *pdfTable, float3 direction)
 {
@@ -176,11 +98,8 @@ float envMapPdf(int width, int height, global float *pdfTable, float3 direction)
     if (sinTh == 0.0f)
         return 0.0f;
 
-    int index_u = min((int)floor(uv.x * width), width - 1);
-    int index_v = min((int)floor(uv.y * height), height - 1);
-    
-    float pdfU = pdfTable[index_v * (width + 2) + index_u];
-    float pdfV = pdfTable[index_v * (width + 2) + width + 1];
+    int iu = min((int)floor(uv.x * width), width - 1);
+    int iv = min((int)floor(uv.y * height), height - 1);
 
-    return (pdfU * pdfV) / (M_2PI_F * M_PI_F * sinTh);
+    return pdfTable[iv * width + iu] / (M_2PI_F * M_PI_F * sinTh);
 }

@@ -150,9 +150,7 @@ private:
     cl::Image2D environmentMap;
 	cl::Buffer probTable;
 	cl::Buffer aliasTable;
-    cl::Buffer cdfTable;
-    cl::Buffer pdfTable;
-	cl::Buffer pdfTable1D;
+	cl::Buffer pdfTable;
 
     // Variables from BVH
     cl::Buffer triangleBuffer;
