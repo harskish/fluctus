@@ -17,6 +17,7 @@ kernel void sampleLightExplicit(
     global int *aliasTable,
     global float *cdfTable,
     global float *pdfTable,
+	global float *pdfTable1D,
     global Triangle *tris,
     global GPUNode *nodes,
     global uint *indices,
@@ -67,16 +68,15 @@ kernel void sampleLightExplicit(
 
             float3 L;
             float directPdfW = 0.0f;
-            EnvMapContext ctx = { width, height, cdfTable, pdfTable, probTable, aliasTable };
-            float2 rnd = { rand(&seed), rand(&seed) };
+            EnvMapContext ctx = { width, height, cdfTable, pdfTable, pdfTable1D, probTable, aliasTable };
 
             #if 1
-                // Alias method
-                sampleEnvMapAlias(rnd, &L, &directPdfW, ctx);
+                // Alias method (1D)
+                sampleEnvMapAlias(rand(&seed), &L, &directPdfW, ctx);
             #else
-                // PBRT binary search method
+                // PBRT binary search method (2D)
                 float pdfW; // Intel OpenCL requires this for some reason
-                sampleEnvMapBinarySearch(rnd, &L, &pdfW, ctx);
+                sampleEnvMapBinarySearch((float2)(rand(&seed), rand(&seed)), &L, &pdfW, ctx);
                 directPdfW = pdfW;
             #endif
 

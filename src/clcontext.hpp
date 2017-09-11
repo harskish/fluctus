@@ -152,6 +152,7 @@ private:
 	cl::Buffer aliasTable;
     cl::Buffer cdfTable;
     cl::Buffer pdfTable;
+	cl::Buffer pdfTable1D;
 
     // Variables from BVH
     cl::Buffer triangleBuffer;

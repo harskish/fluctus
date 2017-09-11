@@ -56,31 +56,27 @@ typedef struct
     const int height;
     global const float *cdfTable;
     global const float *pdfTable;
+	global const float *pdfTable1D;
     global const float *probTable;
     global const int *aliasTable;
 } EnvMapContext;
 
 // Uses the Alias Method
-inline void sampleEnvMapAlias(float2 rnd, float3 *L, float *pdfW, EnvMapContext ctx)
+inline void sampleEnvMapAlias(float rnd, float3 *L, float *pdfW, EnvMapContext ctx)
 {
     const int width = ctx.width;
     const int height = ctx.height;
 
-    // Sample marginal distribution
-    float rand = rnd.y * height;
-    int i = min((int)floor(rand), height - 1);
-    float mProb = ctx.probTable[i * (width + 1) + width]; // rightmost column
-    int vInd = (rand - i < mProb) ? i : ctx.aliasTable[i * (width + 1) + width];
-    float pdf_v = ctx.pdfTable[vInd * (width + 2) + width + 1];
-
-    // Sample conditional distribution
-    rand = rnd.x * width;
-    i = min((int)floor(rand), width - 1);
-    float cProb = ctx.probTable[vInd * (width + 1) + i];
-    int uInd = (rand - i < cProb) ? i : ctx.aliasTable[vInd * (width + 1) + i];
-    float pdf_u = ctx.pdfTable[vInd * (width + 2) + uInd];
+	// Sample 1D distribution over whole image
+	float rand = rnd * width * height;
+	int i = min((int)floor(rand), width * height - 1);
+    float mProb = ctx.probTable[i];
+    int uvInd = (rand - i < mProb) ? i : ctx.aliasTable[i];
+    float pdf_uv = ctx.pdfTable1D[uvInd];
 
     // Compute outgoing dir
+	int uInd = uvInd % width;
+	int vInd = uvInd / width;
     float u = (float)(uInd + 0.5f) / width;
     float v = (float)(vInd + 0.5f) / height;
     *L = UVToDirection(u, v);
@@ -88,7 +84,7 @@ inline void sampleEnvMapAlias(float2 rnd, float3 *L, float *pdfW, EnvMapContext 
     // Compute pdf
     const float lightPickProb = 1.0f;
     float sinTh = sin(M_PI_F * v);
-    float directPdfUV = pdf_u * pdf_v * lightPickProb;
+    float directPdfUV = pdf_uv * lightPickProb;
     if (sinTh != 0.0f)
         *pdfW = directPdfUV / (2.0f * M_PI_F * M_PI_F * sinTh);
     else

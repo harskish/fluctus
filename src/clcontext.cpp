@@ -304,6 +304,7 @@ void CLContext::setupNextVertexKernel()
     err |= mk_next_vertex.setArg(i++, renderStats);
     err |= mk_next_vertex.setArg(i++, environmentMap);
     err |= mk_next_vertex.setArg(i++, pdfTable);
+	err |= mk_next_vertex.setArg(i++, pdfTable1D);
     err |= mk_next_vertex.setArg(i++, NUM_TASKS);
     verify("Failed to set mk_next_vertex arguments!");
 }
@@ -325,6 +326,7 @@ void CLContext::setupExplSampleKernel()
     err |= mk_sample_explicit.setArg(i++, aliasTable);
     err |= mk_sample_explicit.setArg(i++, cdfTable);
     err |= mk_sample_explicit.setArg(i++, pdfTable);
+	err |= mk_sample_explicit.setArg(i++, pdfTable1D);
 
     err |= mk_sample_explicit.setArg(i++, triangleBuffer);
     err |= mk_sample_explicit.setArg(i++, nodeBuffer);
@@ -421,19 +423,22 @@ void CLContext::createEnvMap(EnvironmentMap *map)
     verify("Environment map creation failed!");
 
 	// Upload probability and alias tables for importance sampling
-	size_t pBytes = (width + 1) * height * sizeof(float);
-	size_t aBytes = (width + 1) * height * sizeof(int);
+	size_t pBytes = width * height * sizeof(float);
+	size_t aBytes = width * height * sizeof(int);
     size_t cBytes = (width + 2) * (height + 1) * sizeof(float);
+	size_t pBytes1D = width * height * sizeof(float);
 	probTable = cl::Buffer(context, CL_MEM_READ_ONLY, pBytes, NULL, &err);
 	aliasTable = cl::Buffer(context, CL_MEM_READ_ONLY, aBytes, NULL, &err);
     cdfTable = cl::Buffer(context, CL_MEM_READ_ONLY, cBytes, NULL, &err);
     pdfTable = cl::Buffer(context, CL_MEM_READ_ONLY, cBytes, NULL, &err); // same size as cdfTable
+	pdfTable1D = cl::Buffer(context, CL_MEM_READ_ONLY, pBytes1D, NULL, &err);
 	verify("Env map IS table creation failed");
 
 	err |= cmdQueue.enqueueWriteBuffer(probTable, CL_TRUE, 0, pBytes, map->getProbTable());
 	err |= cmdQueue.enqueueWriteBuffer(aliasTable, CL_TRUE, 0, aBytes, map->getAliasTable());
     err |= cmdQueue.enqueueWriteBuffer(cdfTable, CL_TRUE, 0, cBytes, map->getCdfTable());
     err |= cmdQueue.enqueueWriteBuffer(pdfTable, CL_TRUE, 0, cBytes, map->getPdfTable());
+	err |= cmdQueue.enqueueWriteBuffer(pdfTable1D, CL_TRUE, 0, pBytes1D, map->getPdfTable1D());
 	verify("Env map IS table writing failed");
 
 	// Cleanup
@@ -631,7 +636,7 @@ void CLContext::enqueueExplSampleKernel(const RenderParams &params, const cl_uin
 {
     // Enqueue 1D range
     err = 0;
-    err |= mk_sample_explicit.setArg(15, iteration);
+    err |= mk_sample_explicit.setArg(16, iteration);
     err = cmdQueue.enqueueNDRangeKernel(mk_sample_explicit, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue explicit sample kernel!");
 }

@@ -16,6 +16,7 @@ kernel void nextVertex(
     global RenderStats *stats,
 	read_only image2d_t envMap,
     global float *pdfTable,
+	global float *pdfTable1D,
     uint numTasks)
 {
     const size_t gid = get_global_id(0) + get_global_id(1) * params->width;

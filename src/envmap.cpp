@@ -44,13 +44,46 @@ void EnvironmentMap::computeProbabilities()
 	std::vector<std::vector<float>> conditonalPdfs(height);
 	std::vector<float> marginalPdf(height);
 	std::vector<float> rowIntegrals(height);
+	std::vector<float> flatPdf(width*height); // for 1D alias method
 
 	std::cout << "Computing pdfs" << std::endl;
 
-    cdfTable = new float[(width + 2) * (height + 1)];
-    pdfTable = new float[(width + 2) * (height + 1)];
+    cdfTable = new float[(width + 2) * (height + 1)]; // 2D
+    pdfTable = new float[(width + 2) * (height + 1)]; // 2D
+	pdfTable1D = new float[width * height]; // 1D
 
-	// Compute 1D conditional distributions
+	
+	// Compute 1D flat distribution over whole image (alias method)
+	{
+		// Use 2D cdf table for temp storage, cleared later
+		float *cdf = cdfTable;
+		float *pdf = pdfTable1D; // 1D version!
+
+		// Fill cdf with unnormalized integrals
+		cdf[0] = 0;
+		for (int i = 1; i < width*height + 1; i++) cdf[i] = cdf[i - 1] + scalars[i - 1] / (width*height);
+
+		// Get integral over whole image
+		float I = cdf[width*height];
+
+		// Normalize to get actual cdf
+		if (I == 0)
+			for (int i = 1; i < width*height + 1; ++i) cdf[i] = float(i) / float(width*height); // make limit one
+		else
+			for (int i = 1; i < width*height + 1; ++i) cdf[i] /= I;
+
+		// Calculate pdf
+		if (I == 0)
+			for (int i = 0; i < width*height; i++) pdf[i] = 1.0f / float(width*height); // make integral one
+		else
+			for (int i = 0; i < width*height; i++) pdf[i] = scalars[i] / I;
+
+		flatPdf = std::vector<float>(pdf, pdf + width*height);
+		std::fill_n(cdfTable, width*height+1, 0.0f);
+	}
+
+
+	// Compute 1D conditional distributions (pbrt method)
 	#pragma omp parallel for
 	for (int v = 0; v < height; v++)
 	{
@@ -84,7 +117,7 @@ void EnvironmentMap::computeProbabilities()
 		conditonalPdfs[v] = pdfV;
 	}
 
-	// Compute marginal sampling distribution
+	// Compute marginal sampling distribution (pbrt method)
 	{
 		std::vector<float> cdf(height + 1);
 
@@ -122,20 +155,15 @@ void EnvironmentMap::computeProbabilities()
 	// Compute probability and alias tables
 	// Stable Vose's algorithm, see http://www.keithschwarz.com/darts-dice-coins/
 	
-	probTable = new float[(width + 1) * height];
-	aliasTable = new int[(width + 1) * height];
+	probTable = new float[width * height];
+	aliasTable = new int[width * height];
 
-	// Conditional pdfs
-	for (int v = 0; v < height; v++)
+	// 1D pdf over whole image
 	{
-		// Last column contains data of marginal distribution
-		float* pTable = probTable + (v * (width + 1));
-		int* aTable = aliasTable + (v * (width + 1));
-
 		std::stack<std::pair<float, int>> small, large;
 
 		// Distribute probabilities
-		std::vector<float>& pdfs = conditonalPdfs[v];
+		std::vector<float>& pdfs = flatPdf;
 		for (int i = 0; i < pdfs.size(); i++)
 		{
 			float p = pdfs[i]; // n pre-divided (stepfunction pdf)
@@ -151,54 +179,8 @@ void EnvironmentMap::computeProbabilities()
 			small.pop();
 			large.pop();
 
-			pTable[l.second] = l.first;
-			aTable[l.second] = g.second;
-			
-			float pg = (g.first + l.first) - 1.0f;
-			if (pg < 1.0f)
-				small.push(std::make_pair(pg, g.second));
-			else
-				large.push(std::make_pair(pg, g.second));
-		}
-
-		while (!large.empty())
-		{
-			std::pair<float, int> g = large.top();
-			large.pop();
-			pTable[g.second] = 1.0f;
-		}
-
-		while (!small.empty())
-		{
-			std::pair<float, int> l = small.top();
-			small.pop();
-			pTable[l.second] = 1.0f;
-		}
-	}
-
-	// Marginal pdf
-	{
-		std::stack<std::pair<float, int>> small, large;
-
-		// Distribute probabilities
-		std::vector<float>& pdfs = marginalPdf;
-		for (int i = 0; i < pdfs.size(); i++)
-		{
-			float p = pdfs[i]; // n pre-divided (stepfunction pdf)
-			if (p < 1.0f)
-				small.push(std::make_pair(p, i));
-			else
-				large.push(std::make_pair(p, i));
-		}
-
-		while (!small.empty() && !large.empty())
-		{
-			std::pair<float, int> l = small.top(), g = large.top();
-			small.pop();
-			large.pop();
-
-			probTable[l.second * (width + 1) + width] = l.first;
-			aliasTable[l.second * (width + 1) + width] = g.second;
+			probTable[l.second] = l.first;
+			aliasTable[l.second] = g.second;
 
 			float pg = (g.first + l.first) - 1.0f;
 			if (pg < 1.0f)
@@ -211,14 +193,14 @@ void EnvironmentMap::computeProbabilities()
 		{
 			std::pair<float, int> g = large.top();
 			large.pop();
-			probTable[g.second * (width + 1) + width] = 1.0f;
+			probTable[g.second] = 1.0f;
 		}
 
 		while (!small.empty())
 		{
 			std::pair<float, int> l = small.top();
 			small.pop();
-			probTable[l.second * (width + 1) + width] = 1.0f;
+			probTable[l.second] = 1.0f;
 		}
 	}
 }
