@@ -1,16 +1,16 @@
-Fluctus
+﻿Fluctus
 ====================
 
 OpenCL wavefront path tracer
 --------------
 
-![Luxball](gallery/luxball.png)
+![Luxball](gallery/luxball2.png)
 
 ## Features
 - Physically based renderer
     -  OBJ + MTL scenefiles
     -  Lambertian and refractive BSDFs
-    -  Caustics through MIS
+    -  Multiple importance sampled environment maps (alias method)
 - [Wavefront path tracing][wavefront] at interactive framerates
     - Optimized structure of arrays data layout
     - Efficient BVH with [spatial splits][sbvh]
