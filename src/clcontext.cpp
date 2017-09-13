@@ -374,9 +374,10 @@ void CLContext::setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO)
         sharedMemory.clear(); // memory freed by cl-cpp-wrapper
     }
 
-    sharedMemory.push_back(cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[0], &err)); // frontbuffer
-    sharedMemory.push_back(cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[1], &err)); // backbuffer
-	sharedMemory.push_back(cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err)); // microkernel pixel buffer
+    frontBuffer = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[0], &err);
+    backBuffer = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[1], &err);
+    pixelBuffer = cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err); // microkernel pixel buffer
+    sharedMemory = { frontBuffer, backBuffer, pixelBuffer };
     verify("CL pixel storage creation failed!");
 
 	// Set new kernel args (pointers might have changed)
@@ -389,6 +390,55 @@ void CLContext::setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO)
     if (mk_splat_preview())
         err |= mk_splat_preview.setArg(1, sharedMemory.back());
 	verify("Failed to update kernel pixel storage args");
+}
+
+void CLContext::saveImage(std::string filename, RenderParams params, bool usingMicroKernel)
+{
+    unsigned int numBytes = params.width * params.height * 3; // rgb
+    unsigned int numFloats = params.width * params.height * 4; // rgba
+	std::unique_ptr<unsigned char[]> dataBytes(new unsigned char[numBytes]);
+    std::unique_ptr<float[]> dataFloats(new float[numFloats]); 
+
+    // Copy data to host
+    err = 0;
+    err |= cmdQueue.enqueueAcquireGLObjects(&sharedMemory);
+
+    if (usingMicroKernel)
+    {
+        err |= cmdQueue.enqueueReadBuffer(pixelBuffer, CL_TRUE, 0, numFloats * sizeof(float), dataFloats.get());
+    }
+    else
+    {
+        std::array<cl::size_type, 3> orig = { 0, 0, 0 };
+        std::array<cl::size_type, 3> dims = { params.width, params.height, 1 };
+        err |= cmdQueue.enqueueReadImage(frontBuffer, CL_TRUE, orig, dims, 0, 0, dataFloats.get());
+    }
+
+    err |= cmdQueue.finish();
+    verify("Failed to copy pixel buffer to host!");
+
+    // Convert floats to bytes
+    int counter = 0;
+    for (int i = 0; i < numFloats; i += 4)
+    {
+        float r = dataFloats[i + 0];
+        float g = dataFloats[i + 1];
+        float b = dataFloats[i + 2];
+        float a = dataFloats[i + 3];
+
+        auto clamp = [](float value) { return std::max(0.0f, std::min(1.0f, value)); };
+        dataBytes[counter++] = (unsigned char)(255 * clamp(r / a));
+        dataBytes[counter++] = (unsigned char)(255 * clamp(g / a));
+        dataBytes[counter++] = (unsigned char)(255 * clamp(b / a));
+    }
+
+    // Save image
+	ILuint imageID = ilGenImage();
+	ilBindImage(imageID);
+	ilTexImage(params.width, params.height, 1, 3, IL_RGB, IL_UNSIGNED_BYTE, dataBytes.get());
+	ilSaveImage(filename.c_str());
+	
+	std::cout << "\nSaved " << filename << std::endl;
 }
 
 void CLContext::createEnvMap(EnvironmentMap *map)

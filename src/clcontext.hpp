@@ -90,6 +90,7 @@ public:
     void updateParams(const RenderParams &params);
     void uploadSceneData(BVH *bvh, Scene *scene);
     void setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO);
+	void saveImage(std::string filename, RenderParams params, bool usingMicroKernel);
     void createEnvMap(EnvironmentMap *map);
 private:
     void printDevices();
@@ -136,7 +137,12 @@ private:
     cl::Kernel mk_splat;
     cl::Kernel mk_splat_preview;
 
+    // Pixel storage
+    cl::BufferGL pixelBuffer;
+    cl::ImageGL frontBuffer;
+    cl::ImageGL backBuffer;
     std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (tex1, tex2, mk_pixelbuffer)
+    
     cl::Buffer sphereBuffer;
     cl::Buffer lightBuffer;
     cl::Buffer renderParams;                // contains only one RenderParam

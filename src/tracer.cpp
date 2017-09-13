@@ -290,6 +290,13 @@ void Tracer::loadState()
 	iterateStateItems(StateIO::READ);
 }
 
+void Tracer::saveImage()
+{
+    std::time_t epoch = std::time(nullptr);
+    std::string fileName = "output_" + std::to_string(epoch) + ".png";
+    clctx->saveImage(fileName, params, useMK);
+}
+
 void Tracer::loadHierarchy(const std::string filename, std::vector<RTTriangle>& triangles)
 {
     m_triangles = &triangles;
@@ -412,29 +419,35 @@ void Tracer::toggleLightSourceMode()
 }
 
 // Functional keys that need to be triggered only once per press
-#define match(key, expr) case key: expr; paramsUpdatePending = true; break;
+#define matchInit(key, expr) case key: expr; paramsUpdatePending = true; break;
+#define matchKeep(key, expr) case key: expr; break;
 void Tracer::handleKeypress(int key)
 {
     switch (key)
     {
-        match(GLFW_KEY_1,           quickLoadScene(1));
-        match(GLFW_KEY_2,           quickLoadScene(2));
-        match(GLFW_KEY_3,           quickLoadScene(3));
-        match(GLFW_KEY_4,           quickLoadScene(4));
-        match(GLFW_KEY_5,           quickLoadScene(5));
-        match(GLFW_KEY_L,           init(params.width, params.height));  // opens scene selector
-        match(GLFW_KEY_H,           toggleLightSourceMode());
-        match(GLFW_KEY_7,           useMK = !useMK);
-        match(GLFW_KEY_F1,          initCamera());
-        match(GLFW_KEY_F2,          saveState());
-        match(GLFW_KEY_F3,          loadState());
-        match(GLFW_KEY_SPACE,       updateAreaLight());
-        match(GLFW_KEY_I,           std::cout << std::endl << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
-        match(GLFW_KEY_K,           std::cout << std::endl << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
-        match(GLFW_KEY_M,           toggleSamplingMode());
+        // Force init
+        matchInit(GLFW_KEY_1,           quickLoadScene(1));
+        matchInit(GLFW_KEY_2,           quickLoadScene(2));
+        matchInit(GLFW_KEY_3,           quickLoadScene(3));
+        matchInit(GLFW_KEY_4,           quickLoadScene(4));
+        matchInit(GLFW_KEY_5,           quickLoadScene(5));
+        matchInit(GLFW_KEY_L,           init(params.width, params.height));  // opens scene selector
+        matchInit(GLFW_KEY_H,           toggleLightSourceMode());
+        matchInit(GLFW_KEY_7,           useMK = !useMK);
+        matchInit(GLFW_KEY_F1,          initCamera());
+        matchInit(GLFW_KEY_F3,          loadState());
+        matchInit(GLFW_KEY_SPACE,       updateAreaLight());
+        matchInit(GLFW_KEY_I,           std::cout << std::endl << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
+        matchInit(GLFW_KEY_K,           std::cout << std::endl << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
+        matchInit(GLFW_KEY_M,           toggleSamplingMode());
+
+        // Don't force init
+        matchKeep(GLFW_KEY_F2,          saveState());
+        matchKeep(GLFW_KEY_F5,          saveImage());
     }
 }
-#undef match
+#undef matchInit
+#undef matchKeep
 
 // Instant and simultaneous key presses (movement etc.)
 #define check(key, expr) if(window->keyPressed(key)) { expr; paramsUpdatePending = true; }

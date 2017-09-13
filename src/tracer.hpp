@@ -42,7 +42,7 @@ private:
     void updateAreaLight();
     void initCamera();
     void initAreaLight();
-    
+    void saveImage();
 	
 	void saveState();
     void loadState();
