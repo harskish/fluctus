@@ -414,6 +414,7 @@ void CLContext::saveImage(std::string filename, RenderParams params, bool usingM
         err |= cmdQueue.enqueueReadImage(frontBuffer, CL_TRUE, orig, dims, 0, 0, dataFloats.get());
     }
 
+    err |= cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
     err |= cmdQueue.finish();
     verify("Failed to copy pixel buffer to host!");
 
