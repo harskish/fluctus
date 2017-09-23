@@ -20,9 +20,9 @@ public:
 		height(0),
 		scale(1.0f),
 		data(NULL),
+		pdfTable(NULL),
 		probTable(NULL),
-		aliasTable(NULL),
-		pdfTable(NULL)
+		aliasTable(NULL)
 	{} // default constructor
 
 	EnvironmentMap(const char *filename);
