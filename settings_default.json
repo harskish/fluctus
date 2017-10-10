@@ -9,12 +9,14 @@
 			"1": "assets/egyptcat/egyptcat.obj",
 			"2": "assets/conference/conference.obj",
 			"3": "assets/luxball/luxball.obj"
-		}
+		},
+		"envMap": "assets/env_maps/dawn.hdr"
 	},
 	"debug": {
 		"platformName": "Intel",
 		"deviceName": "Intel(R) Core",
 		"clUseBitstack": true,
-		"clUseSoA": false
+		"clUseSoA": false,
+		"envMap": "assets/env_maps/night.hdr"
 	}
 }

@@ -25,7 +25,7 @@ public:
 		aliasTable(NULL)
 	{} // default constructor
 
-	EnvironmentMap(const char *filename);
+	EnvironmentMap(const std::string &filename);
 	~EnvironmentMap()
 	{
 		(void)scale;

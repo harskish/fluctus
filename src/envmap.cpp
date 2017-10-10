@@ -1,8 +1,8 @@
 #include "envmap.hpp"
 
-EnvironmentMap::EnvironmentMap(const char *filename) : scale(1.0f)
+EnvironmentMap::EnvironmentMap(const std::string &filename) : scale(1.0f)
 {
-	FILE * f = fopen(filename, "rb");
+	FILE * f = fopen(filename.c_str(), "rb");
 
 	if(!f)
 	{

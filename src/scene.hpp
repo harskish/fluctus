@@ -15,12 +15,14 @@
 #include <ctime>
 #include <chrono>
 
+#include "tiny_obj_loader.h"
 #include "geom.h"
 #include "triangle.hpp"
 #include "envmap.hpp"
 #include "rtutil.hpp"
 #include "math/float3.hpp"
 #include "texture.hpp"
+#include "settings.hpp"
 
 using FireRays::float3;
 

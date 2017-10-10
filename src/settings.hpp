@@ -18,6 +18,7 @@ public:
     // Getters
     std::string getPlatformName() { return platformName; }
     std::string getDeviceName() { return deviceName; }
+    std::string getEnvMapName() { return envMapName; }
     std::map<unsigned int, std::string> getShortcuts() { return shortcuts; }
     int getWindowWidth() { return windowWidth; };
     int getWindowHeight() { return windowHeight; };
@@ -34,6 +35,7 @@ private:
     // Contents of settings singleton
     std::string platformName;
     std::string deviceName;
+    std::string envMapName;
     std::map<unsigned int, std::string> shortcuts;
     bool clUseBitstack;
     bool clUseSoA;

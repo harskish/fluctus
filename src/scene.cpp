@@ -1,7 +1,5 @@
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 
-#include <tiny_obj_loader.h>
-#include "tiny_obj_loader.h"
 #include "scene.hpp"
 
 Scene::Scene(const std::string filename)
@@ -19,7 +17,8 @@ Scene::Scene(const std::string filename)
 
     // Load scene data
     loadModel(filename); // Supports just single-file scenes for now
-    envmap = new EnvironmentMap("assets/env_maps/night.hdr");
+    std::string envMapName = Settings::getInstance().getEnvMapName();
+    envmap = new EnvironmentMap(envMapName);
 }
 
 Scene::~Scene()

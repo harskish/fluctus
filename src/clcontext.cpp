@@ -438,6 +438,7 @@ void CLContext::saveImage(std::string filename, RenderParams params, bool usingM
 	ilBindImage(imageID);
 	ilTexImage(params.width, params.height, 1, 3, IL_RGB, IL_UNSIGNED_BYTE, dataBytes.get());
 	ilSaveImage(filename.c_str());
+    ilDeleteImage(imageID);
 	
 	std::cout << "\nSaved " << filename << std::endl;
 }

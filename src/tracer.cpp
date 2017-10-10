@@ -102,6 +102,11 @@ void Tracer::update()
 
     // Update iteration counter
     iteration++;
+
+    if (iteration % 1000 == 0)
+    {
+        saveImage();
+    }
 }
 
 Tracer::Tracer(int width, int height) : useMK(true)
