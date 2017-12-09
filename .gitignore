@@ -3,7 +3,8 @@ hierarchies/
 data/states/
 data/kernel_binaries/
 Debug/
-/Release/
+Release/
+build/
 .vs/
 settings.json
 state.dat

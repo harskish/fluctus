@@ -19,10 +19,12 @@ public:
     std::string getPlatformName() { return platformName; }
     std::string getDeviceName() { return deviceName; }
     std::string getEnvMapName() { return envMapName; }
+    void setEnvMapName(const std::string name) { envMapName = name; };
     std::map<unsigned int, std::string> getShortcuts() { return shortcuts; }
     int getWindowWidth() { return windowWidth; };
     int getWindowHeight() { return windowHeight; };
     float getRenderScale() { return renderScale; };
+    void setRenderScale(float s) { renderScale = s; };
     bool getUseBitstack() { return clUseBitstack; }
     bool getUseSoA() { return clUseSoA; }
 

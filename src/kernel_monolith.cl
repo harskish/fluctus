@@ -359,7 +359,7 @@ kernel void trace(read_only image2d_t src, write_only image2d_t dst, global ucha
     float3 pixelColor = tracePath((float2)(x, y), iteration, texData, textures, lights, tris, materials, nodes, indices, envMap, params, stats);
     const float tex_weight = iteration * native_recip((float)(iteration) + 1.0f);
     float3 prev = read_imagef(src, (int2)(x, y)).xyz;
-    pixelColor = mix(pixelColor, prev, tex_weight); // don't clamp => can be tonemapped e.g. in GL shader
+    if (iteration > 0) pixelColor = mix(pixelColor, prev, tex_weight); // don't clamp => can be tonemapped e.g. in GL shader
     //*/
 
     write_imagef(dst, (int2)(x, y), (float4)(pixelColor, 1.0f));

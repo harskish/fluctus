@@ -60,20 +60,6 @@ struct AABB_t {
 	}
 };
 
-inline std::string unixifyPath(std::string path) {
-	size_t index = 0;
-	while (true) {
-		index = path.find("\\", index);
-		if (index == std::string::npos) break;
-
-		path.replace(index, 1, "/");
-		index += 1;
-	}
-
-	return path;
-}
-
-
 inline std::ostream& operator<<(std::ostream& os, const float4& v) {
     return os << "(" << v.x << ", " << v.y << ", " << v.z << ", " << v.w << ")";
 }

@@ -18,11 +18,14 @@ OpenCL wavefront path tracer
     - Cross-platform (Windows, MacOS, Linux)
     - NVIDIA, AMD and Intel GPUs and CPUs
     - CPU debugging with [Intel's OpenCL SDK][intel_ocl]
+- Nanogui-based [user interface](gallery/user_interface.png)
+	- Uses only modern OpenGL (3.3+)
+	- Drag and drop scene files and environment maps
 
 
 ## Usage
 
-Create settings.json to set default OpenCL device, render scale, default window dimensions etc.
+Rename settings_default.json to settings.json. Modify to set default OpenCL device, render scale, window dimensions etc.
 
 ### Controls
 
@@ -38,8 +41,10 @@ Create settings.json to set default OpenCL device, render scale, default window 
 | **F5**                  | Export image                                                                          |
 | **H**                   | Toggle light sources (environment/area/both)                                          |
 | **I / K**               | Adjust max bounces                                                                    |
+| **Z / X**               | Adjust environment map emission                                                       |
 | **L**                   | Open scene selector                                                                   |
 | **M**                   | Switch sampling mode                                                                  |
+| **U**                   | Toggle UI                                                                             |
 | **Page Up / Down**      | Adjust area light emission                                                            |
 | **1-5**                 | Select scene 1-5 (if set in settings.json)                                            |
 | **7**                   | Switch metween micro-/megakernel                                                      |
@@ -52,26 +57,8 @@ See the [build instructions](./BUILDING.md).
 
 ## License
 
-    Fluctus
-    Copyright © 2017 Erik Härkönen
-    
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
-    
-    The above copyright notice and this permission notice shall be included in
-    all copies or substantial portions of the Software.
-    
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-    THE SOFTWARE.
+See the [LICENSE](./LICENSE.md) file for license rights and limitations (MIT).
+
 
 [intel_ocl]: https://software.intel.com/intel-opencl
 [wavefront]: http://research.nvidia.com/publication/megakernels-considered-harmful-wavefront-path-tracing-gpus

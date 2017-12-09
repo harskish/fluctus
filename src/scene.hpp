@@ -25,26 +25,30 @@
 #include "settings.hpp"
 
 using FireRays::float3;
+class ProgressView;
 
 class Scene {
 public:
     Scene(const std::string filename);
     ~Scene();
 
+    void loadEnvMap(const std::string filename);
+    void setEnvMap(std::shared_ptr<EnvironmentMap> envMapPtr);
+    void loadModel(const std::string filename, ProgressView *progress); // load .obj or .ply model
+
     std::vector<RTTriangle> &getTriangles() { return triangles; }
     std::vector<Material> &getMaterials() { return materials; }
     std::vector<Texture*> &getTextures() { return textures; }
-    EnvironmentMap *getEnvMap() { return envmap; }
+    std::shared_ptr<EnvironmentMap> getEnvMap() { return envmap; }
 
     std::string hashString();
 
 private:
-    void loadModel(const std::string filename); // load .obj or .ply model
     void loadObjModel(const std::string filename);
     void loadPlyModel(const std::string filename);
 
     // With tiny_obj_loader
-    void loadObjWithMaterials(const std::string filename);
+    void loadObjWithMaterials(const std::string filename, ProgressView *progress);
     cl_int tryImportTexture(const std::string path, const std::string name);
 
     void unpackIndexedData(const std::vector<float3> &positions,
@@ -54,7 +58,7 @@ private:
 
   void computeHash(const std::string filename);
 
-  EnvironmentMap *envmap = nullptr;
+  std::shared_ptr<EnvironmentMap> envmap;
   std::vector<RTTriangle> triangles;
   std::vector<Material> materials;
   std::vector<Texture*> textures;

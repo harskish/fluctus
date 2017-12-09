@@ -1,22 +1,31 @@
 ## Dependencies
 
+- CMake 3.3
 - OpenCL 1.2
-- OpenGL
-- GLEW 1/2
+- OpenGL 3.3
 - GLFW 3.2
 - DevIL 1.8.0
+- Nanogui (submodule)
 
-Windows dependencies included.
-
+Prebuilt DevIL binaries for Windows included.
 
 ## Windows
 
 - Install an OpenCL SDK for libs and headers
 	- Intel OpenCL SDK recommended for kernel debugging support on Intel CPUs
 	- Alternatives include NVIDIA CUDA Toolkit, AMD APP SDK
-- Open VS2015 solution (or run CMake)
-- Copy DevIL.dll, ILU.dll and ILUT.dll (non-unicode) from dependencies/ to binary output folder
-	- Also done as a custom build step
+- Setup submodules:
+    ```
+    git submodule update --init --recursive
+    ```
+- Generate build files:
+    ```
+    mkdir build
+	cd build
+	cmake .. -G "Visual Studio 15 2017 Win64"
+    ```
+- Build using Visual Studio solution (set Fluctus as StartUp project)
+- Copy DevIL.dll and ILU.dll (non-unicode) from ext/windows/DevIL to binary output folder
 - Run in debug mode for CPU kernel debugging, release mode for performance
 
 ## Mac
@@ -25,7 +34,11 @@ Windows dependencies included.
 - Apple OpenCL framework used for OpenCL support
 - Install dependencies with [Homebrew][homebrew]:
 	```
-    brew install glfw3 glew devil
+    brew install glfw3 devil
+    ```
+- Setup submodules:
+    ```
+    git submodule update --init --recursive
     ```
 - Compile:
     ```
@@ -35,9 +48,9 @@ Windows dependencies included.
     ```
 - Run (in project root):
     ```
-    ./fluctus
+    ./build/fluctus
     ```
-- Alternatively, JetBrains CLion can compile the project directly using CMakeLists.txt    
+- Alternatively, JetBrains CLion can compile the project directly using CMakeLists.txt (working directory has to be changed in IDE settings)
     
 
 
@@ -49,9 +62,12 @@ Windows dependencies included.
 	- For CUDA Toolkit (cuda_8.0.27_linux.run), driver part can be skipped
 - Install dependencies:
 	```
-    sudo apt-get install build-essential opencl-headers libdevil-dev libglew-dev libglfw3-dev
+    sudo apt-get install build-essential opencl-headers libdevil-dev libglfw3-dev
     ```
-
+- Setup submodules:
+    ```
+    git submodule update --init --recursive
+    ```
 - Compile:
     ```
     mkdir build
@@ -60,9 +76,9 @@ Windows dependencies included.
     ```
 - Run (in project root):
     ```
-    ./fluctus
+    ./build/fluctus
     ```
-- Alternatively, JetBrains CLion can compile the project directly using CMakeLists.txt  
+- Alternatively, JetBrains CLion can compile the project directly using CMakeLists.txt (working directory has to be changed in IDE settings)
 
 
 [homebrew]: https://brew.sh/

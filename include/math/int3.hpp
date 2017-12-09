@@ -13,7 +13,7 @@ namespace FireRays
         
         int3(int v = 0) : x(v), y(v), z(v), w(v) {}
         int3(int xx, int yy, int zz, int ww = 0) : x(xx), y(yy), z(zz), w(ww) {}
-		int3(float3 v) : x(v.x), y(v.y), z(v.z), w(v.w) {}
+		int3(const float3 &v) : x(v.x), y(v.y), z(v.z), w(v.w) {}
 
         int&  operator [](int i)       { return *(&x + i); }
         int   operator [](int i) const { return *(&x + i); }

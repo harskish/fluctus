@@ -1,8 +1,10 @@
 #include "sbvh.hpp"
+#include "progressview.hpp"
 
-SBVH::SBVH(std::vector<RTTriangle>* tris, SplitMode mode)
+SBVH::SBVH(std::vector<RTTriangle>* tris, SplitMode mode, ProgressView *progressView)
 {
 	m_triangles = tris;
+	progress = progressView;
 
 	NodeSpec rootSpec;
 	rootSpec.refs = tris->size();
@@ -51,7 +53,7 @@ void SBVH::convertTree(SBVHNode *node, S32 parentId)
 	U32 ind = m_nodes.size();
 	m_nodes.push_back(Node());
 	m_nodes[ind].box = node->box;
-    m_nodes[ind].parent = parentId;
+	m_nodes[ind].parent = parentId;
 
 	if (node->isLeaf())
 	{
@@ -78,6 +80,7 @@ void SBVH::lazyPrintBuildStatus(F32 progress)
 		buildPercentage = percentage;
 		F32 duplicates = metrics.duplicates * 100.0f / m_triangles->size();
 		printf("\rSBVH builder: progress %d%% (%.2f%% duplicates)", percentage, duplicates);
+		this->progress->showMessage("Building SBVH", percentage / 100.0f);
 	}
 }
 
@@ -98,7 +101,7 @@ SBVHNode* SBVH::createLeaf(const NodeSpec& spec)
 }
 
 // SBVH construction algorithm, in line with Stich et al. chapter 4.1
-SBVHNode* SBVH::build(NodeSpec spec, int depth, F32 progressStart, F32 progressEnd)
+SBVHNode* SBVH::build(NodeSpec &spec, int depth, F32 progressStart, F32 progressEnd)
 {
 	lazyPrintBuildStatus(progressStart);
 	metrics.depth = std::max(metrics.depth, (U32)depth);

@@ -1,24 +1,14 @@
 cmake_minimum_required(VERSION 3.3)
 project(Fluctus)
 
-set(CMAKE_LIBRARY_PATH /usr/local/cuda-8.0/lib64/)
-find_package(OpenCL REQUIRED)
-find_package(OpenGL REQUIRED)
-find_package(GLEW REQUIRED)
-find_package(DevIL REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_search_module(GLFW REQUIRED glfw3)
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-writable-strings -Wno-missing-braces")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
-# Fix rgbe compilation on GCC
-# set_source_files_properties(src/rgbe/rgbe.cpp PROPERTIES COMPILE_FLAGS "-Wno-write-strings -Wno-sign-compare -Wno-unused-but-set-variable")
+add_subdirectory(ext ext_build)
 
 include_directories(
+    ext/nanogui/include
     ${GLEW_INCLUDE_DIR}
-    ${GLFW_INCLUDE_DIRS}
+    ${NANOGUI_EXTRA_INCS}
     ${IL_INCLUDE_DIR}
+    ${GLFW_INCLUDE_DIRS}
     ${OpenCL_INCLUDE_DIR}
     ${OPENGL_INCLUDE_DIR}
     include
@@ -30,10 +20,13 @@ set(SOURCE_FILES
     src/clcontext.hpp
     src/window.cpp
     src/window.hpp
+    src/progressview.cpp
+    src/progressview.hpp
     src/geom.h
     src/kernelreader.cpp
     src/kernelreader.hpp
     src/tracer.cpp
+    src/tracer_ui.cpp
     src/tracer.hpp
     src/bvh.hpp
     src/bvh.cpp
@@ -56,18 +49,33 @@ set(SOURCE_FILES
     src/texture.cpp
     src/texture.hpp
     src/GLProgram.cpp
-    src/GLProgram.hpp)
+    src/GLProgram.hpp
+    src/utils.h
+    src/bvh.cl
+    src/env_map.cl
+    src/random.cl
+    src/utils.cl
+    src/intersect.cl
+    src/kernel_monolith.cl
+    src/mk_next_vertex.cl
+    src/mk_raygen.cl
+    src/mk_reset.cl
+    src/mk_sample_explicit.cl
+    src/mk_splat.cl
+    src/mk_splat_preview.cl)
 
 add_executable(Fluctus ${SOURCE_FILES})
 
 target_link_libraries(Fluctus
+    nanogui
+    ${NANOGUI_EXTRA_LIBS}
     ${OPENGL_LIBRARIES}
-    ${GLEW_LIBRARY}
     ${OpenCL_LIBRARY}
-    ${GLFW_STATIC_LIBRARIES}
     ${IL_LIBRARIES}
     ${ILU_LIBRARIES}
 )
+
+set_target_properties(Fluctus PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")

@@ -1,5 +1,66 @@
 #include "tracer.hpp"
 #include "geom.h"
+#include "progressview.hpp"
+
+Tracer::Tracer(int width, int height) : useWavefront(true)
+{
+    // done only once (VS debugging stops working if context is recreated)
+    window = new PTWindow(width, height, this); // this = glfw user pointer
+    window->setShowFPS(true);
+    clctx = new CLContext();
+    window->setCLContextPtr(clctx);
+    window->setupGUI();
+    clctx->setup(window);
+    setupToolbar();
+    initCamera();
+    initAreaLight();
+
+    // done whenever a new scene is selected
+    init(width, height);
+    
+    // Show toolbar
+    toggleGUI();
+}
+
+// Run whenever a scene is laoded
+void Tracer::init(int width, int height, std::string sceneFile)
+{
+    float renderScale = Settings::getInstance().getRenderScale();
+
+    params.width = static_cast<unsigned int>(width * renderScale);
+    params.height = static_cast<unsigned int>(height * renderScale);
+    params.n_lights = sizeof(test_lights) / sizeof(PointLight);
+    params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
+    params.useEnvMap = 0;
+    params.useAreaLight = 1;
+    params.envMapStrength = 1.0f;
+    params.flashlight = 0;
+    params.maxBounces = 4;
+    params.sampleImpl = (cl_uint)true;
+    params.sampleExpl = (cl_uint)true;
+
+    window->showMessage("Loading scene");
+    selectScene(sceneFile);
+    loadState();
+    window->showMessage("Creating BVH");
+    initHierarchy();
+
+    // Diagonal gives maximum ray length within the scene
+    AABB_t bounds = bvh->getSceneBounds();
+    params.worldRadius = (cl_float)(length(bounds.max - bounds.min) * 0.5f);
+
+    window->showMessage("Uploading scene data");
+    clctx->uploadSceneData(bvh, scene.get());
+
+    // Data uploaded to GPU => no longer needed
+    delete bvh;
+
+    // Setup GUI sliders with correct values
+    updateGUI();
+
+    // Hide status message
+    window->hideMessage();
+}
 
 inline void printStats(const RenderStats &stats, CLContext *ctx)
 {
@@ -38,12 +99,13 @@ void Tracer::update()
         params.width = static_cast<unsigned int>(params.width * renderScale);
         params.height = static_cast<unsigned int>(params.height * renderScale);
 
+        updateGUI();
         clctx->updateParams(params);
         paramsUpdatePending = false;
         iteration = 0; // accumulation reset
     }
 
-    if (useMK)
+    if (useWavefront)
     {
         if (iteration == 0)
         {
@@ -79,21 +141,15 @@ void Tracer::update()
     {
         // Megakernel
         clctx->enqueueMegaKernel(params, frontBuffer, iteration);
+        frontBuffer = 1 - frontBuffer;
+        window->setFrontBuffer(frontBuffer);
     }
 
     // Finish command queue
     clctx->finishQueue();
 
     // Draw progress to screen
-    if (useMK)
-    {
-        window->drawPixelBuffer();
-    }
-    else
-    {
-        window->drawTexture(frontBuffer);
-        frontBuffer = 1 - frontBuffer;
-    }
+    window->draw();
 
     // Display render statistics (MRays/s) of previous frame
     // Asynchronously transfer render statistics from device
@@ -109,82 +165,53 @@ void Tracer::update()
     }
 }
 
-Tracer::Tracer(int width, int height) : useMK(true)
-{
-    // done only once (VS debugging stops working if context is recreated)
-    window = new PTWindow(width, height, this); // this = glfw user pointer
-    window->setShowFPS(true);
-    clctx = new CLContext(window->getTexPtr(), window->getPBO());
-    window->setCLContextPtr(clctx);
-    initCamera();
-    initAreaLight();
-
-    // done whenever a new scene is selected
-    init(width, height);
-}
-
-// Run whenever a scene is laoded
-void Tracer::init(int width, int height, std::string sceneFile)
-{
-    float renderScale = Settings::getInstance().getRenderScale();
-
-    params.width = static_cast<unsigned int>(width * renderScale);
-    params.height = static_cast<unsigned int>(height * renderScale);
-    params.n_lights = sizeof(test_lights) / sizeof(PointLight);
-    params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
-    params.useEnvMap = 0;
-    params.useAreaLight = 1;
-    params.envMapStrength = 1.0f;
-    params.flashlight = 0;
-    params.maxBounces = 4;
-    params.sampleImpl = (cl_uint)true;
-    params.sampleExpl = (cl_uint)true;
-
-    selectScene(sceneFile);
-    loadState();
-    initEnvMap();
-    initHierarchy();
-
-    // Diagonal gives maximum ray length within the scene
-    AABB_t bounds = bvh->getSceneBounds();
-    params.worldRadius = (cl_float)(length(bounds.max - bounds.min) * 0.5f);
-
-    clctx->uploadSceneData(bvh, scene);
-
-    // Data uploaded to GPU => no longer needed
-    delete scene;
-    delete bvh;
-}
-
 // Empty file name means scene selector is opened
 void Tracer::selectScene(std::string file)
 {
     if (file == "")
     {
-        char const * pattern[] = { "*.obj", "*.ply" };
-        char const *selected = tinyfd_openFileDialog("Select a scene file", "assets/", 2, pattern, NULL, 0); // allow only single selection
-        file = (selected) ? std::string(selected) : "assets/teapot.ply";
+        std::string selected = openFileDialog("Select a scene file", "assets/", { "*.obj", "*.ply" });
+        file = (selected != "") ? selected : "assets/teapot.ply";
     }
 
-    scene = new Scene(file);
+    scene.reset(new Scene(file));
+    scene->loadModel(file, window->getProgressView());
+    if (envMap)
+        scene->setEnvMap(envMap);
+
     sceneHash = scene->hashString();
+
+    std::string envMapName = Settings::getInstance().getEnvMapName();
+    if (envMapName == "")
+        return;
+
+    if (!envMap || envMap->getName() != envMapName)
+    {
+        envMap.reset(new EnvironmentMap(envMapName));
+        scene->setEnvMap(envMap);
+        initEnvMap();
+    }
+    else
+    {
+        std::cout << "Reusing environment map" << std::endl;
+    }
 }
 
 void Tracer::initEnvMap()
 {
-    EnvironmentMap *envMap = scene->getEnvMap();
+    // Bool operator => check if ptr is empty
     if (envMap && envMap->valid())
     {
         params.useEnvMap = (cl_int)true;
         this->hasEnvMap = true;
-        clctx->createEnvMap(envMap);
+        clctx->createEnvMap(envMap.get());
     }
 }
 
 // Check if old hierarchy can be reused
 void Tracer::initHierarchy()
 {
-	std::string hashFile = "data/hierarchies/hierarchy_" + sceneHash + ".bin" ;
+	std::string hashFile = "data/hierarchies/hierarchy_" + sceneHash + ".bin";
     std::ifstream input(hashFile, std::ios::in);
 
     if (input.good())
@@ -195,7 +222,7 @@ void Tracer::initHierarchy()
     else
     {
         std::cout << "Building BVH..." << std::endl;
-        constructHierarchy(scene->getTriangles(), SplitMode_Sah);
+        constructHierarchy(scene->getTriangles(), SplitMode_Sah, window->getProgressView());
         saveHierarchy(hashFile);
     }
 }
@@ -212,13 +239,16 @@ bool Tracer::running()
 }
 
 // Callback for when the window size changes
-void Tracer::resizeBuffers()
+void Tracer::resizeBuffers(int width, int height)
 {
+    window->getScreen()->resizeCallbackEvent(width, height);
+    ProgressView *pv = window->getProgressView();
+    if (pv) pv->center();
+
     window->createTextures();
     window->createPBO();
     clctx->setupPixelStorage(window->getTexPtr(), window->getPBO());
     paramsUpdatePending = true;
-    std::cout << std::endl;
 }
 
 inline void writeVec(std::fstream &out, FireRays::float3 &vec)
@@ -284,7 +314,6 @@ void Tracer::iterateStateItems(StateIO mode)
 	#undef rwVec
 }
 
-
 void Tracer::saveState()
 {
 	iterateStateItems(StateIO::WRITE);
@@ -299,7 +328,7 @@ void Tracer::saveImage()
 {
     std::time_t epoch = std::time(nullptr);
     std::string fileName = "output_" + std::to_string(epoch) + ".png";
-    clctx->saveImage(fileName, params, useMK);
+    clctx->saveImage(fileName, params, useWavefront);
 }
 
 void Tracer::loadHierarchy(const std::string filename, std::vector<RTTriangle>& triangles)
@@ -314,11 +343,11 @@ void Tracer::saveHierarchy(const std::string filename)
     bvh->exportTo(filename);
 }
 
-void Tracer::constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode)
+void Tracer::constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode, ProgressView *progress)
 {
     m_triangles = &triangles;
     params.n_tris = (cl_uint)m_triangles->size();
-    bvh = new SBVH(m_triangles, splitMode);
+    bvh = new SBVH(m_triangles, splitMode, progress);
 }
 
 void Tracer::initCamera()
@@ -332,6 +361,7 @@ void Tracer::initCamera()
 
     params.camera = cam;
     cameraRotation = float2(0.0f);
+    cameraSpeed = 1.0f;
     paramsUpdatePending = true;
 }
 
@@ -423,11 +453,55 @@ void Tracer::toggleLightSourceMode()
     }
 }
 
+void Tracer::toggleRenderer()
+{
+    useWavefront = !useWavefront;
+    window->setRenderMethod((useWavefront) ? PTWindow::RenderMethod::WAVEFRONT : PTWindow::RenderMethod::MEGAKERNEL);
+}
+
+void Tracer::handleChar(unsigned int codepoint)
+{
+    window->getScreen()->charCallbackEvent(codepoint);
+}
+
+void Tracer::handleFileDrop(int count, const char **filenames)
+{
+    if (window->getScreen()->dropCallbackEvent(count, filenames)) return;
+
+    for (int i = 0; i < count; i++)
+    {
+        std::string file(filenames[i]);
+        if (endsWith(file, ".obj") || endsWith(file, ".ply"))
+        {
+            init(params.width, params.height, file);
+            paramsUpdatePending = true;
+            return;
+        }
+        if (endsWith(file, ".hdr"))
+        {
+            if (!envMap || envMap->getName() != file)
+            {
+                Settings::getInstance().setEnvMapName(file);
+                envMap.reset(new EnvironmentMap(file));
+                scene->setEnvMap(envMap);
+                initEnvMap();
+                paramsUpdatePending = true;
+            }
+            
+            return;
+        }
+    }
+
+    std::cout << "Unknown file format" << std::endl;
+}
+
 // Functional keys that need to be triggered only once per press
 #define matchInit(key, expr) case key: expr; paramsUpdatePending = true; break;
 #define matchKeep(key, expr) case key: expr; break;
-void Tracer::handleKeypress(int key)
+void Tracer::handleKeypress(int key, int scancode, int action, int mods)
 {
+    if (window->getScreen()->keyCallbackEvent(key, scancode, action, mods)) return;
+
     switch (key)
     {
         // Force init
@@ -438,17 +512,18 @@ void Tracer::handleKeypress(int key)
         matchInit(GLFW_KEY_5,           quickLoadScene(5));
         matchInit(GLFW_KEY_L,           init(params.width, params.height));  // opens scene selector
         matchInit(GLFW_KEY_H,           toggleLightSourceMode());
-        matchInit(GLFW_KEY_7,           useMK = !useMK);
+        matchInit(GLFW_KEY_7,           toggleRenderer());
         matchInit(GLFW_KEY_F1,          initCamera());
         matchInit(GLFW_KEY_F3,          loadState());
         matchInit(GLFW_KEY_SPACE,       updateAreaLight());
-        matchInit(GLFW_KEY_I,           std::cout << std::endl << "MAX_BOUNCES: " << ++params.maxBounces << std::endl);
-        matchInit(GLFW_KEY_K,           std::cout << std::endl << "MAX_BOUNCES: " << (params.maxBounces > 0 ? (--params.maxBounces) : 0) << std::endl);
+        matchInit(GLFW_KEY_I,           params.maxBounces += 1);
+        matchInit(GLFW_KEY_K,           params.maxBounces = std::max(1u, params.maxBounces) - 1);
         matchInit(GLFW_KEY_M,           toggleSamplingMode());
 
         // Don't force init
         matchKeep(GLFW_KEY_F2,          saveState());
         matchKeep(GLFW_KEY_F5,          saveImage());
+        matchKeep(GLFW_KEY_U,           toggleGUI());
     }
 }
 #undef matchInit
@@ -458,6 +533,8 @@ void Tracer::handleKeypress(int key)
 #define check(key, expr) if(window->keyPressed(key)) { expr; paramsUpdatePending = true; }
 void Tracer::pollKeys()
 {
+    if (shouldSkipPoll()) return;
+    
     Camera &cam = params.camera;
 
     check(GLFW_KEY_W,           cam.pos += cameraSpeed * 0.07f * cam.dir);
@@ -486,8 +563,10 @@ void Tracer::pollKeys()
 }
 #undef check
 
-void Tracer::handleMouseButton(int key, int action)
+void Tracer::handleMouseButton(int key, int action, int mods)
 {
+    if (window->getScreen()->mouseButtonCallbackEvent(key, action, mods)) return;
+
     switch(key)
     {
         case GLFW_MOUSE_BUTTON_LEFT:
@@ -516,6 +595,8 @@ void Tracer::handleMouseButton(int key, int action)
 
 void Tracer::handleCursorPos(double x, double y)
 {
+    if (window->getScreen()->cursorPosCallbackEvent(x, y)) return;
+
     if(mouseButtonState[0])
     {
         float2 newPos = float2((float)x, (float)y);
@@ -535,4 +616,5 @@ void Tracer::handleMouseScroll(double yoffset)
 {
     float newSpeed = (yoffset > 0) ? cameraSpeed * 1.2f : cameraSpeed / 1.2f;
     cameraSpeed = std::max(1e-3f, std::min(1e6f, newSpeed));
+    updateGUI();
 }

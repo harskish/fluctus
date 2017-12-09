@@ -1,6 +1,4 @@
 #include "clcontext.hpp"
-#include "geom.h"
-#include <stdlib.h>
 
 inline bool platformIsNvidia(cl::Platform platform)
 {
@@ -20,7 +18,7 @@ inline std::string getAbsolutePath(std::string filename)
     return std::string(resolved_path);
 }
 
-CLContext::CLContext(GLuint *textures, GLuint gl_PBO)
+CLContext::CLContext()
 {
     // Remove kernel caching to always get build logs (on NVIDIA hardware)
     #ifdef _WIN32
@@ -74,6 +72,11 @@ CLContext::CLContext(GLuint *textures, GLuint gl_PBO)
     // Create command queue for context
     cmdQueue = cl::CommandQueue(context, device, 0, &err);
     verify("Failed to create command queue!");
+}
+
+void CLContext::setup(PTWindow *window)
+{
+    this->window = window;
 
     // Setup RenderParams
     setupParams();
@@ -82,11 +85,11 @@ CLContext::CLContext(GLuint *textures, GLuint gl_PBO)
     setupStats();
 
     // Create OpenCL buffer from OpenGL PBO
-    setupPixelStorage(textures, gl_PBO);
+    setupPixelStorage(window->getTexPtr(), window->getPBO());
 
     // Allocate device memory for scene
     setupScene();
-    
+
     // Build kernels, set their params
     setupKernels();
 }
@@ -188,6 +191,9 @@ void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::strin
 {
     // Kernel already exists
     if (target()) return;
+
+    // Show progress
+    window->showMessage("Building kernel", fileName);
 
     // Read kernel source from file
     std::string kernelPath = "src/" + fileName;
@@ -370,7 +376,6 @@ void CLContext::setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO)
 {
     if (sharedMemory.size() > 0)
     {
-        std::cout << "Removing old textures + PBO" << std::endl;
         sharedMemory.clear(); // memory freed by cl-cpp-wrapper
     }
 
@@ -392,7 +397,7 @@ void CLContext::setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO)
 	verify("Failed to update kernel pixel storage args");
 }
 
-void CLContext::saveImage(std::string filename, RenderParams params, bool usingMicroKernel)
+void CLContext::saveImage(std::string filename, const RenderParams &params, bool usingMicroKernel)
 {
     unsigned int numBytes = params.width * params.height * 3; // rgb
     unsigned int numFloats = params.width * params.height * 4; // rgba
@@ -484,6 +489,9 @@ void CLContext::createEnvMap(EnvironmentMap *map)
 
 	// Cleanup
     delete[] rgba;
+
+    // Update env map references
+    setupKernels();
 }
 
 void CLContext::setupScene()
@@ -627,6 +635,7 @@ void CLContext::setupStats()
 void CLContext::resetStats()
 {
     RenderStats s = { 0, 0, 0, 0 };
+    statsAsync = s;
     err = cmdQueue.enqueueWriteBuffer(renderStats, CL_TRUE, 0, sizeof(RenderStats), &s);
     verify("Stats buffer reset failed!");
 }
@@ -637,7 +646,7 @@ void CLContext::fetchStatsAsync()
     verify("Failed to enqueue async stat transfer!");
 }
 
-const RenderStats &CLContext::getStats()
+const RenderStats CLContext::getStats()
 {
     return statsAsync;
 }
@@ -834,10 +843,7 @@ void CLContext::verify(std::string msg, int pred)
     {
         std::string message = msg + " (" + errorString() + ")";
         std::cout << message << std::endl;
-#ifdef WIN32
-        system("pause");
-#endif
-        exit(1);
+        waitExit();
     }
 }
 

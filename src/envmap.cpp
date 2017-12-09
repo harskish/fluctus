@@ -7,13 +7,14 @@ EnvironmentMap::EnvironmentMap(const std::string &filename) : scale(1.0f)
 	if(!f)
 	{
 		std::cout << "Cannot open file '" << filename << "'" << std::endl;
-        exit(1);
+        waitExit();
 	}
 
 	RGBE_ReadHeader(f, &width, &height, NULL);
 	data = new float [width * height * 3];
 	RGBE_ReadPixels_RLE(f, data, width, height);
 	fclose(f);
+    name = filename;
 
 	computeProbabilities();
 	std::cout << "Read environment map of size [" << width << ", " << height << "]" << std::endl;

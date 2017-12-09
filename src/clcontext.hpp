@@ -2,9 +2,6 @@
 
 #ifdef _DEBUG
 #define CPU_DEBUGGING
-#ifndef _WIN64
-static_assert(false, "Debugger might segfault on Win32 builds, proceed with caution!");
-#endif
 #endif
 
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
@@ -21,16 +18,19 @@ static_assert(false, "Debugger might segfault on Win32 builds, proceed with caut
 #include <GL/glxew.h>
 #elif defined(_WIN32)
 #define NOMINMAX
-#include <GL/glew.h> //needed?
-#include <GL/wglew.h>
+#include <glad/glad.h>
+#include <Windows.h>
 #endif
 
+#include <glad/glad.h>
 #include <GLFW/glfw3.h> // texture conversion stuff
 #include <iostream>
+#include <stdlib.h>
 #include <fstream>
 #include <string>
 #include <cmath>
 #include <vector>
+#include "geom.h"
 #include "math/float3.hpp"
 #include "kernelreader.hpp"
 #include "geom.h"
@@ -40,6 +40,8 @@ static_assert(false, "Debugger might segfault on Win32 builds, proceed with caut
 #include "bvh.hpp"
 #include "scene.hpp"
 #include "texture.hpp"
+#include "window.hpp"
+#include "utils.h"
 
 using FireRays::float3;
 
@@ -63,13 +65,14 @@ static PointLight test_lights[] =
     //{ RGB2f3(255, 255, 255) * 30.0f, { float3(0.0f, 10.0f, 0.0f) } },
 };
 
+class PTWindow;
 class CLContext
 {
 
 friend class Tracer;
 
 public:
-    CLContext(GLuint *textures, GLuint gl_PBO);
+    CLContext();
     ~CLContext();
 
     void enqueueMegaKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
@@ -81,16 +84,17 @@ public:
     void enqueueSplatPreviewKernel(const RenderParams &params);
     void finishQueue();
 
+    void setup(PTWindow *window);
     void setupParams();
     void setupStats();
     void resetStats();
     void fetchStatsAsync();
-    const RenderStats &getStats();
+    const RenderStats getStats();
 
     void updateParams(const RenderParams &params);
     void uploadSceneData(BVH *bvh, Scene *scene);
     void setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO);
-	void saveImage(std::string filename, RenderParams params, bool usingMicroKernel);
+	void saveImage(std::string filename, const RenderParams &params, bool usingMicroKernel);
     void createEnvMap(EnvironmentMap *map);
 private:
     void printDevices();
@@ -119,9 +123,12 @@ private:
 #ifdef CPU_DEBUGGING
     const cl_uint NUM_TASKS = 1;
 #else
-    const cl_uint NUM_TASKS = 2 << 20;   // the amount of paths in flight simultaneously, limited by VRAM
+    const cl_uint NUM_TASKS = 2 << 19;   // the amount of paths in flight simultaneously, limited by VRAM
 #endif
 
+    // For showing progress
+    PTWindow *window;
+    
     std::vector<cl::Device> clDevices;
     cl::Device device;
     cl::Platform platform;

@@ -1,8 +1,11 @@
 #pragma once
 
-#include <GL/glew.h>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <nanogui/nanogui.h>
 #include "clcontext.hpp"
 #include <string>
+#include <map>
 #include <cmath>
 #include "geom.h"
 #include "window.hpp"
@@ -12,7 +15,6 @@
 #include "bvh.hpp"
 #include "sbvh.hpp"
 #include "scene.hpp"
-#include "tinyfiledialogs.h"
 
 using namespace FireRays;
 
@@ -24,18 +26,35 @@ public:
 
     bool running();
     void update();
-    void resizeBuffers();
-    void handleMouseButton(int key, int action);
+    void resizeBuffers(int w, int h);
+    void handleMouseButton(int key, int action, int mods);
     void handleCursorPos(double x, double y);
 	void handleMouseScroll(double yoffset);
-    void handleKeypress(int key); // function keys
+    void handleKeypress(int key, int scancode, int action, int mods); // function keys
+    void handleChar(unsigned int codepoint);
+    void handleFileDrop(int count, const char **filenames);
+
+    // GUI - implemented in tracer_ui.cpp
+private:
+    void setupToolbar();
+    void addRendererSettings(nanogui::Widget *parent);
+    void addCameraSettings(nanogui::Widget *parent);
+    void addEnvMapSettings(nanogui::Widget *parent);
+    void addAreaLightSettings(nanogui::Widget *parent);
+    void addStateSettings(nanogui::Widget *parent);
+    void updateGUI();
+    void toggleGUI();
+    bool shouldSkipPoll();
+    nanogui::Window *tools;
+    std::map<std::string, void*> uiMapping;
+    std::vector<nanogui::TextBox*> inputBoxes; // for checking focus
 
 private:
     // Create/load/export BVH
     void initHierarchy();
     void loadHierarchy(const std::string filename, std::vector<RTTriangle> &triangles);
     void saveHierarchy(const std::string filename);
-    void constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode);
+    void constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode, ProgressView* progress);
 
     void pollKeys();              // movement keys
     void updateCamera();
@@ -53,6 +72,7 @@ private:
     void quickLoadScene(unsigned int num);
     void toggleSamplingMode();
     void toggleLightSourceMode();
+    void toggleRenderer();
     void initEnvMap();
     void init(int width, int height, std::string sceneFile = "");
 
@@ -65,13 +85,14 @@ private:
     bool mouseButtonState[3] = { false, false, false };
     bool paramsUpdatePending = true; // force initial param update
 
-    Scene *scene;
-    BVH *bvh;
+    std::unique_ptr<Scene> scene;
+    std::shared_ptr<EnvironmentMap> envMap;
+    BVH *bvh = nullptr;
     std::vector<RTTriangle>* m_triangles;
     std::string sceneHash;
     cl_uint iteration;
     int frontBuffer = 0;
     bool hasEnvMap = false;
 
-    bool useMK;
+    bool useWavefront;
 };

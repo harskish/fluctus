@@ -11,6 +11,7 @@
 #include <stack>
 #include "rgbe/rgbe.hpp"
 #include "geom.h"
+#include "utils.h"
 
 class EnvironmentMap
 {
@@ -20,6 +21,7 @@ public:
 		height(0),
 		scale(1.0f),
 		data(NULL),
+        name(""),
 		pdfTable(NULL),
 		probTable(NULL),
 		aliasTable(NULL)
@@ -35,6 +37,7 @@ public:
 		delete[] pdfTable;
 	}
 
+    std::string getName() { return name; }
 	float *getData() { return data; }
 	float *getProbTable() { return probTable; }
 	int *getAliasTable() { return aliasTable; }
@@ -50,6 +53,7 @@ private:
 	int width, height;
 	float scale;
 	float *data; // used by clcontext to create cl::Image2D
+    std::string name;
 	
 	// For importance sampling (alias method)
 	float *pdfTable;

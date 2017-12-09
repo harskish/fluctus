@@ -1,24 +1,32 @@
 #pragma once
 
-#include <GL/glew.h> // somehow included first of all glew includes?
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <nanogui/nanogui.h>
 #include <iostream>
 #include <string>
-#include "clcontext.hpp"
 #include "GLProgram.hpp"
 #include "math/float2.hpp"
 
 using FireRays::float2;
 
+class ProgressView;
+class CLContext;
 class PTWindow
 {
 public:
     PTWindow(int w, int h, void *tracer);
     ~PTWindow();
 
-    void repaint(int frontBuffer);
-	void drawPixelBuffer();
-	void drawTexture(int frontBuffer);
+    enum RenderMethod
+    {
+        WAVEFRONT,
+        MEGAKERNEL
+    };
+    
+    void draw();
+    void setRenderMethod(RenderMethod method) { renderMethod = method; };
+    void setFrontBuffer(int fb) { frontBuffer = fb; }
 
     bool available()
     {
@@ -29,6 +37,11 @@ public:
     void createTextures();
 	void createPBO();
     void requestClose();
+    void setupGUI();
+
+    void showError(const std::string &msg);
+    void showMessage(const std::string &primary, const std::string &secondary = "");
+    void hideMessage();
 
     float2 getCursorPos();
     bool keyPressed(int key);
@@ -38,15 +51,24 @@ public:
     GLuint *getTexPtr() { return gl_textures; }
 	GLuint getPBO() { return gl_PBO; }
     void getFBSize(unsigned int &w, unsigned int &h);
+    nanogui::Screen *getScreen() { return screen; }
+    ProgressView *getProgressView() { return progress; }
 
 private:
+    void drawPixelBuffer();
+    void drawTexture();
     double calcFPS(double interval = 1.0, std::string theWindowTitle = "");
 
     CLContext *clctx; // for showing stats
     GLFWwindow *window;
+    nanogui::Screen *screen;
+    ProgressView *progress = nullptr;
+
     GLuint gl_textures[2] = { 0, 0 };
 	GLuint gl_PBO = 0;
 	GLuint gl_PBO_texture;
-    unsigned int textureWidth, textureHeight;
+    unsigned int textureWidth = 0, textureHeight = 0;
     bool show_fps = false;
+    RenderMethod renderMethod = WAVEFRONT;
+    int frontBuffer = 0;
 };

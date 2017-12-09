@@ -5,10 +5,11 @@
 #include <map>
 #include <algorithm>
 #include <cstdlib>
-#include <GL/glew.h>
+#include <glad/glad.h>
 #include "math/float2.hpp"
 #include "math/float3.hpp"
 #include "math/matrix.hpp"
+#include "utils.h"
 
 #define GL_SHADER_SOURCE(CODE) #CODE
 
@@ -41,6 +42,8 @@ public:
 	GLint           getUniformLoc(const string& name) const;
 
 	void            use(void);
+    void            addVAOs(GLuint *arr, int num);
+    void            bindVAO(int ind);
 
 	static GLuint   createGLShader(GLenum type, const string& typeStr, const string& source);
 	static void     linkGLProgram(GLuint prog);
@@ -51,7 +54,6 @@ public:
 
 	void             setUniform(int loc, int v) { if (loc >= 0) glUniform1i(loc, v); }
 	void             setUniform(int loc, float v) { if (loc >= 0) glUniform1f(loc, v); }
-	void             setUniform(int loc, double v) { if (loc >= 0) glUniform1d(loc, v); }
 	void             setUniform(int loc, const float2& v) { if (loc >= 0) glUniform2f(loc, v.x, v.y); }
 	void             setUniform(int loc, const float3& v) { if (loc >= 0) glUniform3f(loc, v.x, v.y, v.z); }
 	void             setUniform(int loc, const matrix& v) { if (loc >= 0) glUniformMatrix4fv(loc, 1, false, &v.m00); }
@@ -73,6 +75,7 @@ private:
 	// Map that contains all compiled GLPrograms
 	static std::map<string, GLProgram*> s_programs;
 	
+    std::vector<GLuint> vaos;
 	int				m_numAttribs = 0;
 	GLuint          m_glVertexShader;
 	GLuint          m_glGeometryShader;

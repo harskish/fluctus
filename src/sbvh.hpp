@@ -11,6 +11,7 @@
 #include "math/int3.hpp"
 
 using FireRays::int3;
+class ProgressView;
 
 /*
 	Split BVH (SBVH), based on "Spatial Splits in Bounding Volume Hierarchies" by Stich et al.
@@ -20,14 +21,14 @@ using FireRays::int3;
 class SBVH : public BVH
 {
 public:
-	SBVH(std::vector<RTTriangle>* tris, SplitMode mode);
+	SBVH(std::vector<RTTriangle>* tris, SplitMode mode, ProgressView *progress);
 	SBVH(std::vector<RTTriangle>* tris, const std::string filename) : BVH(tris, filename) {}
 	~SBVH() {}
 
 private:
 	struct NodeSpec;
 
-	SBVHNode* build(NodeSpec spec, int depth, F32 progressStart, F32 progressEnd);
+	SBVHNode* build(NodeSpec &spec, int depth, F32 progressStart, F32 progressEnd);
 	SBVHNode* createLeaf(const NodeSpec& spec);
 	SplitInfo binSplit(const NodeSpec& spec, F32 nodeSAH);
 	SplitInfo sahSplit(const NodeSpec& spec, F32 nodeSAH);
@@ -67,6 +68,8 @@ private:
 		S32 entering;
 		S32 exiting;
 	};
+
+	ProgressView *progress;
 	
 	Bin bins[3][NumSpatialBins];
 	F32 splitAlpha = 1e-5f; // ~35% duplication rate

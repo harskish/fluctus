@@ -2,30 +2,6 @@
 
 std::map<string, GLProgram*> GLProgram::s_programs; // static
 
-inline void checkErrors()
-{
-	GLenum err = glGetError();
-	const char* name;
-	switch (err)
-	{
-	case GL_NO_ERROR:                       name = NULL; break;
-	case GL_INVALID_ENUM:                   name = "GL_INVALID_ENUM"; break;
-	case GL_INVALID_VALUE:                  name = "GL_INVALID_VALUE"; break;
-	case GL_INVALID_OPERATION:              name = "GL_INVALID_OPERATION"; break;
-	case GL_STACK_OVERFLOW:                 name = "GL_STACK_OVERFLOW"; break;
-	case GL_STACK_UNDERFLOW:                name = "GL_STACK_UNDERFLOW"; break;
-	case GL_OUT_OF_MEMORY:                  name = "GL_OUT_OF_MEMORY"; break;
-	case GL_INVALID_FRAMEBUFFER_OPERATION:  name = "GL_INVALID_FRAMEBUFFER_OPERATION"; break;
-	default:                                name = "unknown"; break;
-	}
-
-	if (name)
-	{
-		printf("Caught GL error 0x%04x (%s)!", err, name);
-		exit(1);
-	}		
-}
-
 
 GLProgram::GLProgram(const string& vertexSource, const string& fragmentSource)
 {
@@ -45,6 +21,7 @@ GLProgram::~GLProgram(void)
 	glDeleteShader(m_glVertexShader);
 	glDeleteShader(m_glGeometryShader);
 	glDeleteShader(m_glFragmentShader);
+    glDeleteVertexArrays(vaos.size(), vaos.data());
 }
 
 
@@ -63,6 +40,20 @@ GLint GLProgram::getUniformLoc(const string& name) const
 void GLProgram::use(void)
 {
 	glUseProgram(m_glProgram);
+}
+
+// Insert VAO handles into vector
+void GLProgram::addVAOs(GLuint * arr, int num)
+{
+    for (int i = 0; i < num; i++)
+    {
+        vaos.push_back(arr[i]);
+    }
+}
+
+void GLProgram::bindVAO(int ind)
+{
+    glBindVertexArray(vaos[ind]);
 }
 
 // Static
@@ -105,38 +96,18 @@ GLuint GLProgram::createGLShader(GLenum type, const string& typeStr, const strin
 		if (!infoLen)
 		{
 			printf("glCompileShader(%s) failed!", typeStr.c_str());
-			exit(1);
+            waitExit();
 		}
 
 		std::vector<char> info(infoLen);
 		info[0] = '\0';
 		glGetShaderInfoLog(shader, infoLen, &infoLen, info.data());
 		printf("glCompileShader(%s) failed!\n\n%s", typeStr.c_str(), info.data());
-		exit(1);
+        waitExit();
 	}
 
-	checkErrors();
+	GLcheckErrors();
 	return shader;
-}
-
-
-void GLProgram::setAttrib(int loc, int size, GLenum type, int stride, GLuint buffer, const void* pointer)
-{
-	if (loc < 0)
-		return;
-
-	glBindBuffer(GL_ARRAY_BUFFER, (buffer) ? buffer : 0);
-	glEnableVertexAttribArray(loc);
-	glVertexAttribPointer(loc, size, type, GL_FALSE, stride, pointer);
-	m_numAttribs = std::max(m_numAttribs, loc + 1);
-}
-
-void GLProgram::resetAttribs(void)
-{
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	for (int i = 0; i < m_numAttribs; i++)
-		glDisableVertexAttribArray(i);
-	m_numAttribs = 0;
 }
 
 
@@ -152,17 +123,17 @@ void GLProgram::linkGLProgram(GLuint prog)
 		if (!infoLen)
 		{
 			printf("glLinkGLProgram() failed!");
-			exit(1);
+            waitExit();
 		}
 
 		std::vector<char> info(infoLen);
 		info[0] = '\0';
 		glGetProgramInfoLog(prog, infoLen, &infoLen, info.data());
 		printf("glLinkGLProgram() failed!\n\n%s", info.data());
-		exit(1);
+        waitExit();
 	}
 
-	checkErrors();
+    GLcheckErrors();
 }
 
 
@@ -174,6 +145,8 @@ void GLProgram::init(const string& vertexSource, GLenum geomInputType, GLenum ge
 	m_glVertexShader = createGLShader(GL_VERTEX_SHADER, "GL_VERTEX_SHADER", vertexSource);
 	glAttachShader(m_glProgram, m_glVertexShader);
 
+    GLcheckErrors();
+
 	// Setup geometry shader (GL_ARB_geometry_shader4)
 	if (geometrySource.length() == 0)
 	{
@@ -181,17 +154,8 @@ void GLProgram::init(const string& vertexSource, GLenum geomInputType, GLenum ge
 	}
 	else
 	{
-		m_glGeometryShader = createGLShader(GL_GEOMETRY_SHADER_ARB, "GL_GEOMETRY_SHADER_ARB", geometrySource);
+		m_glGeometryShader = createGLShader(GL_GEOMETRY_SHADER, "GL_GEOMETRY_SHADER", geometrySource);
 		glAttachShader(m_glProgram, m_glGeometryShader);
-
-		if (glProgramParameteriARB == NULL)
-		{
-			printf("glGLProgramParameteriARB() not available!");
-			exit(1);
-		}
-		glProgramParameteriARB(m_glProgram, GL_GEOMETRY_INPUT_TYPE_ARB, geomInputType);
-		glProgramParameteriARB(m_glProgram, GL_GEOMETRY_OUTPUT_TYPE_ARB, geomOutputType);
-		glProgramParameteriARB(m_glProgram, GL_GEOMETRY_VERTICES_OUT_ARB, geomVerticesOut);
 	}
 
 	// Setup fragment shader

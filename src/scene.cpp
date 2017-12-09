@@ -1,6 +1,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 
 #include "scene.hpp"
+#include "progressview.hpp"
 
 Scene::Scene(const std::string filename)
 {
@@ -14,20 +15,24 @@ Scene::Scene(const std::string filename)
     def.map_Kd = -1;
     def.map_Ks = -1;
     materials.push_back(def);
-
-    // Load scene data
-    loadModel(filename); // Supports just single-file scenes for now
-    std::string envMapName = Settings::getInstance().getEnvMapName();
-    envmap = new EnvironmentMap(envMapName);
 }
 
 Scene::~Scene()
 {
-    if(envmap) delete envmap;
     for (Texture *t : textures)
     {
         delete t;
     }
+}
+
+void Scene::loadEnvMap(const std::string filename)
+{
+    envmap.reset(new EnvironmentMap(filename));
+}
+
+void Scene::setEnvMap(std::shared_ptr<EnvironmentMap> envMapPtr)
+{
+    envmap = envMapPtr;
 }
 
 void Scene::computeHash(const std::string filename)
@@ -38,7 +43,7 @@ void Scene::computeHash(const std::string filename)
     if (!input)
     {
         std::cout << "Could not open file " << filename << " for hashing, exiting..." << std::endl;
-        exit(1);
+        waitExit();
     }
 
     // Read the file line by line.
@@ -59,15 +64,7 @@ std::string Scene::hashString()
     return ss.str();
 }
 
-inline bool endsWith(const std::string s, const std::string end) {
-    size_t len = end.size();
-    if (len > s.size()) return false;
-
-    std::string substr = s.substr(s.size() - len, len);
-    return end == substr;
-}
-
-void Scene::loadModel(const std::string filename)
+void Scene::loadModel(const std::string filename, ProgressView *progress)
 {
     // Starting time for model loading
     auto time1 = std::chrono::high_resolution_clock::now();
@@ -76,7 +73,7 @@ void Scene::loadModel(const std::string filename)
     {
         std::cout << "Loading OBJ file: " << filename << std::endl;
         computeHash(filename);
-        loadObjWithMaterials(filename); //loadObjModel(filename);
+        loadObjWithMaterials(filename, progress); //loadObjModel(filename);
     }
     else if (endsWith(filename, "ply"))
     {
@@ -87,7 +84,7 @@ void Scene::loadModel(const std::string filename)
     else
     {
         std::cout << "Cannot load file " << filename << ": unknown file format" << std::endl;
-        exit(1);
+        waitExit();
     }
 
     // Print elapsed time
@@ -163,7 +160,7 @@ inline void setFaceFormat(int &format, std::string &format_string, bool &negativ
     }
 }
 
-void Scene::loadObjWithMaterials(const std::string filePath)
+void Scene::loadObjWithMaterials(const std::string filePath, ProgressView *progress)
 {
     std::vector<tinyobj::shape_t> shapesVec;
     std::vector<tinyobj::material_t> materialsVec;
@@ -173,7 +170,9 @@ void Scene::loadObjWithMaterials(const std::string filePath)
     size_t fileNameStart = filePath.find_last_of("\\"); // assume Windows
     if (fileNameStart == std::string::npos) fileNameStart = filePath.find_last_of("/"); // Linux/MacOS
     std::string folderPath = filePath.substr(0, fileNameStart + 1);
+    std::string meshName = filePath.substr(fileNameStart + 1);
 
+    progress->showMessage("Loading mesh", meshName);
     bool ret = tinyobj::LoadObj(&attrib, &shapesVec, &materialsVec, &err, filePath.c_str(), folderPath.c_str());
 
     if (!err.empty()) // `err` may contain warning message.
@@ -183,14 +182,19 @@ void Scene::loadObjWithMaterials(const std::string filePath)
 
     if (!ret)
     {
-        exit(1);
+        std::cout << "OBJ loading failed (tinyobjloader)" << std::endl;
+        waitExit();
     }
-
-    std::cout << "# of shapes    : " << shapesVec.size() << std::endl;
-    std::cout << "# of materials : " << materialsVec.size() << std::endl;
 
     const bool hasNormals = attrib.normals.size() > 0;
     const bool hasTexCoords = attrib.texcoords.size() > 0;
+
+
+    size_t numTris = 0;
+    for (tinyobj::shape_t &s : shapesVec)
+    {
+        numTris += s.mesh.indices.size() / 3;
+    }
 
     // Loop over shapesVec in file
     for (size_t i = 0; i < shapesVec.size(); i++)
@@ -201,6 +205,12 @@ void Scene::loadObjWithMaterials(const std::string filePath)
         // Loop over faces in the shape's mesh
         for (size_t f = 0; f < shape.mesh.indices.size() / 3; f++)
         {
+            // Progress bar
+            size_t N = triangles.size();
+            float done = (float)N / numTris;
+            if (N % 5000 == 0)
+                progress->showMessage("Converting mesh", meshName, done);
+            
             VertexPNT V[3];
             
             // Vertices
@@ -289,7 +299,7 @@ void Scene::loadObjModel(const std::string filename)
     if(!input)
     {
         std::cout << "Could not open file: " << filename << ", exiting..." << std::endl;
-        exit(1);
+        waitExit();
     }
 
     // Read the file line by line.
@@ -489,7 +499,7 @@ void Scene::loadPlyModel(const std::string filename)
                 else
                 {
                     std::cout << "Unknown polygon type!" << std::endl;
-                    exit(1);
+                    waitExit();
                 }
             }
         }

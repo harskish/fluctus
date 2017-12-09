@@ -1,7 +1,7 @@
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
 #define CL_HPP_TARGET_OPENCL_VERSION 120
 
-#include <GL/glew.h>
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "cl2.hpp"
 #include "window.hpp"
@@ -21,11 +21,13 @@ int main(int argc, char* argv[])
     ilInit();
     iluInit();
     ilEnable(IL_ORIGIN_SET);
+    ilEnable(IL_FILE_OVERWRITE);
     ilOriginFunc(IL_ORIGIN_LOWER_LEFT);
 
     if (!glfwInit())
     {
-        exit(EXIT_FAILURE);
+        std::cout << "Could not initialize GLFW" << std::endl;
+        waitExit();
     }
 
     Tracer tracer(width, height);
