@@ -36,12 +36,12 @@ inline Ray getCameraRay(const float2 pos, global RenderParams *params)
     return r;
 }
 
-inline Hit raycast(Ray *r, float tMax, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params, bool sampleImplicit)
+inline Hit raycast(Ray *r, float tMax, global Triangle *tris, global GPUNode *nodes, global uint *indices, global RenderParams *params)
 {
     Hit hit = EMPTY_HIT(tMax);
     bvh_intersect(r, &hit, tris, nodes, indices);
 
-    if (sampleImplicit)
+    if (params->sampleImpl && params->useAreaLight)
         intersectLight(&hit, r, params);
 
     return hit;
@@ -55,7 +55,7 @@ inline float3 calcLighting(PointLight light, float3 V, Hit *hit, global Material
     L = normalize(L);
 
     Ray shadowRay = { (hit->P + 1e-3f * hit->N), L };
-    Hit shdw = raycast(&shadowRay, dist, tris, nodes, indices, params, false);
+    Hit shdw = raycast(&shadowRay, dist, tris, nodes, indices, params);
     float visibility = (shdw.i == -1) ? 1.0f : 0.0f; // early exits useless on GPU
 
     // Testing material:
@@ -125,7 +125,7 @@ inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *
     {
         pos += sampleRegular(n, dim);
         Ray r = getCameraRay(pos, params);
-        Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, false);
+        Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
         atomic_inc(&stats->primaryRays);
 
         if (hit.i > -1)
@@ -157,7 +157,7 @@ inline float3 traceRay(float2 pos, global uchar *texData, global TexDescriptor *
 }
 
 // Path tracing!
-inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, global RenderStats *stats)
+inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global float *probTable, global int *aliasTable, global float *pdfTable, global RenderParams *params, global RenderStats *stats)
 {
     uint seed = get_global_id(1) * params->width + get_global_id(0) + iter * params->width * params->height; // unique for each pixel
 
@@ -165,10 +165,8 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     pos += (float2)(rand(&seed), rand(&seed));
 
     Ray r = getCameraRay(pos, params);
-    Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, params->sampleImpl);
+    Hit hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
     atomic_inc(&stats->primaryRays);
-
-    if (hit.i < 0) return evalEnvMapDir(envMap, r.dir);
 
     AreaLight areaLight = params->areaLight;
     float3 emission = areaLight.E;
@@ -185,20 +183,27 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     const int MAX_BOUNCES = params->maxBounces;
     while(i < MAX_BOUNCES && prob > 0.0f)
     {
-        float3 Kd, Ks, n; // fetched from texture/material
-        float refr = 0.0f;
-        if (hit.areaLightHit)
-            n = hit.N;
-        else
-            getMaterialParameters(hit, tris, materials, texData, textures, &Kd, &n, &Ks, &refr);
-
-        // Backside of triangle hit
-        bool backside = (dot(n, r.dir) > 0.0f);
-        if (backside && !hit.areaLightHit)
+        // Implicit environment map sample
+        if (hit.i < 0)
         {
-            n *= -1;
-        }
+            float3 bg = (float3)(0.0f, 0.0f, 0.0f);
+            if (params->useEnvMap && (i == 0 || params->sampleImpl))
+                bg = evalEnvMapDir(envMap, r.dir) * params->envMapStrength;
+        
+            // MIS
+            float weight = 1.0f;
+            if (params->sampleImpl && params->sampleExpl && params->useEnvMap && i > 0 && !lastSpecular)
+            {
+                const float lightPickProb = 1.0f;
+                int2 dims = get_image_dim(envMap);
+                float directPdfW = envMapPdf(dims.x, dims.y, pdfTable, r.dir);
+                float actualPdfW = lastPdfW;
+                weight = (actualPdfW * lightPickProb) / (actualPdfW * lightPickProb + directPdfW);
+            }   
 
+            Ei += weight * throughput * bg / prob;
+            break;
+        }
 
         // Implicit area light sampling (light hit by chance)
         if (hit.areaLightHit)
@@ -217,16 +222,30 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             break; // lights don't reflect
         }
 
+        // Scene hit, get BSDF
+        float3 Kd, Ks, n;
+        float Ni;
+        if (hit.areaLightHit)
+            n = hit.N;
+        else
+            getMaterialParameters(hit, tris, materials, texData, textures, &Kd, &n, &Ks, &Ni);
+
+        // Backside of triangle hit
+        bool backside = (dot(n, r.dir) > 0.0f);
+        if (backside)
+        {
+            n *= -1;
+        }
 
         /* REFRACTION */
-        if (refr > 1.0f && i <= MAX_BOUNCES)
+        if (Ni > 1.0f && i <= MAX_BOUNCES)
         {
             float3 orig;// , dir;
             const float EPS_REFR = 1e-5f;
             float cosI = dot(-normalize(r.dir), n);
 
-			float n1 = 1.0f, n2 = refr;
-			if (backside) swap_m(n1, n2, float); // inside of material
+            float n1 = 1.0f, n2 = Ni;
+            if (backside) swap_m(n1, n2, float); // inside of material
 
             float cosT = 1.0f - pow(n1 / n2, 2.0f) * (1.0f - pow(cosI, 2.0f));
             float raylen = length(r.dir);
@@ -248,23 +267,21 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                     // Reflection
                     orig = hit.P + EPS_REFR * n;
                     r.dir = raylen * reflect(normalize(r.dir), n);
-					// fr in pdf and T cancel out
+                    // fr in pdf and T cancel out
                 }
                 else
                 {
                     // Refraction
                     orig = hit.P - EPS_REFR * n;
                     r.dir = raylen * (normalize(r.dir) * (n1 / n2) + n * ((n1 / n2) * cosI - cosT));
-					// (1 - fr) in pdf and T cancel out
+                    // (1 - fr) in pdf and T cancel out
                 }
             }
 
             // Cast continuation ray
             r.orig = orig;
-            hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, params->sampleImpl);
+            hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
             atomic_inc(&stats->extensionRays);
-            if (hit.i < 0) break;
-
             lastSpecular = true;
             throughput *= Ks; // simulate absorption
             i++;
@@ -277,36 +294,80 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
         // Explicit light source sampling (next event estimation)
         if (params->sampleExpl && !lastSpecular)
         {
-            // Sample light source
-            float directPdfA;
-            float3 posL;
-            sampleAreaLight(areaLight, &directPdfA, &posL, &seed);
+            const float lightPickProb = 1.0f;
 
-            // Shadow ray
-            float3 L = posL - orig;
-            float lenL = length(L);
-            L = normalize(L);
-            Ray rLight = { orig, L };
-            bool occluded = bvh_occluded(&rLight, &lenL, tris, nodes, indices); // no need to check area light
-            atomic_inc(&stats->shadowRays);
-
-            float cosLight = max(dot(nLight, -L), 0.0f);
-
-            if (!occluded && cosLight > 1e-6f) // front of light accessible
+            // Importance sample env map (using alias method)
+            if (params->useEnvMap)
             {
-                const float lightPickProb = 1.0f;
-                const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
-                float cosTh = max(0.0f, dot(L, n)); // cos at surface
-                float directPdfW = pdfAtoW(directPdfA, lenL, cosLight); // 'how small area light looks'
-                float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
-                
-                float weight = 1.0f;
-                if (params->sampleImpl)
-                {
-                    weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
-                }
+                int2 envMapDims = get_image_dim(envMap);
+                const int width = envMapDims.x, height = envMapDims.y;
 
-                Ei += brdf * throughput * emission * weight * cosTh / (lightPickProb * directPdfW * prob);
+                float3 L;
+                float directPdfW = 0.0f;
+                EnvMapContext ctx = { width, height, pdfTable, probTable, aliasTable };
+                sampleEnvMapAlias(rand(&seed), &L, &directPdfW, ctx);
+
+                // Shadow ray
+                float lenL = 2.0f * params->worldRadius;
+                L = normalize(L);
+                Ray rLight = { orig, L };
+
+                // TODO: BAD! Collect all shadow ray casts together (in queue, i.e. buffer of gids + atomic counter)!
+                Hit hit = EMPTY_HIT(lenL);
+                if (params->useAreaLight) intersectLight(&hit, &rLight, params);
+                bool occluded = (hit.i > -1) || bvh_occluded(&rLight, &lenL, tris, nodes, indices);
+                atomic_inc(&stats->shadowRays);
+
+                // Compute contribution
+                if (!occluded && directPdfW != 0.0f)
+                {
+                    const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
+                    float cosTh = max(0.0f, dot(L, n)); // cos at surface
+                    float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
+
+                    float weight = 1.0f;
+                    if (params->sampleImpl)
+                    {
+                        weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
+                    }
+
+                    const float3 envMapLi = evalEnvMapDir(envMap, L) * params->envMapStrength;
+                    Ei += brdf * throughput * envMapLi * weight * cosTh / (lightPickProb * directPdfW * prob);
+                }
+            }
+
+            // Sample area light source
+            if (params->useAreaLight)
+            {
+                float directPdfA;
+                float3 posL;
+                sampleAreaLight(areaLight, &directPdfA, &posL, &seed);
+
+                // Shadow ray
+                float3 L = posL - orig;
+                float lenL = length(L);
+                L = normalize(L);
+                Ray rLight = { orig, L };
+                bool occluded = bvh_occluded(&rLight, &lenL, tris, nodes, indices); // no need to check area light
+                atomic_inc(&stats->shadowRays);
+
+                float cosLight = max(dot(nLight, -L), 0.0f);
+                if (!occluded && cosLight > 1e-6f) // front of light accessible
+                {
+                    const float lightPickProb = 1.0f;
+                    const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
+                    float cosTh = max(0.0f, dot(L, n)); // cos at surface
+                    float directPdfW = pdfAtoW(directPdfA, lenL, cosLight); // 'how small area light looks'
+                    float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
+                
+                    float weight = 1.0f;
+                    if (params->sampleImpl)
+                    {
+                        weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
+                    }
+
+                    Ei += brdf * throughput * emission * weight * cosTh / (lightPickProb * directPdfW * prob);
+                }
             }
         }
 
@@ -322,12 +383,8 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
         lastPdfW = pdf;
 
         r.orig = orig;
-        hit = raycast(&r, FLT_MAX, tris, nodes, indices, params, params->sampleImpl);
+        hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
         atomic_inc(&stats->extensionRays);
-
-        if (hit.i < 0)
-            break;
-
         i++;
     }
 
@@ -344,7 +401,23 @@ OPENCL MEMORY SPACES:
 | Local    | __local        | Work-group-wide | Shared   | __shared__   |
 | Private  | __private      | Work-item-wide  | Local    |              |
 */
-kernel void trace(read_only image2d_t src, write_only image2d_t dst, global uchar *texData, global TexDescriptor *textures, global PointLight *lights, global Triangle *tris, global Material *materials, global GPUNode *nodes, global uint *indices, read_only image2d_t envMap, global RenderParams *params, global RenderStats *stats, uint iteration)
+kernel void trace(
+    read_only image2d_t src,
+    write_only image2d_t dst,
+    global uchar *texData,
+    global TexDescriptor *textures,
+    global PointLight *lights,
+    global Triangle *tris,
+    global Material *materials,
+    global GPUNode *nodes,
+    global uint *indices,
+    read_only image2d_t envMap,
+    global float *probTable,
+    global int *aliasTable,
+    global float *pdfTable,
+    global RenderParams *params,
+    global RenderStats *stats,
+    uint iteration)
 {
     const uint x = get_global_id(0); // left to right
     const uint y = get_global_id(1); // bottom to top
@@ -356,7 +429,7 @@ kernel void trace(read_only image2d_t src, write_only image2d_t dst, global ucha
 
     // Path tracing + accumulation
     //*
-    float3 pixelColor = tracePath((float2)(x, y), iteration, texData, textures, lights, tris, materials, nodes, indices, envMap, params, stats);
+    float3 pixelColor = tracePath((float2)(x, y), iteration, texData, textures, lights, tris, materials, nodes, indices, envMap, probTable, aliasTable, pdfTable, params, stats);
     const float tex_weight = iteration * native_recip((float)(iteration) + 1.0f);
     float3 prev = read_imagef(src, (int2)(x, y)).xyz;
     if (iteration > 0) pixelColor = mix(pixelColor, prev, tex_weight); // don't clamp => can be tonemapped e.g. in GL shader

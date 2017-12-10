@@ -259,6 +259,9 @@ void CLContext::setupMegaKernel()
     err |= kernel_monolith.setArg(i++, nodeBuffer);
     err |= kernel_monolith.setArg(i++, indexBuffer);
     err |= kernel_monolith.setArg(i++, environmentMap);
+    err |= kernel_monolith.setArg(i++, probTable);
+    err |= kernel_monolith.setArg(i++, aliasTable);
+    err |= kernel_monolith.setArg(i++, pdfTable);
     err |= kernel_monolith.setArg(i++, renderParams);
     err |= kernel_monolith.setArg(i++, renderStats);
     err |= kernel_monolith.setArg(i++, 0); // iteration
@@ -729,7 +732,7 @@ void CLContext::enqueueMegaKernel(const RenderParams &params, const int frontBuf
     err = 0;
     err |= kernel_monolith.setArg(0, sharedMemory[1 - frontBuffer]); // src
     err |= kernel_monolith.setArg(1, sharedMemory[frontBuffer]); // dst
-    err |= kernel_monolith.setArg(12, iteration);
+    err |= kernel_monolith.setArg(15, iteration);
     verify("Failed to set megakernel arguments!");
 
     size_t max_wg_size;
