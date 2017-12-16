@@ -3,11 +3,12 @@
 #include "utils.cl"
 #include "intersect.cl"
 #include "env_map.cl"
+#include "bxdf.cl"
 
-// Microkernel for direct (explicit) light sampling
+// Microkernel for BSDF sampling and NEE
 // State changes:
-//   MK_SAMPLE_LIGHT_EXPL => MK_SPLAT_SAMPLE || MK_SAMPLE_BSDF
-kernel void sampleLightExplicit(
+//   MK_SAMPLE_BSDF => MK_SPLAT_SAMPLE
+kernel void sampleBsdf(
     global GPUTaskState *tasks,
     global Material *materials,
     global uchar *texData,
@@ -15,7 +16,7 @@ kernel void sampleLightExplicit(
     read_only image2d_t envMap,
     global float *probTable,
     global int *aliasTable,
-	global float *pdfTable,
+    global float *pdfTable,
     global Triangle *tris,
     global GPUNode *nodes,
     global uint *indices,
@@ -33,7 +34,7 @@ kernel void sampleLightExplicit(
 
     // Read the path state
     global PathPhase *phase = (global PathPhase*)&ReadI32(phase, tasks);
-    if (*phase != MK_SAMPLE_LIGHT_EXPL)
+    if (*phase != MK_SAMPLE_BSDF)
         return;
 
     const float3 rayOrig = ReadFloat3(orig, tasks);
@@ -42,20 +43,17 @@ kernel void sampleLightExplicit(
 
     // Read hit from path state
     Hit hit = readHitSoA(tasks, gid, numTasks);
-
-    // Read BSDF
-    float3 N, Kd, Ks;
-    float Ni;
-    getMaterialParameters(hit, tris, materials, texData, textures, &Kd, &N, &Ks, &Ni);
+    Material mat = materials[hit.matId];
 
     // Fix backside hits
-    if (dot(N, r.dir) > 0.0f) N *= -1;
-	float3 orig = hit.P - 1e-3f * r.dir;  // avoid self-shadowing
+    bool backface = dot(hit.N, r.dir) > 0.0f;
+    if (backface) hit.N *= -1.0f;
+    float3 orig = hit.P - 1e-3f * r.dir;  // avoid self-shadowing
 
     // Perform next event estimation
-	bool lastSpecular = ReadU32(lastSpecular, tasks);
-	if (params->sampleExpl && !lastSpecular)
-	{
+    bool lastSpecular = ReadU32(lastSpecular, tasks);
+    if (params->sampleExpl && !lastSpecular)
+    {
         const float lightPickProb = 1.0f;
 
         // Importance sample env map (using alias method)
@@ -67,7 +65,7 @@ kernel void sampleLightExplicit(
             float3 L;
             float directPdfW = 0.0f;
             EnvMapContext ctx = { width, height, pdfTable, probTable, aliasTable };
-			sampleEnvMapAlias(rand(&seed), &L, &directPdfW, ctx);
+            sampleEnvMapAlias(rand(&seed), &L, &directPdfW, ctx);
 
             // Shadow ray
             float lenL = 2.0f * params->worldRadius;
@@ -83,9 +81,9 @@ kernel void sampleLightExplicit(
             // Compute contribution
             if (!occluded && directPdfW != 0.0f)
             {
-                const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
-                float cosTh = max(0.0f, dot(L, N)); // cos at surface
-                float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
+                const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L);
+                float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
+                float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
 
                 float weight = 1.0f;
                 if (params->sampleImpl)
@@ -124,10 +122,10 @@ kernel void sampleLightExplicit(
             float cosLight = max(dot(params->areaLight.N, -L), 0.0f);
             if (!occluded && cosLight > 1e-6f)
             {
-                const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
-                float cosTh = max(0.0f, dot(L, N)); // cos at surface
+                const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L);
+                float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
                 float directPdfW = pdfAtoW(directPdfA, lenL, cosLight); // 'how small area light looks'
-                float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
+                float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
 
                 float weight = 1.0f;
                 if (params->sampleImpl)
@@ -142,7 +140,7 @@ kernel void sampleLightExplicit(
                 WriteFloat3(Ei, tasks, newEi);
             }
         }
-	}
+    }
 
     // Check path termination
     uint len = ReadU32(pathLen, tasks);
@@ -153,21 +151,28 @@ kernel void sampleLightExplicit(
     else
     {
         // Generate continuation ray
-        float pdf, costh;
-        sampleHemisphere(&(hit.P), &N, &costh, &seed, &pdf, &r.dir); // r.dir updated
+        float pdfW;
+        float3 newDir;
+        float3 bsdf = bxdfSample(&hit, &mat, backface, textures, texData, r.dir, &newDir, &pdfW, &seed);
+        lastSpecular = BXDF_IS_SINGULAR(mat.type);
+        float costh = dot(hit.N, normalize(newDir));
 
-        float3 brdf = Kd / M_PI_F;
-        float3 newT = ReadFloat3(T, tasks) * brdf * costh;
-        float newPdf = ReadF32(pdf, tasks) * pdf;
+        float3 newT = ReadFloat3(T, tasks) * bsdf * costh;
+        float newPdf = ReadF32(pdf, tasks) * pdfW;
         
+        // Avoid self-shadowing
+        orig = hit.P + 1e-4f * newDir;
+        r.dir = newDir;
+
         // Update path state
         WriteFloat3(T, tasks, newT);
         WriteFloat3(orig, tasks, orig);
         WriteFloat3(dir, tasks, r.dir);
         WriteF32(pdf, tasks, newPdf);
-		WriteF32(lastPdfW, tasks, pdf);
+        WriteF32(lastPdfW, tasks, pdfW);
 
-        *phase = MK_RT_NEXT_VERTEX; //MK_SAMPLE_BSDF?
+        // Perform raycast
+        *phase = MK_RT_NEXT_VERTEX;
     }
 
     // Update RNG seed

@@ -100,7 +100,7 @@ void CLContext::setupKernels()
 	setupResetKernel();
     setupRayGenKernel();
     setupNextVertexKernel();
-    setupExplSampleKernel();
+    setupBsdfSampleKernel();
     setupSplatKernel();
     setupSplatPreviewKernel();
     setupMegaKernel();
@@ -317,29 +317,29 @@ void CLContext::setupNextVertexKernel()
     verify("Failed to set mk_next_vertex arguments!");
 }
 
-void CLContext::setupExplSampleKernel()
+void CLContext::setupBsdfSampleKernel()
 {
-    buildKernel(mk_sample_explicit, "mk_sample_explicit.cl", "sampleLightExplicit");
+    buildKernel(mk_sample_bsdf, "mk_sample_bsdf.cl", "sampleBsdf");
 
     // Set initial kernel params
     int i = 0;
     err = 0;
-    err |= mk_sample_explicit.setArg(i++, tasksBuffer);
-    err |= mk_sample_explicit.setArg(i++, materialBuffer);
-    err |= mk_sample_explicit.setArg(i++, texDataBuffer);
-    err |= mk_sample_explicit.setArg(i++, texDescriptorBuffer);
-    err |= mk_sample_explicit.setArg(i++, environmentMap);
-    err |= mk_sample_explicit.setArg(i++, probTable);
-    err |= mk_sample_explicit.setArg(i++, aliasTable);
-	err |= mk_sample_explicit.setArg(i++, pdfTable);
-    err |= mk_sample_explicit.setArg(i++, triangleBuffer);
-    err |= mk_sample_explicit.setArg(i++, nodeBuffer);
-    err |= mk_sample_explicit.setArg(i++, indexBuffer);
-    err |= mk_sample_explicit.setArg(i++, renderParams);
-    err |= mk_sample_explicit.setArg(i++, renderStats);
-    err |= mk_sample_explicit.setArg(i++, NUM_TASKS);
-    err |= mk_sample_explicit.setArg(i++, 0);
-    verify("Failed to set mk_sample_explicit arguments!");
+    err |= mk_sample_bsdf.setArg(i++, tasksBuffer);
+    err |= mk_sample_bsdf.setArg(i++, materialBuffer);
+    err |= mk_sample_bsdf.setArg(i++, texDataBuffer);
+    err |= mk_sample_bsdf.setArg(i++, texDescriptorBuffer);
+    err |= mk_sample_bsdf.setArg(i++, environmentMap);
+    err |= mk_sample_bsdf.setArg(i++, probTable);
+    err |= mk_sample_bsdf.setArg(i++, aliasTable);
+	err |= mk_sample_bsdf.setArg(i++, pdfTable);
+    err |= mk_sample_bsdf.setArg(i++, triangleBuffer);
+    err |= mk_sample_bsdf.setArg(i++, nodeBuffer);
+    err |= mk_sample_bsdf.setArg(i++, indexBuffer);
+    err |= mk_sample_bsdf.setArg(i++, renderParams);
+    err |= mk_sample_bsdf.setArg(i++, renderStats);
+    err |= mk_sample_bsdf.setArg(i++, NUM_TASKS);
+    err |= mk_sample_bsdf.setArg(i++, 0);
+    verify("Failed to set mk_sample_bsdf arguments!");
 }
 
 void CLContext::setupSplatKernel()
@@ -685,13 +685,13 @@ void CLContext::enqueueNextVertexKernel(const RenderParams &params)
     verify("Failed to enqueue next vertex kernel!");
 }
 
-void CLContext::enqueueExplSampleKernel(const RenderParams &params, const cl_uint iteration)
+void CLContext::enqueueBsdfSampleKernel(const RenderParams &params, const cl_uint iteration)
 {
     // Enqueue 1D range
     err = 0;
-    err |= mk_sample_explicit.setArg(14, iteration);
-    err = cmdQueue.enqueueNDRangeKernel(mk_sample_explicit, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
-    verify("Failed to enqueue explicit sample kernel!");
+    err |= mk_sample_bsdf.setArg(14, iteration);
+    err = cmdQueue.enqueueNDRangeKernel(mk_sample_bsdf, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue bsdf sample kernel!");
 }
 
 void CLContext::enqueueSplatKernel(const RenderParams &params, const cl_uint iteration)

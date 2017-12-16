@@ -79,7 +79,7 @@ public:
 	void enqueueResetKernel(const RenderParams &params);
 	void enqueueRayGenKernel(const RenderParams &params);
     void enqueueNextVertexKernel(const RenderParams &params);
-    void enqueueExplSampleKernel(const RenderParams &params, const cl_uint iteration);
+    void enqueueBsdfSampleKernel(const RenderParams &params, const cl_uint iteration);
     void enqueueSplatKernel(const RenderParams &params, const cl_uint iteration);
     void enqueueSplatPreviewKernel(const RenderParams &params);
     void finishQueue();
@@ -106,7 +106,7 @@ private:
 	void setupResetKernel();
     void setupRayGenKernel();
     void setupNextVertexKernel();
-    void setupExplSampleKernel();
+    void setupBsdfSampleKernel();
     void setupSplatKernel();
     void setupSplatPreviewKernel();
     void setupMegaKernel();
@@ -140,7 +140,7 @@ private:
 	cl::Kernel mk_reset;
     cl::Kernel mk_raygen;
     cl::Kernel mk_next_vertex;
-    cl::Kernel mk_sample_explicit;
+    cl::Kernel mk_sample_bsdf;
     cl::Kernel mk_splat;
     cl::Kernel mk_splat_preview;
 

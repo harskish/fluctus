@@ -27,8 +27,8 @@ kernel void reset(global GPUTaskState *tasks, global float *pixels, global Rende
 	WriteFloat3(T, tasks, one);
 	WriteF32(pdf, tasks, 1.0f);
 	WriteU32(pathLen, tasks, 0);
-	WriteU32(lastSpecular, tasks, 0);
-	WriteF32(lastPdfW, tasks, 0.0f); // TODO: correct value?
+	WriteU32(lastSpecular, tasks, 1);
+	WriteF32(lastPdfW, tasks, 0.0f);
 
 	// Reset RNG seed?
 	// Or just keep accumulating...?

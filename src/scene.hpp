@@ -23,6 +23,7 @@
 #include "math/float3.hpp"
 #include "texture.hpp"
 #include "settings.hpp"
+#include "bxdf_types.h"
 
 using FireRays::float3;
 class ProgressView;
@@ -50,6 +51,7 @@ private:
     // With tiny_obj_loader
     void loadObjWithMaterials(const std::string filename, ProgressView *progress);
     cl_int tryImportTexture(const std::string path, const std::string name);
+    cl_int parseShaderType(std::string &type);
 
     void unpackIndexedData(const std::vector<float3> &positions,
                            const std::vector<float3>& normals,

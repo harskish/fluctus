@@ -115,9 +115,9 @@ void Tracer::update()
             
             // Two segments
             clctx->enqueueNextVertexKernel(params);
-            clctx->enqueueExplSampleKernel(params, iteration);
+            clctx->enqueueBsdfSampleKernel(params, iteration);
             clctx->enqueueNextVertexKernel(params);
-            clctx->enqueueExplSampleKernel(params, iteration + 1);
+            clctx->enqueueBsdfSampleKernel(params, iteration + 1);
             
             // Preview => also splat incomplete paths
             clctx->enqueueSplatPreviewKernel(params);
@@ -131,7 +131,7 @@ void Tracer::update()
             clctx->enqueueNextVertexKernel(params);
 
             // Direct lighting + environment map IS
-            clctx->enqueueExplSampleKernel(params, iteration);
+            clctx->enqueueBsdfSampleKernel(params, iteration);
 
             // Splat results
             clctx->enqueueSplatKernel(params, frontBuffer);

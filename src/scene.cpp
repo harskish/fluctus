@@ -14,6 +14,7 @@ Scene::Scene(const std::string filename)
     def.Ni = 0.0f;
     def.map_Kd = -1;
     def.map_Ks = -1;
+    def.type = BXDF_DIFFUSE;
     materials.push_back(def);
 }
 
@@ -160,6 +161,24 @@ inline void setFaceFormat(int &format, std::string &format_string, bool &negativ
     }
 }
 
+cl_int Scene::parseShaderType(std::string &type)
+{
+    if (type == "conductor")
+        return BXDF_CONDUCTOR;
+    if (type == "ideal_conductor")
+        return BXDF_IDEAL_CONDUCTOR;
+    if (type == "dielectric")
+        return BXDF_DIELECTRIC;
+    if (type == "ideal_dielectric")
+        return BXDF_IDEAL_DIELECTRIC;
+    if (type == "emissive")
+        return BXDF_EMISSIVE;
+    if (type == "diffuse")
+        return BXDF_DIFFUSE;
+    
+    return BXDF_DIFFUSE;
+}
+
 void Scene::loadObjWithMaterials(const std::string filePath, ProgressView *progress)
 {
     std::vector<tinyobj::shape_t> shapesVec;
@@ -260,6 +279,7 @@ void Scene::loadObjWithMaterials(const std::string filePath, ProgressView *progr
         m.Ni = t_mat.ior;
         m.map_Kd = tryImportTexture(unixifyPath(folderPath + t_mat.diffuse_texname), unixifyPath(t_mat.diffuse_texname));
         m.map_Ks = tryImportTexture(folderPath + t_mat.specular_texname, t_mat.specular_texname);
+        m.type = parseShaderType(t_mat.unknown_parameter["shader"]);
 
         materials.push_back(m);
     }

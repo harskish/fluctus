@@ -4,6 +4,7 @@
 #include "utils.cl"
 #include "bvh.cl"
 #include "env_map.cl"
+#include "bxdf.cl"
 
 // x and y include offsets when supersampling
 inline Ray getCameraRay(const float2 pos, global RenderParams *params)
@@ -177,12 +178,16 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     float3 throughput = (float3)(1.0f); // BRDF
     float prob = 1.0f;                  // PDF
     float lastPdfW = 1.0f;              // for MIS
-    bool lastSpecular = false;          // prevents NEE
+    bool lastSpecular = BXDF_IS_SINGULAR(materials[hit.matId].type); // prevents NEE
     int i = 0;
 
     const int MAX_BOUNCES = params->maxBounces;
     while(i < MAX_BOUNCES && prob > 0.0f)
     {
+		// Fix backface hits
+        bool backface = dot(hit.N, r.dir) > 0.0f;
+		if (backface) hit.N *= -1;
+
         // Implicit environment map sample
         if (hit.i < 0)
         {
@@ -222,74 +227,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             break; // lights don't reflect
         }
 
-        // Scene hit, get BSDF
-        float3 Kd, Ks, n;
-        float Ni;
-        if (hit.areaLightHit)
-            n = hit.N;
-        else
-            getMaterialParameters(hit, tris, materials, texData, textures, &Kd, &n, &Ks, &Ni);
-
-        // Backside of triangle hit
-        bool backside = (dot(n, r.dir) > 0.0f);
-        if (backside)
-        {
-            n *= -1;
-        }
-
-        /* REFRACTION */
-        if (Ni > 1.0f && i <= MAX_BOUNCES)
-        {
-            float3 orig;// , dir;
-            const float EPS_REFR = 1e-5f;
-            float cosI = dot(-normalize(r.dir), n);
-
-            float n1 = 1.0f, n2 = Ni;
-            if (backside) swap_m(n1, n2, float); // inside of material
-
-            float cosT = 1.0f - pow(n1 / n2, 2.0f) * (1.0f - pow(cosI, 2.0f));
-            float raylen = length(r.dir);
-
-            // Total internal reflection
-            if (cosT < 0.0f)
-            {
-                orig = hit.P + EPS_REFR * n;
-                r.dir = raylen * reflect(normalize(r.dir), n);
-            }
-            else
-            {
-                cosT = sqrt(cosT);
-                // Fresnel: reflectance for unpolarized light
-                float fr = 0.5f * (pow((n1 * cosI - n2 * cosT) / (n1 * cosI + n2 * cosT), 2.0f) + pow((n2 * cosI - n1 * cosT) / (n1 * cosT + n2 * cosI), 2.0f));
-
-                if (rand(&seed) < fr)
-                {
-                    // Reflection
-                    orig = hit.P + EPS_REFR * n;
-                    r.dir = raylen * reflect(normalize(r.dir), n);
-                    // fr in pdf and T cancel out
-                }
-                else
-                {
-                    // Refraction
-                    orig = hit.P - EPS_REFR * n;
-                    r.dir = raylen * (normalize(r.dir) * (n1 / n2) + n * ((n1 / n2) * cosI - cosT));
-                    // (1 - fr) in pdf and T cancel out
-                }
-            }
-
-            // Cast continuation ray
-            r.orig = orig;
-            hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
-            atomic_inc(&stats->extensionRays);
-            lastSpecular = true;
-            throughput *= Ks; // simulate absorption
-            i++;
-            continue;
-        }
-
-        lastSpecular = false;
-        float3 orig = hit.P - 1e-3f * r.dir;  // avoid self-shadowing
+		float3 orig = hit.P - 1e-3f * r.dir;
 
         // Explicit light source sampling (next event estimation)
         if (params->sampleExpl && !lastSpecular)
@@ -312,18 +250,18 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                 L = normalize(L);
                 Ray rLight = { orig, L };
 
-                // TODO: BAD! Collect all shadow ray casts together (in queue, i.e. buffer of gids + atomic counter)!
-                Hit hit = EMPTY_HIT(lenL);
-                if (params->useAreaLight) intersectLight(&hit, &rLight, params);
-                bool occluded = (hit.i > -1) || bvh_occluded(&rLight, &lenL, tris, nodes, indices);
+                Hit hitL = EMPTY_HIT(lenL);
+                if (params->useAreaLight) intersectLight(&hitL, &rLight, params);
+                bool occluded = (hitL.i > -1) || bvh_occluded(&rLight, &lenL, tris, nodes, indices);
                 atomic_inc(&stats->shadowRays);
 
                 // Compute contribution
                 if (!occluded && directPdfW != 0.0f)
                 {
-                    const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
-                    float cosTh = max(0.0f, dot(L, n)); // cos at surface
-                    float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
+					Material mat = materials[hit.matId];
+                    const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L); // diff: Kd / PI
+                    float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
+                    float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
 
                     float weight = 1.0f;
                     if (params->sampleImpl)
@@ -354,11 +292,12 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                 float cosLight = max(dot(nLight, -L), 0.0f);
                 if (!occluded && cosLight > 1e-6f) // front of light accessible
                 {
+					Material mat = materials[hit.matId];
                     const float lightPickProb = 1.0f;
-                    const float3 brdf = Kd / M_PI_F; // Kd = reflectivity/albedo
-                    float cosTh = max(0.0f, dot(L, n)); // cos at surface
+                    const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L);
+                    float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
                     float directPdfW = pdfAtoW(directPdfA, lenL, cosLight); // 'how small area light looks'
-                    float bsdfPdfW = max(0.0f, cosTh / M_PI_F);
+                    float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
                 
                     float weight = 1.0f;
                     if (params->sampleImpl)
@@ -373,15 +312,19 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
 
         if (i+1 == MAX_BOUNCES) break;
 
-        // Continuation ray
-        float pdf, costh;
-        sampleHemisphere(&(hit.P), &n, &costh, &seed, &pdf, &r.dir); // direction updated
+        // Sample BXDF for continuation ray
+		float3 newDir;
+		Material m = materials[hit.matId];
+		float3 bsdf = bxdfSample(&hit, &m, backface, textures, texData, r.dir, &newDir, &lastPdfW, &seed);
+        lastSpecular = BXDF_IS_SINGULAR(m.type);
+		float costh = dot(hit.N, normalize(newDir));
 
-        float3 brdf = Kd / M_PI_F;
-        throughput *= brdf * costh;
-        prob *= pdf;
-        lastPdfW = pdf;
+        throughput *= bsdf * costh;
+        prob *= lastPdfW;
 
+		// Avoid self-shadowing
+		orig = hit.P + 1e-4f * newDir;
+		r.dir = newDir;
         r.orig = orig;
         hit = raycast(&r, FLT_MAX, tris, nodes, indices, params);
         atomic_inc(&stats->extensionRays);

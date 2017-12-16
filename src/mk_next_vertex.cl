@@ -100,82 +100,10 @@ kernel void nextVertex(
 		// No reflective lights
         *phase = MK_SPLAT_SAMPLE;
     }
-    // Scene hit
+    // Scene hit, sample BSDF
 	else
 	{
-		// Read BSDF
-		float3 N, Kd, Ks;
-		float Ni;
-		getMaterialParameters(hit, tris, materials, texData, textures, &Kd, &N, &Ks, &Ni);
-
-		bool backside = dot(hit.N, r.dir) > 0.0f;
-		if (backside)
-		{
-			hit.N *= -1.0f;
-		}
-
-		// Refract
-		if (Ni > 1.0f)
-		{
-			float3 orig;
-			const float EPS_REFR = 1e-5f;
-			float cosI = dot(-normalize(r.dir), hit.N);
-			uint seed = ReadU32(seed, tasks);
-
-			float n1 = 1.0f, n2 = Ni;
-			if (backside) swap_m(n1, n2, float); // inside of material
-			float eta = n1 / n2;
-
-			float cosT = 1.0f - eta * eta * (1.0f - cosI * cosI);
-			float raylen = length(r.dir);
-
-			// Total internal reflection
-			if (cosT < 0.0f)
-			{
-				orig = hit.P + EPS_REFR * hit.N;
-				r.dir = raylen * reflect(normalize(r.dir), hit.N);
-			}
-			else
-			{
-				// Fresnel: reflectance for unpolarized light
-				cosT = sqrt(cosT);
-				float fr = 0.5f * (pow((n1 * cosI - n2 * cosT) / (n1 * cosI + n2 * cosT), 2.0f) + pow((n2 * cosI - n1 * cosT) / (n1 * cosT + n2 * cosI), 2.0f));
-
-				// Simulate absorption by decreasing throughput
-				float3 newT = ReadFloat3(T, tasks) * Ks;
-
-				global float *pdf = &ReadF32(pdf, tasks);
-				if (rand(&seed) < fr)
-				{
-					// Reflection
-					orig = hit.P + EPS_REFR * hit.N;
-					r.dir = raylen * reflect(normalize(r.dir), hit.N);
-					// fr in pdf and T cancel out
-				}
-				else
-				{
-					// Refraction
-					orig = hit.P - EPS_REFR * hit.N;
-					r.dir = raylen * (normalize(r.dir) * eta + hit.N * (eta * cosI - cosT));
-					newT *= eta * eta;
-					// (1 - fr) in pdf and T cancel out
-				}
-
-				WriteFloat3(T, tasks, newT);
-			}
-
-			// Update state
-			WriteFloat3(orig, tasks, orig);
-			WriteFloat3(dir, tasks, r.dir);
-			WriteU32(seed, tasks, seed);
-			WriteU32(lastSpecular, tasks, 1);
-			*phase = MK_RT_NEXT_VERTEX;
-		}
-		else
-		{
-			// Explicit light sample (direct lighting)
-			WriteU32(lastSpecular, tasks, 0);
-			*phase = MK_SAMPLE_LIGHT_EXPL;
-		}
+		WriteU32(lastSpecular, tasks, 0);
+		*phase = MK_SAMPLE_BSDF;
     }
 }

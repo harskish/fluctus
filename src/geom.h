@@ -17,6 +17,7 @@ using FireRays::float3;
 #endif
 
 #define PI (3.14159265358979323846f)
+#define M_INV_PI (0.3183098861837907f)
 #define M_2PI_F (6.2831853071795864f)
 #define toRad(deg) (deg * PI / 180)
 
@@ -118,6 +119,7 @@ typedef struct
     cl_float Ni;   // index of refraction
     cl_int map_Kd; // diffuse texture descriptor idx
     cl_int map_Ks; // specular texture descriptor idx
+    cl_int type;   // BXDF type, defined in bxdf.cl
 } Material;
 
 typedef struct
@@ -173,13 +175,12 @@ typedef struct
 typedef enum
 {
     MK_RT_NEXT_VERTEX = 0,
-    MK_SAMPLE_LIGHT_EXPL = 1,
+    MK_SAMPLE_BSDF = 1,
     MK_SAMPLE_LIGHT_IMPL = 2,
     MK_HIT_NOTHING = 3,
-    MK_SAMPLE_BSDF = 4,
-    MK_SPLAT_SAMPLE = 5,
-    MK_GENERATE_CAMERA_RAY = 6,
-    MK_DONE = 7
+    MK_SPLAT_SAMPLE = 4,
+    MK_GENERATE_CAMERA_RAY = 5,
+    MK_DONE = 6
 } PathPhase;
 
 

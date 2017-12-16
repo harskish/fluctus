@@ -56,13 +56,13 @@ inline float2 sampleRegular(int n, int dim)
     return (float2)(xm1, ym1);
 }
 
-inline void sampleHemisphere(float3 *pos, float3 *n, float *costh, uint *seed, float *p, float3 *dir)
+inline float3 cosSampleHemisphere(float3 n, uint *seed, float *p)
 {
     float r1 = 2.0f * M_PI_F * rand(seed);
     float r2 = rand(seed);
     float r2s = sqrt(r2);
 
-    float3 w = *n;
+    float3 w = n;
 
     float3 u;
     if (fabs(w.x) > 0.1f) {
@@ -81,9 +81,10 @@ inline void sampleHemisphere(float3 *pos, float3 *n, float *costh, uint *seed, f
     v *= (sin(r1) * r2s);
     w *= (sqrt(1 - r2));
 
-    *dir = u + v + w;
-    *costh = dot(*n, *dir);
-    *p = *costh / M_PI_F; //pdf
+    float3 dir = u + v + w;
+    float costh = dot(n, dir);
+    *p = costh / M_PI_F; //pdf
+	return dir;
 }
 
 inline int2 getTexelCoords(float2 uv, uint width, uint height)
@@ -106,13 +107,17 @@ inline float3 readTexture(float2 uvTex, TexDescriptor tex, global uchar *data)
     return c / 255.0f;
 }
 
+inline float3 matGetFloat3(float3 fallback, float2 uv, int idx, global TexDescriptor *textures, global uchar *texData)
+{
+	return (idx != -1) ? readTexture(uv, textures[idx], texData) : fallback;
+}
+
 inline void getMaterialParameters(Hit hit, global Triangle *tris, global Material *materials, global uchar *texData, global TexDescriptor *textures, float3 *Kd, float3 *N, float3 *Ks, float *refr)
 {
-    // Dummy method for now, should read from textures (if available)
     const Material mat = materials[hit.matId];
 
-    *Kd = (mat.map_Kd != -1) ? readTexture(hit.uvTex, textures[mat.map_Kd], texData) : mat.Kd;
-    *Ks = mat.Ks;
+	*Kd = matGetFloat3(mat.Kd, hit.uvTex, mat.map_Kd, textures, texData);
+	*Ks = matGetFloat3(mat.Ks, hit.uvTex, mat.map_Ks, textures, texData);
     *refr = mat.Ni;
     *N = hit.N; // no normal maps yet
 }
