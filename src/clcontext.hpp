@@ -123,7 +123,7 @@ private:
 #ifdef CPU_DEBUGGING
     const cl_uint NUM_TASKS = 1;
 #else
-    const cl_uint NUM_TASKS = 2 << 19;   // the amount of paths in flight simultaneously, limited by VRAM
+    const cl_uint NUM_TASKS = 1 << 21;   // the amount of paths in flight simultaneously, limited by VRAM
 #endif
 
     // For showing progress

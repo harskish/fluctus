@@ -119,6 +119,13 @@ void Tracer::addRendererSettings(nanogui::Widget *parent)
         params.useAreaLight = value;
         paramsUpdatePending = true;
     });
+    auto rrBox = new CheckBox(rendererPopup, "Russian roulette");
+    uiMapping["RR_TOGGLE"] = rrBox;
+    rrBox->setChecked(params.useRoulette);
+    rrBox->setCallback([&](bool value) {
+        params.useRoulette = value;
+        paramsUpdatePending = true;
+    });
 
     Widget *depthPanel = new Widget(rendererPopup);
     depthPanel->setLayout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
@@ -463,10 +470,12 @@ void Tracer::updateGUI()
     auto explSampleToggle = static_cast<CheckBox*>(uiMapping["EXPL_SAMPL_TOGGLE"]);
     auto implSampleToggle = static_cast<CheckBox*>(uiMapping["IMPL_SAMPL_TOGGLE"]);
     auto areaLightToggle = static_cast<CheckBox*>(uiMapping["AREA_LIGHT_TOGGLE"]);
+    auto rrToggle = static_cast<CheckBox*>(uiMapping["RR_TOGGLE"]);
     envMapToggle->setChecked(params.useEnvMap);
     explSampleToggle->setChecked(params.sampleExpl);
     implSampleToggle->setChecked(params.sampleImpl);
     areaLightToggle->setChecked(params.useAreaLight);
+    rrToggle->setChecked(params.useRoulette);
     
     auto maxBouncesBox = static_cast<IntBox<int>*>(uiMapping["MAX_BOUNCES_BOX"]);
     maxBouncesBox->setValue(params.maxBounces);

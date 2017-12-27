@@ -162,4 +162,10 @@ inline void sampleAreaLight(AreaLight light, float *pdf, float3 *p, uint *seed)
 	*p += r2 * light.size.y * light.up;
 }
 
+// sRGB luminance
+inline float luminance(float3 v)
+{
+	return 0.212671f * v.x + 0.715160f * v.y + 0.072169f * v.z;
+}
+
 #endif

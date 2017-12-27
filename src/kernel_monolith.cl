@@ -182,7 +182,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     int i = 0;
 
     const int MAX_BOUNCES = params->maxBounces;
-    while(i < MAX_BOUNCES && prob > 0.0f)
+    while(prob > 1e-6f)
     {
 		// Fix backface hits
         bool backface = dot(hit.N, r.dir) > 0.0f;
@@ -310,7 +310,14 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             }
         }
 
-        if (i+1 == MAX_BOUNCES) break;
+		// Check path termination (Russian roulette)
+		float contProb = 1.0f;
+		if (i >= MAX_BOUNCES)
+		{
+			contProb = clamp(luminance(throughput), 0.01f, 0.5f);
+			if (!params->useRoulette || rand(&seed) > contProb)
+				break;
+		}
 
         // Sample BXDF for continuation ray
 		float3 newDir;
@@ -320,7 +327,8 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
 		float costh = dot(hit.N, normalize(newDir));
 
         throughput *= bsdf * costh;
-        prob *= lastPdfW;
+        prob *= lastPdfW * contProb;
+		lastPdfW *= contProb;
 
 		// Avoid self-shadowing
 		orig = hit.P + 1e-4f * newDir;

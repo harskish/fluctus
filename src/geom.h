@@ -167,6 +167,7 @@ typedef struct
     cl_uint maxBounces;
     cl_uint sampleImpl;    // use implicit light source sampling
     cl_uint sampleExpl;    // use next event estimation
+    cl_uint useRoulette;   // Luminance-based russian roulette
     cl_float worldRadius;
 } RenderParams;
 

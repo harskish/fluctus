@@ -73,9 +73,9 @@ kernel void sampleBsdf(
             Ray rLight = { orig, L };
 
             // TODO: BAD! Collect all shadow ray casts together (in queue, i.e. buffer of gids + atomic counter)!
-            Hit hit = EMPTY_HIT(lenL);
-            if (params->useAreaLight) intersectLight(&hit, &rLight, params);
-            bool occluded = (hit.i > -1) || bvh_occluded(&rLight, &lenL, tris, nodes, indices);
+            Hit hitL = EMPTY_HIT(lenL);
+            if (params->useAreaLight) intersectLight(&hitL, &rLight, params);
+            bool occluded = (hitL.i > -1) || bvh_occluded(&rLight, &lenL, tris, nodes, indices);
             atomic_inc(&stats->shadowRays);
 
             // Compute contribution
@@ -142,39 +142,42 @@ kernel void sampleBsdf(
         }
     }
 
-    // Check path termination
-    uint len = ReadU32(pathLen, tasks);
-    if (len + 1 >= params->maxBounces)
+	// Check path termination (Russian roulette)
+	float contProb = 1.0f;
+	uint len = ReadU32(pathLen, tasks);
+	bool terminate = (len - 1 >= params->maxBounces); // bounces = path_length - 1
+	if (terminate && params->useRoulette)
     {
-        *phase = MK_SPLAT_SAMPLE;
+		contProb = clamp(luminance(ReadFloat3(T, tasks)), 0.01f, 0.5f);
+		terminate = (rand(&seed) > contProb);
     }
-    else
-    {
-        // Generate continuation ray
-        float pdfW;
-        float3 newDir;
-        float3 bsdf = bxdfSample(&hit, &mat, backface, textures, texData, r.dir, &newDir, &pdfW, &seed);
-        lastSpecular = BXDF_IS_SINGULAR(mat.type);
-        float costh = dot(hit.N, normalize(newDir));
 
-        float3 newT = ReadFloat3(T, tasks) * bsdf * costh;
-        float newPdf = ReadF32(pdf, tasks) * pdfW;
+	// Generate continuation ray
+    float pdfW;
+    float3 newDir;
+    float3 bsdf = bxdfSample(&hit, &mat, backface, textures, texData, r.dir, &newDir, &pdfW, &seed);
+    lastSpecular = BXDF_IS_SINGULAR(mat.type);
+    float costh = dot(hit.N, normalize(newDir));
+
+    float3 newT = ReadFloat3(T, tasks) * bsdf * costh;
+    float newPdf = ReadF32(pdf, tasks) * pdfW;
+	
+	// Compensate for RR
+	newPdf *= contProb;
+	pdfW *= contProb;
         
-        // Avoid self-shadowing
-        orig = hit.P + 1e-4f * newDir;
-        r.dir = newDir;
+    // Avoid self-shadowing
+    orig = hit.P + 1e-4f * newDir;
+    r.dir = newDir;
 
-        // Update path state
-        WriteFloat3(T, tasks, newT);
-        WriteFloat3(orig, tasks, orig);
-        WriteFloat3(dir, tasks, r.dir);
-        WriteF32(pdf, tasks, newPdf);
-        WriteF32(lastPdfW, tasks, pdfW);
+	// Update path state
+	WriteFloat3(T, tasks, newT);
+	WriteFloat3(orig, tasks, orig);
+	WriteFloat3(dir, tasks, r.dir);
+	WriteF32(pdf, tasks, newPdf);
+	WriteF32(lastPdfW, tasks, pdfW);
+	WriteU32(seed, tasks, seed);
 
-        // Perform raycast
-        *phase = MK_RT_NEXT_VERTEX;
-    }
-
-    // Update RNG seed
-    WriteU32(seed, tasks, seed);
+	// Choose next phase
+	*phase = (terminate) ? MK_SPLAT_SAMPLE : MK_RT_NEXT_VERTEX;    
 }

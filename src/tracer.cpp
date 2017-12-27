@@ -31,13 +31,14 @@ void Tracer::init(int width, int height, std::string sceneFile)
     params.height = static_cast<unsigned int>(height * renderScale);
     params.n_lights = sizeof(test_lights) / sizeof(PointLight);
     params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
-    params.useEnvMap = 0;
-    params.useAreaLight = 1;
+    params.useEnvMap = (cl_uint)false;
+    params.useAreaLight = (cl_uint)true;
     params.envMapStrength = 1.0f;
-    params.flashlight = 0;
-    params.maxBounces = 4;
+    params.flashlight = (cl_uint)false;
+    params.maxBounces = 6;
     params.sampleImpl = (cl_uint)true;
     params.sampleExpl = (cl_uint)true;
+    params.useRoulette = (cl_uint)false;
 
     window->showMessage("Loading scene");
     selectScene(sceneFile);
@@ -302,6 +303,7 @@ void Tracer::iterateStateItems(StateIO mode)
 		rw(params.useEnvMap);
 		rw(params.sampleExpl);
 		rw(params.sampleImpl);
+        rw(params.useRoulette);
 
 		std::cout << ((mode == StateIO::WRITE) ? "State dumped" : "State imported") << std::endl;
 	}
