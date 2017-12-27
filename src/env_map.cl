@@ -16,7 +16,8 @@ inline float2 directionToUV(float3 dir)
         return (float2)(0.0f, 0.0f);
 
     float u = 1.0f + atan2(dir.x, -dir.z) / M_PI_F;
-    float v = acos(dir.y / length(dir)) / M_PI_F;
+    float r = clamp(dir.y / length(dir), -1.0f, 1.0f);
+    float v = acos(r) / M_PI_F;
 
     return (float2)(u * 0.5f, v);
 }
