@@ -103,7 +103,6 @@ kernel void nextVertex(
     // Scene hit, sample BSDF
 	else
 	{
-		WriteU32(lastSpecular, tasks, 0);
 		*phase = MK_SAMPLE_BSDF;
     }
 }

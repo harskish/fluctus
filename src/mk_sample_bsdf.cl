@@ -51,8 +51,7 @@ kernel void sampleBsdf(
     float3 orig = hit.P - 1e-3f * r.dir;  // avoid self-shadowing
 
     // Perform next event estimation
-    bool lastSpecular = ReadU32(lastSpecular, tasks);
-    if (params->sampleExpl && !lastSpecular)
+    if (params->sampleExpl && !BXDF_IS_SINGULAR(mat.type))
     {
         const float lightPickProb = 1.0f;
 
@@ -156,7 +155,6 @@ kernel void sampleBsdf(
     float pdfW;
     float3 newDir;
     float3 bsdf = bxdfSample(&hit, &mat, backface, textures, texData, r.dir, &newDir, &pdfW, &seed);
-    lastSpecular = BXDF_IS_SINGULAR(mat.type);
     float costh = dot(hit.N, normalize(newDir));
 
     float3 newT = ReadFloat3(T, tasks) * bsdf * costh;
@@ -177,6 +175,7 @@ kernel void sampleBsdf(
 	WriteF32(pdf, tasks, newPdf);
 	WriteF32(lastPdfW, tasks, pdfW);
 	WriteU32(seed, tasks, seed);
+	WriteU32(lastSpecular, tasks, BXDF_IS_SINGULAR(mat.type));
 
 	// Choose next phase
 	*phase = (terminate) ? MK_SPLAT_SAMPLE : MK_RT_NEXT_VERTEX;    

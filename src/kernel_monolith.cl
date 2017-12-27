@@ -178,7 +178,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     float3 throughput = (float3)(1.0f); // BRDF
     float prob = 1.0f;                  // PDF
     float lastPdfW = 1.0f;              // for MIS
-    bool lastSpecular = BXDF_IS_SINGULAR(materials[hit.matId].type); // prevents NEE
+    bool lastSpecular = true;			// prevents MIS
     int i = 0;
 
     const int MAX_BOUNCES = params->maxBounces;
@@ -186,7 +186,8 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     {
 		// Fix backface hits
         bool backface = dot(hit.N, r.dir) > 0.0f;
-		if (backface) hit.N *= -1;
+		if (backface) hit.N *= -1.0f;
+		Material mat = materials[hit.matId];
 
         // Implicit environment map sample
         if (hit.i < 0)
@@ -229,8 +230,8 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
 
 		float3 orig = hit.P - 1e-3f * r.dir;
 
-        // Explicit light source sampling (next event estimation)
-        if (params->sampleExpl && !lastSpecular)
+        // Explicit light source sampling (next event estimation), unless current surface has singular bsdf
+        if (params->sampleExpl && !BXDF_IS_SINGULAR(mat.type))
         {
             const float lightPickProb = 1.0f;
 
@@ -258,14 +259,13 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                 // Compute contribution
                 if (!occluded && directPdfW != 0.0f)
                 {
-					Material mat = materials[hit.matId];
-                    const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L); // diff: Kd / PI
+                    const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L);
                     float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
-                    float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
 
                     float weight = 1.0f;
                     if (params->sampleImpl)
                     {
+						float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
                         weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
                     }
 
@@ -292,16 +292,15 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                 float cosLight = max(dot(nLight, -L), 0.0f);
                 if (!occluded && cosLight > 1e-6f) // front of light accessible
                 {
-					Material mat = materials[hit.matId];
                     const float lightPickProb = 1.0f;
                     const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L);
                     float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
                     float directPdfW = pdfAtoW(directPdfA, lenL, cosLight); // 'how small area light looks'
-                    float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
                 
                     float weight = 1.0f;
                     if (params->sampleImpl)
                     {
+						float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
                         weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
                     }
 
@@ -321,9 +320,8 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
 
         // Sample BXDF for continuation ray
 		float3 newDir;
-		Material m = materials[hit.matId];
-		float3 bsdf = bxdfSample(&hit, &m, backface, textures, texData, r.dir, &newDir, &lastPdfW, &seed);
-        lastSpecular = BXDF_IS_SINGULAR(m.type);
+		float3 bsdf = bxdfSample(&hit, &mat, backface, textures, texData, r.dir, &newDir, &lastPdfW, &seed);
+        lastSpecular = BXDF_IS_SINGULAR(mat.type);
 		float costh = dot(hit.N, normalize(newDir));
 
         throughput *= bsdf * costh;

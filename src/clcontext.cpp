@@ -147,6 +147,8 @@ void CLContext::initMCBuffers()
         curr.pathLen = 0;
         curr.seed = (unsigned int)rand();
         curr.samples = 0;
+        curr.lastSpecular = (cl_uint)true;
+        curr.lastPdfW = 0.0f;
 
         return curr;
     };
