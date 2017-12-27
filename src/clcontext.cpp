@@ -21,8 +21,9 @@ inline std::string getAbsolutePath(std::string filename)
 CLContext::CLContext()
 {
     // Remove kernel caching to always get build logs (on NVIDIA hardware)
+    // The cache also IGNORES included files when comparing hashes, making it useless
     #ifdef _WIN32
-        //_putenv_s("CUDA_CACHE_DISABLE", "1");
+        _putenv_s("CUDA_CACHE_DISABLE", "1");
     #endif
 
     // printDevices();
