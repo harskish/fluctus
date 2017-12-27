@@ -9,7 +9,7 @@ Ks 0.950000 0.950000 0.950000
 Ke 0.000000 0.000000 0.000000
 Ni 1.60000
 d 0.050000
-illum 6
+shader ideal_dielectric
 
 newmtl Ground_01_MAT
 Ns 96.078431
