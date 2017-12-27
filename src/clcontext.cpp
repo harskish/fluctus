@@ -22,7 +22,7 @@ CLContext::CLContext()
 {
     // Remove kernel caching to always get build logs (on NVIDIA hardware)
     #ifdef _WIN32
-        _putenv_s("CUDA_CACHE_DISABLE", "1");
+        //_putenv_s("CUDA_CACHE_DISABLE", "1");
     #endif
 
     // printDevices();
@@ -219,7 +219,8 @@ void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::strin
     std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
 
     // Check build log
-    std::cout << "\n[" << fileName << " build log]:" << buildLog << std::endl;
+    if (buildLog.length() > 2)
+        std::cout << "\n[" << fileName << " build log]:" << buildLog << std::endl;
     verify("Failed to build compute program!");
 
     // Creating compute kernel from program
