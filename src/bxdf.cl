@@ -5,6 +5,7 @@
 #include "diffuse.cl"
 #include "ideal_dielectric.cl"
 #include "ideal_reflection.cl"
+#include "ggx.cl"
 
 // Placeholder
 typedef float3 Spectrum;
@@ -28,6 +29,7 @@ Spectrum bxdfSample(
 		case BXDF_DIFFUSE:
 			return sampleDiffuse(hit, material, textures, texData, dirOut, pdfW, randSeed);
 		case BXDF_GGX_ROUGH_REFLECTION:
+			return sampleGGXReflect(hit, material, textures, texData, dirIn, dirOut, pdfW, randSeed);
 		case BXDF_IDEAL_REFLECTION:
 			return sampleIdealReflection(hit, material, backface, textures, texData, dirIn, dirOut, pdfW, randSeed);
 		case BXDF_GGX_ROUGH_DIELECTRIC:
@@ -54,6 +56,7 @@ Spectrum bxdfEval(
 		case BXDF_DIFFUSE:
 			return evalDiffuse(hit, material, textures, texData, dirIn, dirOut);
 		case BXDF_GGX_ROUGH_REFLECTION:
+			return evalGGXReflect(hit, material, textures, texData, dirIn, dirOut);
 		case BXDF_IDEAL_REFLECTION:
 			return evalIdealReflection();
 		case BXDF_GGX_ROUGH_DIELECTRIC:
@@ -66,7 +69,7 @@ Spectrum bxdfEval(
 	return (float3)(0.0f, 0.0f, 0.0f);
 }
 
-// Get pdf given incoming, outgoing directions (mostly for MIS)
+// Get pdf given incoming, outgoing directions (mainly for MIS)
 float bxdfPdf(
 	Hit *hit,
 	Material *material,
@@ -80,6 +83,7 @@ float bxdfPdf(
 		case BXDF_DIFFUSE:
 			return pdfDiffuse(hit, dirOut);
 		case BXDF_GGX_ROUGH_REFLECTION:
+			return pdfGGXReflect(hit, material, dirIn, dirOut);
 		case BXDF_IDEAL_REFLECTION:
 			return pdfIdealReflection();
 		case BXDF_GGX_ROUGH_DIELECTRIC:

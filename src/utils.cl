@@ -43,6 +43,17 @@ inline void calcNormalSphere(global Sphere *scene, Hit *hit)
     hit->N = normalize(hit->P - (scene +hit->i)->P);
 }
 
+inline void makeOrthoBasis(const float3 N, float3 *a, float3 *b)
+{
+	if(N.x != N.y || N.x != N.z)
+		*a = (float3)(N.z-N.y, N.x-N.z, N.y-N.x);
+	else
+		*a = (float3)(N.z-N.y, N.x+N.z, -N.y-N.x);
+
+	*a = normalize(*a);
+	*b = cross(N, *a);
+}
+
 // Return a sample through the center of the Nth subpixel
 inline float2 sampleRegular(int n, int dim)
 {
