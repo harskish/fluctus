@@ -1,0 +1,8 @@
+newmtl Material.007
+Kd 0.640000 0.640000 0.640000
+map_Kd textures\dirty_bark.jpg
+shader diffuse
+
+newmtl Material.002
+Ks 1.000000 0.800000 0.500000
+shader ideal_conductor
