@@ -6,7 +6,7 @@
 // Ideal conductive specular reflection (mirror)
 // Check PBRT 8.2 (p.516)
 
-float3 sampleIdealConductor(Hit *hit, Material *material, bool backface, global TexDescriptor *textures, global uchar *texData, float3 dirIn, float3 *dirOut, float *pdfW, uint *randSeed)
+float3 sampleIdealReflection(Hit *hit, Material *material, bool backface, global TexDescriptor *textures, global uchar *texData, float3 dirIn, float3 *dirOut, float *pdfW, uint *randSeed)
 {
 	float len = length(dirIn);
 	*dirOut = len * reflect(normalize(dirIn), hit->N);
@@ -23,13 +23,13 @@ float3 sampleIdealConductor(Hit *hit, Material *material, bool backface, global 
 }
 
 // BSDF (dirac delta) is non-zero with zero probability for two given directions
-float3 evalIdealConductor()
+float3 evalIdealReflection()
 {
 	return (float3)(0.0f, 0.0f, 0.0f);
 }
 
 // Probability of supplying a correct refl/refr direction pair is zero
-float pdfIdealConductor()
+float pdfIdealReflection()
 {
 	return 0.0f;
 }

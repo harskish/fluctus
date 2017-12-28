@@ -4,7 +4,7 @@
 #include "bxdf_types.h"
 #include "diffuse.cl"
 #include "ideal_dielectric.cl"
-#include "ideal_conductor.cl"
+#include "ideal_reflection.cl"
 
 // Placeholder
 typedef float3 Spectrum;
@@ -27,10 +27,10 @@ Spectrum bxdfSample(
 	{
 		case BXDF_DIFFUSE:
 			return sampleDiffuse(hit, material, textures, texData, dirOut, pdfW, randSeed);
-		case BXDF_CONDUCTOR:
-		case BXDF_IDEAL_CONDUCTOR:
-			return sampleIdealConductor(hit, material, backface, textures, texData, dirIn, dirOut, pdfW, randSeed);
-		case BXDF_DIELECTRIC:
+		case BXDF_GGX_ROUGH_REFLECTION:
+		case BXDF_IDEAL_REFLECTION:
+			return sampleIdealReflection(hit, material, backface, textures, texData, dirIn, dirOut, pdfW, randSeed);
+		case BXDF_GGX_ROUGH_DIELECTRIC:
 		case BXDF_IDEAL_DIELECTRIC:
 			return sampleIdealDielectric(hit, material, backface, textures, texData, dirIn, dirOut, pdfW, randSeed);
 		case BXDF_EMISSIVE:
@@ -53,10 +53,10 @@ Spectrum bxdfEval(
 	{
 		case BXDF_DIFFUSE:
 			return evalDiffuse(hit, material, textures, texData, dirIn, dirOut);
-		case BXDF_CONDUCTOR:
-		case BXDF_IDEAL_CONDUCTOR:
-			return evalIdealConductor();
-		case BXDF_DIELECTRIC:
+		case BXDF_GGX_ROUGH_REFLECTION:
+		case BXDF_IDEAL_REFLECTION:
+			return evalIdealReflection();
+		case BXDF_GGX_ROUGH_DIELECTRIC:
 		case BXDF_IDEAL_DIELECTRIC:
 			return evalIdealDielectric();
 		case BXDF_EMISSIVE:
@@ -79,10 +79,10 @@ float bxdfPdf(
 	{
 		case BXDF_DIFFUSE:
 			return pdfDiffuse(hit, dirOut);
-		case BXDF_CONDUCTOR:
-		case BXDF_IDEAL_CONDUCTOR:
-			return pdfIdealConductor();
-		case BXDF_DIELECTRIC:
+		case BXDF_GGX_ROUGH_REFLECTION:
+		case BXDF_IDEAL_REFLECTION:
+			return pdfIdealReflection();
+		case BXDF_GGX_ROUGH_DIELECTRIC:
 		case BXDF_IDEAL_DIELECTRIC:
 			return pdfIdealDielectric();
 		case BXDF_EMISSIVE:

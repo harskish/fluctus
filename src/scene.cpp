@@ -163,12 +163,12 @@ inline void setFaceFormat(int &format, std::string &format_string, bool &negativ
 
 cl_int Scene::parseShaderType(std::string &type)
 {
-    if (type == "conductor")
-        return BXDF_CONDUCTOR;
-    if (type == "ideal_conductor")
-        return BXDF_IDEAL_CONDUCTOR;
-    if (type == "dielectric")
-        return BXDF_DIELECTRIC;
+    if (type == "rough_reflection")
+        return BXDF_GGX_ROUGH_REFLECTION;
+    if (type == "ideal_reflection")
+        return BXDF_IDEAL_REFLECTION;
+    if (type == "rough_dielectric")
+        return BXDF_GGX_ROUGH_DIELECTRIC;
     if (type == "ideal_dielectric")
         return BXDF_IDEAL_DIELECTRIC;
     if (type == "emissive")
