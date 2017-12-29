@@ -365,12 +365,37 @@ void PTWindow::drawTexture()
 			GL_SHADER_SOURCE(
 				uniform sampler2D texSampler;
 				in vec2 texVarying;
-                out vec4 FragColor;
-				void main()
-				{
-					vec4 color = texture(texSampler, texVarying);
-					FragColor = color / color.a;
-				}
+                out vec4 fragColor;
+                
+                bool isnan4(vec4 val)
+                {
+                    for (int i = 0; i < 4; i++)
+                        if (!(val[i] < 0.0 || 0.0 < val[i] || val[i] == 0.0)) return true;
+
+                    return false;
+                }
+
+                bool isinf4(vec4 val)
+                {
+                    for (int i = 0; i < 4; i++)
+                        if (val[i] != val[i]) return true;
+
+                    return false;
+                }
+
+                void main()
+                {
+                    vec4 color = texture(texSampler, texVarying);
+                    if (color.a > 0.0)
+                        color = color / color.a;
+
+                    if (isnan4(color))
+                        color = vec4(1.0, 0.0, 1.0, 1.0);
+                    if (isinf4(color))
+                        color = vec4(0.0, 1.0, 1.0, 1.0);
+
+                    fragColor = color;
+                }
 			)
 		);
 
