@@ -44,7 +44,7 @@ inline void bvh_intersect(Ray *r, Hit *hit, global Triangle *tris, global GPUNod
                 hit->matId = tris[indices[imin]].matId;
                 hit->t = tmin;
                 hit->P = r->orig + tmin * r->dir;
-                hit->N = lerp(umin, vmin, tris[indices[imin]].v0.n, tris[indices[imin]].v1.n, tris[indices[imin]].v2.n);
+                hit->N = normalize(lerp(umin, vmin, tris[indices[imin]].v0.n, tris[indices[imin]].v1.n, tris[indices[imin]].v2.n));
                 hit->uvTex = lerp(umin, vmin, tris[indices[imin]].v0.t, tris[indices[imin]].v1.t, tris[indices[imin]].v2.t).xy;
             }
 
@@ -274,7 +274,7 @@ inline void bvh_intersect(Ray *r, Hit *hit, global Triangle *tris, global GPUNod
                 hit->matId = tris[indices[imin]].matId;
                 hit->t = tmin;
                 hit->P = r->orig + tmin * r->dir;
-                hit->N = lerp(umin, vmin, tris[indices[imin]].v0.n, tris[indices[imin]].v1.n, tris[indices[imin]].v2.n);
+                hit->N = normalize(lerp(umin, vmin, tris[indices[imin]].v0.n, tris[indices[imin]].v1.n, tris[indices[imin]].v2.n));
                 hit->uvTex = lerp(umin, vmin, tris[indices[imin]].v0.t, tris[indices[imin]].v1.t, tris[indices[imin]].v2.t).xy;
             }
         }
