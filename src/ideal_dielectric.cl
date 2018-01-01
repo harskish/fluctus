@@ -27,7 +27,7 @@ float3 sampleIdealDielectric(Hit *hit, Material *material, bool backface, global
 	else
 	{
 		// Refraction
-		*dirOut = raylen * (normalize(dirIn) * eta + hit->N * (eta * cosI - sqrt(cosT2)));
+		*dirOut = raylen * refract(normalize(dirIn), hit->N, eta);
 		bsdf *= eta * eta; // eta^2 applied in case of radiance transport (16.1.3)
 		
 		// Simulate absorption

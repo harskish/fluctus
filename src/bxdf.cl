@@ -33,6 +33,7 @@ Spectrum bxdfSample(
 		case BXDF_IDEAL_REFLECTION:
 			return sampleIdealReflection(hit, material, backface, textures, texData, dirIn, dirOut, pdfW, randSeed);
 		case BXDF_GGX_ROUGH_DIELECTRIC:
+			return sampleGGXRefract(hit, material, backface, textures, texData, dirIn, dirOut, pdfW, randSeed);
 		case BXDF_IDEAL_DIELECTRIC:
 			return sampleIdealDielectric(hit, material, backface, textures, texData, dirIn, dirOut, pdfW, randSeed);
 		case BXDF_EMISSIVE:
@@ -46,6 +47,7 @@ Spectrum bxdfSample(
 Spectrum bxdfEval(
 	Hit *hit,
 	Material *material,
+	bool backface,
 	global TexDescriptor *textures,
 	global uchar *texData,
 	float3 dirIn,
@@ -60,6 +62,7 @@ Spectrum bxdfEval(
 		case BXDF_IDEAL_REFLECTION:
 			return evalIdealReflection();
 		case BXDF_GGX_ROUGH_DIELECTRIC:
+			return evalGGXRefract(hit, material, backface, textures, texData, dirIn, dirOut);
 		case BXDF_IDEAL_DIELECTRIC:
 			return evalIdealDielectric();
 		case BXDF_EMISSIVE:
@@ -73,6 +76,7 @@ Spectrum bxdfEval(
 float bxdfPdf(
 	Hit *hit,
 	Material *material,
+	bool backface,
 	global TexDescriptor *textures,
 	global uchar *texData,
 	float3 dirIn,
@@ -87,6 +91,7 @@ float bxdfPdf(
 		case BXDF_IDEAL_REFLECTION:
 			return pdfIdealReflection();
 		case BXDF_GGX_ROUGH_DIELECTRIC:
+			return pdfGGXRefract(hit, material, backface, dirIn, dirOut);
 		case BXDF_IDEAL_DIELECTRIC:
 			return pdfIdealDielectric();
 		case BXDF_EMISSIVE:

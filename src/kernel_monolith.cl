@@ -259,13 +259,13 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                 // Compute contribution
                 if (!occluded && directPdfW != 0.0f)
                 {
-                    const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L);
+                    const float3 brdf = bxdfEval(&hit, &mat, backface, textures, texData, r.dir, L);
                     float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
 
                     float weight = 1.0f;
                     if (params->sampleImpl)
                     {
-						float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
+						float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, backface, textures, texData, r.dir, L));
                         weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
                     }
 
@@ -293,14 +293,14 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                 if (!occluded && cosLight > 1e-6f) // front of light accessible
                 {
                     const float lightPickProb = 1.0f;
-                    const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L);
+                    const float3 brdf = bxdfEval(&hit, &mat, backface, textures, texData, r.dir, L);
                     float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
                     float directPdfW = pdfAtoW(directPdfA, lenL, cosLight); // 'how small area light looks'
                 
                     float weight = 1.0f;
                     if (params->sampleImpl)
                     {
-						float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
+						float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, backface, textures, texData, r.dir, L));
                         weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
                     }
 

@@ -80,9 +80,9 @@ kernel void sampleBsdf(
             // Compute contribution
             if (!occluded && directPdfW != 0.0f)
             {
-                const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L);
+                const float3 brdf = bxdfEval(&hit, &mat, backface, textures, texData, r.dir, L);
                 float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
-                float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
+                float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, backface, textures, texData, r.dir, L));
 
                 float weight = 1.0f;
                 if (params->sampleImpl)
@@ -121,10 +121,10 @@ kernel void sampleBsdf(
             float cosLight = max(dot(params->areaLight.N, -L), 0.0f);
             if (!occluded && cosLight > 1e-6f)
             {
-                const float3 brdf = bxdfEval(&hit, &mat, textures, texData, r.dir, L);
+                const float3 brdf = bxdfEval(&hit, &mat, backface, textures, texData, r.dir, L);
                 float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface
                 float directPdfW = pdfAtoW(directPdfA, lenL, cosLight); // 'how small area light looks'
-                float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, textures, texData, r.dir, L));
+                float bsdfPdfW = max(0.0f, bxdfPdf(&hit, &mat, backface, textures, texData, r.dir, L));
 
                 float weight = 1.0f;
                 if (params->sampleImpl)
@@ -157,6 +157,7 @@ kernel void sampleBsdf(
     float3 bsdf = bxdfSample(&hit, &mat, backface, textures, texData, r.dir, &newDir, &pdfW, &seed);
     float costh = dot(hit.N, normalize(newDir));
 
+	// TODO: track just T/pdf for better numerical stability
     float3 newT = ReadFloat3(T, tasks) * bsdf * costh;
     float newPdf = ReadF32(pdf, tasks) * pdfW;
 	

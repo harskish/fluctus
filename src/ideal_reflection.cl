@@ -10,7 +10,6 @@ float3 sampleIdealReflection(Hit *hit, Material *material, bool backface, global
 {
 	float len = length(dirIn);
 	*dirOut = len * reflect(normalize(dirIn), hit->N);
-	float3 bsdf = (1.0f, 1.0f, 1.0f);
 	*pdfW = 1.0f;
 
 	// Fresnel ignored in ideal spacular case
@@ -19,7 +18,7 @@ float3 sampleIdealReflection(Hit *hit, Material *material, bool backface, global
 	// cosTh of geometry term needs to be cancelled out
 	float3 ks = matGetFloat3(material->Ks, hit->uvTex, material->map_Ks, textures, texData);
 	float cosO = dot(normalize(*dirOut), hit->N);
-	return (cosO != 0.0f) ? bsdf * ks / cosO : 0.0f;
+	return (cosO != 0.0f) ? ks / cosO : 0.0f;
 }
 
 // BSDF (dirac delta) is non-zero with zero probability for two given directions

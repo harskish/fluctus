@@ -26,16 +26,14 @@ inline float3 reflect(float3 dir, float3 n) // dir normalized?
     return dir - 2.0f * dot(dir, n) * n;
 }
 
-inline float3 refract(float3 dir, float3 n, float n1, float n2) // n1 = current, n2 = new
+// Wi points inwards
+inline float3 refract(float3 wi, float3 n, float eta)
 {
-    float cosI = dot(-normalize(dir), n);
-    float cosT = 1.0f - pow(n1 / n2, 2.0f) * (1.0f - pow(cosI, 2.0f));
-	float raylen = length(dir);
-
-	if (cosT < 0.0f)
-		return raylen * reflect(normalize(dir), n); // Total internal reflection
-	else
-        return raylen * (normalize(dir) * (n1 / n2) + n * ((n1 / n2) * cosI - sqrt(cosT)));
+	float iDotN = dot(-wi, n);
+	float sin2ThetaI = max(0.0f, 1.0f - iDotN * iDotN);
+	float sin2ThetaT = eta * eta * sin2ThetaI;
+	float cosThetaT = sqrt(max(0.0f, 1.0f - sin2ThetaT));
+	return wi * eta + n * (eta * iDotN - cosThetaT);
 }
 
 inline void calcNormalSphere(global Sphere *scene, Hit *hit)
