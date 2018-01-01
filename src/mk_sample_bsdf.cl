@@ -91,9 +91,8 @@ kernel void sampleBsdf(
                 }
 
                 const float3 T = ReadFloat3(T, tasks);
-                const float prob = ReadF32(pdf, tasks);
                 const float3 envMapLi = evalEnvMapDir(envMap, L) * params->envMapStrength;
-                const float3 contrib = brdf * T * envMapLi * weight * cosTh / (lightPickProb * directPdfW * prob);
+                const float3 contrib = brdf * T * envMapLi * weight * cosTh / (lightPickProb * directPdfW);
                 const float3 newEi = ReadFloat3(Ei, tasks) + contrib;
                 WriteFloat3(Ei, tasks, newEi);
             }
@@ -133,8 +132,7 @@ kernel void sampleBsdf(
                 }
 
                 const float3 T = ReadFloat3(T, tasks);
-                const float prob = ReadF32(pdf, tasks);
-                const float3 contrib = brdf * T * params->areaLight.E * weight * cosTh / (lightPickProb * directPdfW * prob);
+                const float3 contrib = brdf * T * params->areaLight.E * weight * cosTh / (lightPickProb * directPdfW);
                 const float3 newEi = ReadFloat3(Ei, tasks) + contrib;
                 WriteFloat3(Ei, tasks, newEi);
             }
@@ -157,13 +155,15 @@ kernel void sampleBsdf(
     float3 bsdf = bxdfSample(&hit, &mat, backface, textures, texData, r.dir, &newDir, &pdfW, &seed);
     float costh = dot(hit.N, normalize(newDir));
 
-	// TODO: track just T/pdf for better numerical stability
-    float3 newT = ReadFloat3(T, tasks) * bsdf * costh;
-    float newPdf = ReadF32(pdf, tasks) * pdfW;
-	
 	// Compensate for RR
-	newPdf *= contProb;
 	pdfW *= contProb;
+	
+	// Terminate if the path pdf is zero
+	if (pdfW == 0.0f)
+		terminate = true;
+	
+    // Update throughput * pdf
+	float3 newT = ReadFloat3(T, tasks) * bsdf * costh / pdfW;
         
     // Avoid self-shadowing
     orig = hit.P + 1e-4f * newDir;
@@ -173,11 +173,10 @@ kernel void sampleBsdf(
 	WriteFloat3(T, tasks, newT);
 	WriteFloat3(orig, tasks, orig);
 	WriteFloat3(dir, tasks, r.dir);
-	WriteF32(pdf, tasks, newPdf);
 	WriteF32(lastPdfW, tasks, pdfW);
 	WriteU32(seed, tasks, seed);
 	WriteU32(lastSpecular, tasks, BXDF_IS_SINGULAR(mat.type));
 
 	// Choose next phase
-	*phase = (terminate) ? MK_SPLAT_SAMPLE : MK_RT_NEXT_VERTEX;    
+	*phase = (terminate) ? MK_SPLAT_SAMPLE : MK_RT_NEXT_VERTEX;
 }

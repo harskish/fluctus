@@ -25,7 +25,6 @@ kernel void reset(global GPUTaskState *tasks, global float *pixels, global Rende
 	const float4 one = (float4)(1.0f);
 	WriteFloat3(Ei, tasks, zero);
 	WriteFloat3(T, tasks, one);
-	WriteF32(pdf, tasks, 1.0f);
 	WriteU32(pathLen, tasks, 0);
 	WriteU32(lastSpecular, tasks, 1);
 	WriteF32(lastPdfW, tasks, 0.0f);

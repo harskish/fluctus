@@ -144,7 +144,6 @@ void CLContext::initMCBuffers()
         curr.T = float3(1.0f);
         curr.Ei = float3(0.0f);
         curr.phase = MK_GENERATE_CAMERA_RAY;
-        curr.pdf = 1.0f;
         curr.pathLen = 0;
         curr.seed = (unsigned int)rand();
         curr.samples = 0;

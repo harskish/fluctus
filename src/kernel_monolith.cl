@@ -174,15 +174,14 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
     float3 nLight = areaLight.N;
 
     // Path state
-    float3 Ei = (float3)(0.0f);         // Irradiance
-    float3 throughput = (float3)(1.0f); // BRDF
-    float prob = 1.0f;                  // PDF
-    float lastPdfW = 1.0f;              // for MIS
-    bool lastSpecular = true;			// prevents MIS
+    float3 Ei = (float3)(0.0f);   // Irradiance
+    float3 T = (float3)(1.0f); // Technically throughput * pdf, for numerical stability
+    float lastPdfW = 1.0f;        // for MIS
+    bool lastSpecular = true;	  // prevents MIS
     int i = 0;
 
     const int MAX_BOUNCES = params->maxBounces;
-    while(prob > 1e-6f)
+    while(i < 100)
     {
 		// Fix backface hits
         bool backface = dot(hit.N, r.dir) > 0.0f;
@@ -207,7 +206,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                 weight = (actualPdfW * lightPickProb) / (actualPdfW * lightPickProb + directPdfW);
             }   
 
-            Ei += weight * throughput * bg / prob;
+            Ei += weight * T * bg;
             break;
         }
 
@@ -224,7 +223,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
             }
 
             // pdf (i.e. extension ray pdf = lastPdfW) included in prob
-            Ei += throughput * misWeight * emission / prob;
+            Ei += T * misWeight * emission;
             break; // lights don't reflect
         }
 
@@ -270,7 +269,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                     }
 
                     const float3 envMapLi = evalEnvMapDir(envMap, L) * params->envMapStrength;
-                    Ei += brdf * throughput * envMapLi * weight * cosTh / (lightPickProb * directPdfW * prob);
+                    Ei += brdf * T * envMapLi * weight * cosTh / (lightPickProb * directPdfW);
                 }
             }
 
@@ -304,7 +303,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
                         weight = (directPdfW * lightPickProb) / (directPdfW * lightPickProb + bsdfPdfW);
                     }
 
-                    Ei += brdf * throughput * emission * weight * cosTh / (lightPickProb * directPdfW * prob);
+                    Ei += brdf * T * emission * weight * cosTh / (lightPickProb * directPdfW);
                 }
             }
         }
@@ -313,7 +312,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
 		float contProb = 1.0f;
 		if (i >= MAX_BOUNCES)
 		{
-			contProb = clamp(luminance(throughput), 0.01f, 0.5f);
+			contProb = clamp(luminance(T), 0.01f, 0.5f);
 			if (!params->useRoulette || rand(&seed) > contProb)
 				break;
 		}
@@ -324,9 +323,17 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
         lastSpecular = BXDF_IS_SINGULAR(mat.type);
 		float costh = dot(hit.N, normalize(newDir));
 
-        throughput *= bsdf * costh;
-        prob *= lastPdfW * contProb;
+		if (lastPdfW == 0.0f)
+			break;
+
+        T *= (bsdf * costh) / (lastPdfW * contProb);
 		lastPdfW *= contProb;
+
+		if (isinf(T.x) || isnan(T.x))
+		{
+			printVec3("T", T);
+			printVec3("Bsdf", bsdf);
+		}
 
 		// Avoid self-shadowing
 		orig = hit.P + 1e-4f * newDir;

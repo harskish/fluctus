@@ -29,14 +29,6 @@ kernel void nextVertex(
     if (*phase != MK_RT_NEXT_VERTEX)
         return;
 
-	// Don't continue paths with near zero pdf => no NaNs (div by zero)
-	float pdf = ReadF32(pdf, tasks);
-	if (pdf < 1e-6f)
-	{
-		*phase = MK_SPLAT_SAMPLE;
-		return;
-	}
-
 	const float3 rayOrig = ReadFloat3(orig, tasks);
     const float3 rayDir = ReadFloat3(dir, tasks);
     Ray r = { rayOrig, rayDir };
@@ -74,7 +66,7 @@ kernel void nextVertex(
         }   
 
         float3 T = ReadFloat3(T, tasks);
-		float3 newEi = ReadFloat3(Ei, tasks) + weight * T * bg / pdf;
+		float3 newEi = ReadFloat3(Ei, tasks) + weight * T * bg;
 		WriteFloat3(Ei, tasks, newEi);
 		*phase = MK_SPLAT_SAMPLE;
     }
@@ -94,7 +86,7 @@ kernel void nextVertex(
 
 		// Pdf (i.e. extension ray pdf = lastPdfW) included in prob
 		float3 T = ReadFloat3(T, tasks);
-		float3 newEi = ReadFloat3(Ei, tasks) + T * misWeight * params->areaLight.E / pdf;
+		float3 newEi = ReadFloat3(Ei, tasks) + T * misWeight * params->areaLight.E;
 		WriteFloat3(Ei, tasks, newEi);
         
 		// No reflective lights

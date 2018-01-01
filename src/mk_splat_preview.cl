@@ -24,7 +24,6 @@ kernel void splatPreview(global GPUTaskState *tasks, global float *pixels, globa
     const float3 one = (float3)(1.0f);
     WriteFloat3(Ei, tasks, zero);
     WriteFloat3(T, tasks, one);
-    WriteF32(pdf, tasks, 1.0f);
     WriteU32(pathLen, tasks, 0);
 
     // Update phase

@@ -193,7 +193,7 @@ typedef struct
     // Path state:
     float3 orig;     // path segment origin
     float3 dir;      // path segment direction
-    float3 T;        // throughput
+    float3 T;        // throughput * pdf (for numerical stability)
     float3 Ei;       // irradiance
     // Last hit:
     float3 P;
@@ -201,7 +201,6 @@ typedef struct
     float2 uvTex;
     // Path state:
     PathPhase phase;
-    cl_float pdf;
 	cl_float lastPdfW; // prev. brdf pdf, for MIS
     cl_uint pathLen; // number of segments in path
     cl_uint seed;
