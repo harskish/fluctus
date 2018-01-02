@@ -56,7 +56,7 @@ private:
     void saveHierarchy(const std::string filename);
     void constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode, ProgressView* progress);
 
-    void pollKeys();              // movement keys
+    void pollKeys(float deltaT); // movement keys
     void updateCamera();
     void updateAreaLight();
     void initCamera();
@@ -81,6 +81,7 @@ private:
     RenderParams params;    // copied into GPU memory
     float2 cameraRotation;  // not passed to GPU but needed for camera basis vectors
     float2 lastCursorPos;
+    double lastUpdate = 0.0f;
     float cameraSpeed = 1.0f;
     bool mouseButtonState[3] = { false, false, false };
     bool paramsUpdatePending = true; // force initial param update

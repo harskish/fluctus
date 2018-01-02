@@ -85,9 +85,14 @@ inline void printStats(const RenderStats &stats, CLContext *ctx)
 
 void Tracer::update()
 {
+    // Calculate time since last update
+    double newT = glfwGetTime();
+    float deltaT = (float)std::min(newT - lastUpdate, 0.1); // seconds
+    lastUpdate = newT;
+    
     // React to key presses
     glfwPollEvents();
-    pollKeys();
+    pollKeys(deltaT);
 
     glFinish(); // locks execution to refresh rate of display (GL)
 
@@ -533,30 +538,30 @@ void Tracer::handleKeypress(int key, int scancode, int action, int mods)
 
 // Instant and simultaneous key presses (movement etc.)
 #define check(key, expr) if(window->keyPressed(key)) { expr; paramsUpdatePending = true; }
-void Tracer::pollKeys()
+void Tracer::pollKeys(float deltaT)
 {
     if (shouldSkipPoll()) return;
     
     Camera &cam = params.camera;
 
-    check(GLFW_KEY_W,           cam.pos += cameraSpeed * 0.07f * cam.dir);
-    check(GLFW_KEY_A,           cam.pos -= cameraSpeed * 0.07f * cam.right);
-    check(GLFW_KEY_S,           cam.pos -= cameraSpeed * 0.07f * cam.dir);
-    check(GLFW_KEY_D,           cam.pos += cameraSpeed * 0.07f * cam.right);
-    check(GLFW_KEY_R,           cam.pos += cameraSpeed * 0.07f * cam.up);
-    check(GLFW_KEY_F,           cam.pos -= cameraSpeed * 0.07f * cam.up);
-    check(GLFW_KEY_UP,          cameraRotation.y -= 1.0f);
-    check(GLFW_KEY_DOWN,        cameraRotation.y += 1.0f);
-    check(GLFW_KEY_LEFT,        cameraRotation.x -= 1.0f);
-    check(GLFW_KEY_RIGHT,       cameraRotation.x += 1.0f);
-    check(GLFW_KEY_PERIOD,      cam.fov = std::min(cam.fov + 1.0f, 175.0f));
-    check(GLFW_KEY_COMMA,       cam.fov = std::max(cam.fov - 1.0f, 5.0f));
-    check(GLFW_KEY_8,           params.areaLight.size /= 1.1f);
-    check(GLFW_KEY_9,           params.areaLight.size *= 1.1f);
-    check(GLFW_KEY_PAGE_DOWN,   params.areaLight.E /= 1.05f);
-    check(GLFW_KEY_PAGE_UP,     params.areaLight.E *= 1.05f);
-    check(GLFW_KEY_X,           params.envMapStrength *= 1.05f);
-    check(GLFW_KEY_Z,           params.envMapStrength /= 1.05f);
+    check(GLFW_KEY_W,           cam.pos += deltaT * cameraSpeed * 10 * cam.dir);
+    check(GLFW_KEY_A,           cam.pos -= deltaT * cameraSpeed * 10 * cam.right);
+    check(GLFW_KEY_S,           cam.pos -= deltaT * cameraSpeed * 10 * cam.dir);
+    check(GLFW_KEY_D,           cam.pos += deltaT * cameraSpeed * 10 * cam.right);
+    check(GLFW_KEY_R,           cam.pos += deltaT * cameraSpeed * 10 * cam.up);
+    check(GLFW_KEY_F,           cam.pos -= deltaT * cameraSpeed * 10 * cam.up);
+    check(GLFW_KEY_UP,          cameraRotation.y -= 75 * deltaT);
+    check(GLFW_KEY_DOWN,        cameraRotation.y += 75 * deltaT);
+    check(GLFW_KEY_LEFT,        cameraRotation.x -= 75 * deltaT);
+    check(GLFW_KEY_RIGHT,       cameraRotation.x += 75 * deltaT);
+    check(GLFW_KEY_PERIOD,      cam.fov = (cl_float)std::min(cam.fov + 70 * deltaT, 175.0f));
+    check(GLFW_KEY_COMMA,       cam.fov = (cl_float)std::max(cam.fov - 70 * deltaT, 5.0f));
+    check(GLFW_KEY_8,           params.areaLight.size /= (cl_float)(1 + 5 * deltaT));
+    check(GLFW_KEY_9,           params.areaLight.size *= (cl_float)(1 + 5 * deltaT));
+    check(GLFW_KEY_PAGE_DOWN,   params.areaLight.E /= (cl_float)(1 + 10 * deltaT));
+    check(GLFW_KEY_PAGE_UP,     params.areaLight.E *= (cl_float)(1 + 10 * deltaT));
+    check(GLFW_KEY_X,           params.envMapStrength *= (cl_float)(1 + 5 * deltaT));
+    check(GLFW_KEY_Z,           params.envMapStrength /= (cl_float)(1 + 5 * deltaT));
 
     if(paramsUpdatePending)
     {
