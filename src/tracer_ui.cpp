@@ -39,9 +39,9 @@ void Tracer::setupToolbar()
     // Export image
     auto exportButton = new Button(tools, "Save image", ENTYPO_ICON_CAMERA);
     exportButton->setCallback([&]() {
-        auto name = saveFileDialog("Save image as", "", { "*.png" });
+        auto name = saveFileDialog("Save image as", "", { "*.png", "*.hdr", "*.bmp" });
         if (name == "") return;        
-        if (!endsWith(name, ".png")) name += ".png";
+        if (name.find('.') == std::string::npos) name += ".png";
         clctx->saveImage(name, params, useWavefront);
     });
 

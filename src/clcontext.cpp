@@ -450,8 +450,15 @@ void CLContext::saveImage(std::string filename, const RenderParams &params, bool
 	ilTexImage(params.width, params.height, 1, 3, IL_RGB, IL_UNSIGNED_BYTE, dataBytes.get());
 	ilSaveImage(filename.c_str());
     ilDeleteImage(imageID);
+
+    // Check for errors
+    ILenum Error = IL_NO_ERROR;
+    while ((Error = ilGetError()) != IL_NO_ERROR)
+    {
+        printf("\n%d: %s", Error, iluErrorString(Error));
+    }
 	
-	std::cout << "\nSaved " << filename << std::endl;
+	std::cout << ((Error == IL_NO_ERROR) ? "\nSaved " : "\nFailed saving ") << filename << std::endl;
 }
 
 void CLContext::createEnvMap(EnvironmentMap *map)
