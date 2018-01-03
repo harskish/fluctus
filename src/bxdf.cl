@@ -6,6 +6,7 @@
 #include "ideal_dielectric.cl"
 #include "ideal_reflection.cl"
 #include "ggx.cl"
+#include "glossy.cl"
 
 // Placeholder
 typedef float3 Spectrum;
@@ -28,6 +29,8 @@ Spectrum bxdfSample(
 	{
 		case BXDF_DIFFUSE:
 			return sampleDiffuse(hit, material, textures, texData, dirOut, pdfW, randSeed);
+		case BXDF_GLOSSY:
+			return sampleGlossy(hit, material, backface, textures, texData, dirIn, dirOut, pdfW, randSeed);
 		case BXDF_GGX_ROUGH_REFLECTION:
 			return sampleGGXReflect(hit, material, textures, texData, dirIn, dirOut, pdfW, randSeed);
 		case BXDF_IDEAL_REFLECTION:
@@ -57,6 +60,8 @@ Spectrum bxdfEval(
 	{
 		case BXDF_DIFFUSE:
 			return evalDiffuse(hit, material, textures, texData, dirIn, dirOut);
+		case BXDF_GLOSSY:
+			return evalGlossy(hit, material, backface, textures, texData, dirIn, dirOut);
 		case BXDF_GGX_ROUGH_REFLECTION:
 			return evalGGXReflect(hit, material, textures, texData, dirIn, dirOut);
 		case BXDF_IDEAL_REFLECTION:
@@ -86,6 +91,8 @@ float bxdfPdf(
 	{
 		case BXDF_DIFFUSE:
 			return pdfDiffuse(hit, dirOut);
+		case BXDF_GLOSSY:
+			return pdfGlossy(hit, material, textures, texData, backface, dirIn, dirOut);
 		case BXDF_GGX_ROUGH_REFLECTION:
 			return pdfGGXReflect(hit, material, dirIn, dirOut);
 		case BXDF_IDEAL_REFLECTION:

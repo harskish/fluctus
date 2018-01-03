@@ -72,7 +72,7 @@ float ggxD(float alpha, float3 n, float3 m)
 	float tanSq = nDotM != 0.0f ? ((1.0f - nDotMSq) / nDotMSq) : 0.0f;
 
 	float aSq = alpha * alpha;
-	float denom = M_PI * nDotMSq * nDotMSq * (aSq + tanSq) * (aSq + tanSq);
+	float denom = M_PI_F * nDotMSq * nDotMSq * (aSq + tanSq) * (aSq + tanSq);
 	return denom > 0.0f ? (aSq / denom) : 0.0f;
 }
 
@@ -101,7 +101,7 @@ float3 sampleGGXReflect(Hit *hit, Material *mat, global TexDescriptor *textures,
 	// TODO: Fresnel should be applied implicitly in case of layered material
 	float iDotN = dot(dirIn, hit->N);
 	float oDotN = dot(*dirOut, hit->N);
-	float F = 1.0f; //(mat->Ni > 0.0f) ? fresnelDielectric(iDotN, 1.0f, mat->Ni) : 1.0f;
+	float F = (mat->Ni > 1.0f) ? fresnelDielectric(iDotN, 1.0f, mat->Ni) : 1.0f;
 
 	// Evaluate BSDF (eq. 20)
 	float3 Ks = matGetFloat3(mat->Ks, hit->uvTex, mat->map_Ks, textures, texData);
@@ -123,7 +123,7 @@ float3 evalGGXReflect(Hit *hit, Material *mat, global TexDescriptor *textures, g
 	// TODO: Fresnel should be applied implicitly in case of layered material
 	float iDotN = dot(dirIn, hit->N);
 	float oDotN = dot(dirOut, hit->N);
-	float F = 1.0f; // (mat->Ni > 0.0f) ? fresnelDielectric(iDotN, 1.0f, mat->Ni) : 1.0f;
+	float F = (mat->Ni > 1.0f) ? fresnelDielectric(iDotN, 1.0f, mat->Ni) : 1.0f;
 
 	// Evaluate BSDF (eq. 20)
 	float3 Ks = matGetFloat3(mat->Ks, hit->uvTex, mat->map_Ks, textures, texData);
@@ -137,7 +137,7 @@ float pdfGGXReflect(Hit *hit, Material *mat, float3 dirIn, float3 dirOut)
 {
 	dirIn *= -1;
 	float alpha = toRoughness(mat->Ns);
-	float3 H = normalize(dirIn+ dirOut);
+	float3 H = normalize(dirIn + dirOut);
 	return ggxPdfReflect(alpha, dirOut, hit->N, H);
 }
 

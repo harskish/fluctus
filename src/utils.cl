@@ -16,6 +16,11 @@ inline void swap(float *a, float *b)
   *a = tmp;
 }
 
+inline bool isZero(float3 v)
+{
+	return (v.x == 0.0f && v.y == 0 && v.z == 0);
+}
+
 inline float3 lerp(float u, float v, float3 v1, float3 v2, float3 v3)
 {
     return (1.0f - u - v) * v1 + u * v2 + v * v3;

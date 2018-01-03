@@ -159,7 +159,7 @@ kernel void sampleBsdf(
 	pdfW *= contProb;
 	
 	// Terminate if the path pdf is zero
-	if (pdfW == 0.0f)
+	if (pdfW == 0.0f || isZero(bsdf))
 		terminate = true;
 	
     // Update throughput * pdf

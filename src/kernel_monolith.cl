@@ -323,7 +323,7 @@ inline float3 tracePath(float2 pos, uint iter, global uchar *texData, global Tex
         lastSpecular = BXDF_IS_SINGULAR(mat.type);
 		float costh = dot(hit.N, normalize(newDir));
 
-		if (lastPdfW == 0.0f)
+		if (lastPdfW == 0.0f || isZero(bsdf))
 			break;
 
         T *= (bsdf * costh) / (lastPdfW * contProb);

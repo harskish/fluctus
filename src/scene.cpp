@@ -7,14 +7,12 @@ Scene::Scene(const std::string filename)
 {
     // Init default material
     Material def;
-    def.Kd = float3(0.6f, 0.6f, 0.6f);
-    def.Ks = float3(1.0f);
-    def.Ke = float3(0.0f);
-    def.Ns = 30;
-    def.Ni = 0.0f;
+    def.Kd = float3(0.64, 0.64, 0.64);
+    def.Ni = 1.8f;
+    def.Ns = 700.0f;
     def.map_Kd = -1;
     def.map_Ks = -1;
-    def.type = BXDF_DIFFUSE;
+    def.type = BXDF_GLOSSY;
     materials.push_back(def);
 }
 
@@ -163,6 +161,10 @@ inline void setFaceFormat(int &format, std::string &format_string, bool &negativ
 
 cl_int Scene::parseShaderType(std::string &type)
 {
+    if (type == "diffuse")
+        return BXDF_DIFFUSE;
+    if (type == "glossy")
+        return BXDF_GLOSSY;
     if (type == "rough_reflection")
         return BXDF_GGX_ROUGH_REFLECTION;
     if (type == "ideal_reflection")
@@ -173,8 +175,6 @@ cl_int Scene::parseShaderType(std::string &type)
         return BXDF_IDEAL_DIELECTRIC;
     if (type == "emissive")
         return BXDF_EMISSIVE;
-    if (type == "diffuse")
-        return BXDF_DIFFUSE;
     
     return BXDF_DIFFUSE;
 }
