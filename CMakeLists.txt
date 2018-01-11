@@ -56,11 +56,18 @@ set(SOURCE_FILES
     src/random.cl
     src/utils.cl
     src/intersect.cl
+	src/fresnel.cl
+	src/ideal_reflection.cl
+	src/ideal_dielectric.cl
+	src/glossy.cl
+	src/ggx.cl
+	src/diffuse.cl
+	src/bxdf.cl
     src/kernel_monolith.cl
     src/mk_next_vertex.cl
     src/mk_raygen.cl
     src/mk_reset.cl
-    src/mk_sample_explicit.cl
+    src/mk_sample_bsdf.cl
     src/mk_splat.cl
     src/mk_splat_preview.cl)
 

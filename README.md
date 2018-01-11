@@ -4,12 +4,12 @@
 OpenCL wavefront path tracer
 --------------
 
-![Luxball](gallery/luxball2.png)
+![Country Kitchen](gallery/kitchen.png)
 
 ## Features
 - Physically based renderer
     -  OBJ + MTL scenefiles
-    -  Lambertian and refractive BSDFs
+    -  Lambertian, glossy, ideal specular, and rough specular ([GGX][ggx]) BSDFs
     -  Multiple importance sampled environment maps (alias method)
 - [Wavefront path tracing][wavefront] at interactive framerates
     - Optimized structure of arrays data layout
@@ -63,3 +63,4 @@ See the [LICENSE](./LICENSE.md) file for license rights and limitations (MIT).
 [intel_ocl]: https://software.intel.com/intel-opencl
 [wavefront]: http://research.nvidia.com/publication/megakernels-considered-harmful-wavefront-path-tracing-gpus
 [sbvh]: http://www.nvidia.com/object/nvidia_research_pub_012.html
+[ggx]: https://doi.org/10.2312/EGWR/EGSR07/195-206
