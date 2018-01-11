@@ -26,7 +26,7 @@ CLContext::CLContext()
         _putenv_s("CUDA_CACHE_DISABLE", "1");
     #endif
 
-    // printDevices();
+    printDevices();
 
     std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
@@ -408,7 +408,7 @@ void CLContext::saveImage(std::string filename, const RenderParams &params, bool
     unsigned int numBytes = params.width * params.height * 3; // rgb
     unsigned int numFloats = params.width * params.height * 4; // rgba
 	std::unique_ptr<unsigned char[]> dataBytes(new unsigned char[numBytes]);
-    std::unique_ptr<float[]> dataFloats(new float[numFloats]); 
+    std::unique_ptr<float[]> dataFloats(new float[numFloats]);
 
     // Copy data to host
     err = 0;
@@ -429,27 +429,66 @@ void CLContext::saveImage(std::string filename, const RenderParams &params, bool
     err |= cmdQueue.finish();
     verify("Failed to copy pixel buffer to host!");
 
-    // Convert floats to bytes
-    int counter = 0;
-    for (int i = 0; i < numFloats; i += 4)
+    bool hdr = endsWith(filename, ".hdr") || endsWith(filename, ".HDR");
+    if (hdr)
     {
-        float r = dataFloats[i + 0];
-        float g = dataFloats[i + 1];
-        float b = dataFloats[i + 2];
-        float a = dataFloats[i + 3];
+        // Save linear unclamped values
+        for (int i = 0; i < numFloats; i += 4)
+        {
+            
+            float *r = &dataFloats[i] + 0;
+            float *g = &dataFloats[i] + 1;
+            float *b = &dataFloats[i] + 2;
+            float *a = &dataFloats[i] + 3;
 
-        auto clamp = [](float value) { return std::max(0.0f, std::min(1.0f, value)); };
-        dataBytes[counter++] = (unsigned char)(255 * clamp(r / a));
-        dataBytes[counter++] = (unsigned char)(255 * clamp(g / a));
-        dataBytes[counter++] = (unsigned char)(255 * clamp(b / a));
+            *r /= *a;
+            *g /= *a;
+            *b /= *a;
+            *a = 1.0f;
+        }
+
+        ILuint imageID = ilGenImage();
+        ilBindImage(imageID);
+        ilTexImage(params.width, params.height, 1, 4, IL_RGBA, IL_FLOAT, dataFloats.get());
+        ilSaveImage(filename.c_str());
+        ilDeleteImage(imageID);
     }
+    else
+    {
+        // Clamp, gamma correct, convert to bytes
+        int counter = 0;
+        for (int i = 0; i < numFloats; i += 4)
+        {
+            float r = dataFloats[i + 0];
+            float g = dataFloats[i + 1];
+            float b = dataFloats[i + 2];
+            float a = dataFloats[i + 3];
 
-    // Save image
-	ILuint imageID = ilGenImage();
-	ilBindImage(imageID);
-	ilTexImage(params.width, params.height, 1, 3, IL_RGB, IL_UNSIGNED_BYTE, dataBytes.get());
-	ilSaveImage(filename.c_str());
-    ilDeleteImage(imageID);
+            // Divide alpha
+            r /= a;
+            g /= a;
+            b /= a;
+
+            // Gamma correct
+            auto gamma = [](float value) { return powf(value, 1.0f / 2.2f); };
+            r = gamma(r);
+            g = gamma(g);
+            b = gamma(b);
+
+            // Convert to bytes
+            auto clamp = [](float value) { return std::max(0.0f, std::min(1.0f, value)); };
+            dataBytes[counter++] = (unsigned char)(255 * clamp(r));
+            dataBytes[counter++] = (unsigned char)(255 * clamp(g));
+            dataBytes[counter++] = (unsigned char)(255 * clamp(b));
+        }
+
+        ILuint imageID = ilGenImage();
+        ilBindImage(imageID);
+        ilTexImage(params.width, params.height, 1, 3, IL_RGB, IL_UNSIGNED_BYTE, dataBytes.get());
+        ilSaveImage(filename.c_str());
+        ilDeleteImage(imageID);
+    }
+    
 
     // Check for errors
     ILenum Error = IL_NO_ERROR;

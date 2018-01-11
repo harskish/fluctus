@@ -266,6 +266,9 @@ void PTWindow::drawPixelBuffer()
                     if (isinf4(color))
                         color = vec4(0.0, 1.0, 1.0, 1.0);
 
+                    // Gamma correction
+                    color.xyz = pow(color.xyz, vec3(1.0 / 2.2));
+
                     fragColor = color;
 				}
 			)
@@ -393,6 +396,9 @@ void PTWindow::drawTexture()
                         color = vec4(1.0, 0.0, 1.0, 1.0);
                     if (isinf4(color))
                         color = vec4(0.0, 1.0, 1.0, 1.0);
+
+                    // Gamma correction
+                    color.xyz = pow(color.xyz, vec3(1.0 / 2.2));
 
                     fragColor = color;
                 }

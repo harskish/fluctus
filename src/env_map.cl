@@ -1,6 +1,7 @@
 #include "utils.cl"
 
 /* Utilities for evaluating environment map Li's and pdf's */
+/* HDRIs are typically stored in linear space, no gamma correction needed! */
 
 // integer UVs
 constant sampler_t samplerInt = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
