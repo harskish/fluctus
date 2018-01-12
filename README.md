@@ -4,7 +4,7 @@
 OpenCL wavefront path tracer
 --------------
 
-![Country Kitchen](gallery/kitchen.png)
+![Country Kitchen](gallery/kitchen2.png)
 
 ## Features
 - Physically based renderer
