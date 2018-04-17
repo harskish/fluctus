@@ -1,7 +1,25 @@
 #pragma once
+#include <string>
 #include <stdlib.h>
 #include <glad/glad.h>
-#include "tinyfiledialogs.h"
+#include <vector>
+
+// Determine target
+#if _WIN32 || _WIN64
+#if _WIN64
+#define ENVIRONMENT64
+#else
+#define ENVIRONMENT32
+#endif
+#endif
+
+#if __GNUC__
+#if __x86_64__ || __ppc64__
+#define ENVIRONMENT64
+#else
+#define ENVIRONMENT32
+#endif
+#endif
 
 inline void waitExit()
 {
@@ -33,33 +51,11 @@ inline void GLcheckErrors()
     }
 }
 
-inline bool endsWith(const std::string s, const std::string end) {
-    size_t len = end.size();
-    if (len > s.size()) return false;
+bool endsWith(const std::string s, const std::string end);
+std::string unixifyPath(std::string path);
 
-    std::string substr = s.substr(s.size() - len, len);
-    return end == substr;
-}
+std::string openFileDialog(const std::string message, const std::string defaultPath, const std::vector<const char*> filter);
+std::string saveFileDialog(const std::string message, const std::string defaultPath, const std::vector<const char*> filter);
 
-inline std::string unixifyPath(std::string path) {
-    size_t index = 0;
-    while (true) {
-        index = path.find("\\", index);
-        if (index == std::string::npos) break;
-
-        path.replace(index, 1, "/");
-        index += 1;
-    }
-
-    return path;
-}
-
-inline std::string openFileDialog(const std::string message, const std::string defaultPath, const std::vector<const char*> filter) {
-    char const *selected = tinyfd_openFileDialog(message.c_str(), defaultPath.c_str(), filter.size(), filter.data(), NULL, 0);
-    return (selected) ? std::string(selected) : "";
-}
-
-inline std::string saveFileDialog(const std::string message, const std::string defaultPath, const std::vector<const char*> filter) {
-    char const *selected = tinyfd_saveFileDialog(message.c_str(), defaultPath.c_str(), filter.size(), filter.data(), NULL);
-    return (selected) ? std::string(selected) : "";
-}
+size_t computeHash(const void* buffer, size_t length);
+size_t fileHash(const std::string filename);

@@ -34,28 +34,6 @@ void Scene::setEnvMap(std::shared_ptr<EnvironmentMap> envMapPtr)
     envmap = envMapPtr;
 }
 
-void Scene::computeHash(const std::string filename)
-{
-    this->hash = (size_t)0;
-    std::ifstream input(filename, std::ios::in);
-
-    if (!input)
-    {
-        std::cout << "Could not open file " << filename << " for hashing, exiting..." << std::endl;
-        waitExit();
-    }
-
-    // Read the file line by line.
-    std::string line;
-    while (getline(input, line))
-    {
-        size_t h = std::hash<std::string>()(line);
-        this->hash ^= h + 0x9e3779b9 + (this->hash << 6) + (this->hash >> 2); // combine hashes
-    }
-
-    std::cout << "Hash for " << filename << ": " << this->hash << std::endl;
-}
-
 std::string Scene::hashString()
 {
     std::stringstream ss;
@@ -71,13 +49,11 @@ void Scene::loadModel(const std::string filename, ProgressView *progress)
     if (endsWith(filename, "obj"))
     {
         std::cout << "Loading OBJ file: " << filename << std::endl;
-        computeHash(filename);
-        loadObjWithMaterials(filename, progress); //loadObjModel(filename);
+        loadObjWithMaterials(filename, progress);
     }
     else if (endsWith(filename, "ply"))
     {
         std::cout << "Loading PLY file: " << filename << std::endl;
-        computeHash(filename);
         loadPlyModel(filename);
     }
     else
@@ -85,6 +61,8 @@ void Scene::loadModel(const std::string filename, ProgressView *progress)
         std::cout << "Cannot load file " << filename << ": unknown file format" << std::endl;
         waitExit();
     }
+
+    this->hash = fileHash(filename);
 
     // Print elapsed time
     auto time2 = std::chrono::high_resolution_clock::now();

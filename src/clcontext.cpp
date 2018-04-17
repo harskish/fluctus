@@ -20,12 +20,6 @@ inline std::string getAbsolutePath(std::string filename)
 
 CLContext::CLContext()
 {
-    // Remove kernel caching to always get build logs (on NVIDIA hardware)
-    // The cache also IGNORES included files when comparing hashes, making it useless
-    #ifdef _WIN32
-        _putenv_s("CUDA_CACHE_DISABLE", "1");
-    #endif
-
     printDevices();
 
     std::vector<cl::Platform> platforms;
@@ -92,12 +86,12 @@ void CLContext::setup(PTWindow *window)
     setupScene();
 
     // Build kernels, set their params
+    initMCBuffers();
     setupKernels();
 }
 
 void CLContext::setupKernels()
 {
-    initMCBuffers();
 	setupResetKernel();
     setupRayGenKernel();
     setupNextVertexKernel();
@@ -157,15 +151,14 @@ void CLContext::initMCBuffers()
     if (Settings::getInstance().getUseSoA())
     {
         // Maximum coalescing: 32bit boundaries
+        GPUTaskState curr = getDefaultState();
+        float *curr_data = (float*)(&curr);
         float *data = (float*)initialTaskStates;
         for (int i = 0; i < NUM_TASKS; i++)
         {
-            // Initialize struct normally
-            GPUTaskState curr = getDefaultState();
-
-            float *curr_data = (float*)(&curr);
             for (int j = 0; j < sizeof(GPUTaskState) / sizeof(float); j++) // 32 bits at a time
             {
+                curr.seed = (unsigned int)rand();
                 data[j * NUM_TASKS + i] = curr_data[j];
             }
         }
@@ -197,53 +190,23 @@ void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::strin
     // Show progress
     window->showMessage("Building kernel", fileName);
 
-    // Read kernel source from file
-    std::string kernelPath = "src/" + fileName;
-
-    cl::Program program;
-    kernelFromFile(kernelPath, context, program, err);
-    verify("Failed to create compute program for " + fileName);
-
-    // Build kernel source (create compute program)
-    // Define "GPU" to disable cl-prefixed types in shared headers (cl_float4 => float4 etc.)
+    // Define build options to check cached kernel validity
     std::string buildOpts = "-DGPU -I./src -cl-denorms-are-zero";
-    if (platformIsNvidia(platform)) buildOpts += " -cl-nv-verbose";
-    #ifdef CPU_DEBUGGING
-        buildOpts += " -g -s \"" + getAbsolutePath(kernelPath) + "\"";
-    #endif
-
-    // Add bitstack and SoA toggles from settings
     Settings &s = Settings::getInstance();
     if (s.getUseBitstack()) buildOpts += " -DUSE_BITSTACK";
     if (s.getUseSoA()) buildOpts += " -DUSE_SOA";
-
-    err = program.build(clDevices, buildOpts.c_str());
-    std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-
-    // Check build log
-    if (buildLog.length() > 2)
-        std::cout << "\n[" << fileName << " build log]:" << buildLog << std::endl;
-    verify("Failed to build compute program!");
+    if (platformIsNvidia(platform)) buildOpts += " -cl-nv-verbose";
+    #ifdef CPU_DEBUGGING
+        buildOpts += " -g -s \"" + getAbsolutePath("src/" + fileName) + "\"";
+    #endif
+    
+    // Build program using cache or sources
+    cl::Program program = kernelFromFile(fileName, buildOpts, platform, context, device, err);
+    verify("Failed to create kernel program");
 
     // Creating compute kernel from program
     target = cl::Kernel(program, methodName.c_str(), &err);
     verify("Failed to create compute kernel!");
-
-	// Read program binary (NVIDIA: PTX)
-	auto ptxs = program.getInfo<CL_PROGRAM_BINARIES>();
-	std::vector<unsigned char> ptx = ptxs[0];
-
-	// Open target file in overwrite-mode
-	std::ofstream stream;
-	std::string type = (platformIsNvidia(platform)) ? ".ptx" : ".bin";
-	stream.open("data/kernel_binaries/" + fileName + type, std::ofstream::out | std::ofstream::trunc);
-	verify("Failed to open kernel binary file", stream.good());
-	
-	// Write binary to file
-	stream << ptx.data() << std::endl;
-	verify("Failed to write kernel binary", stream.good());
-	stream.close();
-	ptx.clear();
 }
 
 void CLContext::setupMegaKernel()

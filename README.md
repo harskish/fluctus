@@ -21,6 +21,7 @@ OpenCL wavefront path tracer
 - Nanogui-based [user interface](gallery/user_interface.png)
 	- Uses only modern OpenGL (3.3+)
 	- Drag and drop scene files and environment maps
+- Kernel binary caching for much faster startup
 
 
 ## Usage

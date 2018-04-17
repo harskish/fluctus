@@ -14,6 +14,9 @@ include_directories(
     include
 )
 
+file(GLOB PROJECT_KERNELS src/*.cl)
+source_group("Kernels" FILES ${PROJECT_KERNELS})
+
 set(SOURCE_FILES
     src/main.cpp
     src/clcontext.cpp
@@ -44,6 +47,8 @@ set(SOURCE_FILES
     src/envmap.cpp
     src/rgbe/rgbe.hpp
     src/rgbe/rgbe.cpp
+	src/xxhash/xxhash.h
+	src/xxhash/xxhash.c
     src/settings.cpp
     src/settings.hpp
     src/texture.cpp
@@ -51,27 +56,9 @@ set(SOURCE_FILES
     src/GLProgram.cpp
     src/GLProgram.hpp
     src/utils.h
-    src/bvh.cl
-    src/env_map.cl
-    src/random.cl
-    src/utils.cl
-    src/intersect.cl
-	src/fresnel.cl
-	src/ideal_reflection.cl
-	src/ideal_dielectric.cl
-	src/glossy.cl
-	src/ggx.cl
-	src/diffuse.cl
-	src/bxdf.cl
-    src/kernel_monolith.cl
-    src/mk_next_vertex.cl
-    src/mk_raygen.cl
-    src/mk_reset.cl
-    src/mk_sample_bsdf.cl
-    src/mk_splat.cl
-    src/mk_splat_preview.cl)
+	src/utils.cpp)
 
-add_executable(Fluctus ${SOURCE_FILES})
+add_executable(Fluctus ${SOURCE_FILES} ${PROJECT_KERNELS})
 
 target_link_libraries(Fluctus
     nanogui

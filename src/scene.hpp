@@ -58,8 +58,6 @@ private:
                            const std::vector<std::array<unsigned, 6>>& faces,
                            bool type_ply);
 
-  void computeHash(const std::string filename);
-
   std::shared_ptr<EnvironmentMap> envmap;
   std::vector<RTTriangle> triangles;
   std::vector<Material> materials;
