@@ -1,7 +1,7 @@
 #include "geom.h"
 
 // x and y include offsets when supersampling
-kernel void splat(global GPUTaskState *tasks, global float *pixels, global RenderParams *params, uint numTasks, uint iteration)
+kernel void splat(global GPUTaskState *tasks, global float *pixels, global RenderParams *params, global RenderStats *stats, uint numTasks, uint iteration)
 {
     //const size_t gid = get_global_id(0);
     const size_t gid = get_global_id(0) + get_global_id(1) * params->width;
@@ -22,6 +22,7 @@ kernel void splat(global GPUTaskState *tasks, global float *pixels, global Rende
 	if (*samples > 0) color += prev;
 	vstore4(color, gid, pixels);
 	*samples += 1;
+    atomic_inc(&stats->samples);
 
 	// Reset path state
 	const float3 zero = (float3)(0.0f);
@@ -33,7 +34,7 @@ kernel void splat(global GPUTaskState *tasks, global float *pixels, global Rende
 	// Just keep accumulating seed
     //uint seed = get_global_id(1) * params->width + get_global_id(0) + *samples * params->width * params->height; // unique for each pixel
     //WriteU32(seed, tasks, seed);
-	// TODO: more
+    // TODO: more
 
     // Update phase
     *phase = MK_GENERATE_CAMERA_RAY;

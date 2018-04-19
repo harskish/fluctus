@@ -353,6 +353,7 @@ void CLContext::setupSplatKernel()
     err |= mk_splat.setArg(i++, tasksBuffer);
 	err |= mk_splat.setArg(i++, pixelBuffer);
     err |= mk_splat.setArg(i++, renderParams);
+    err |= mk_splat.setArg(i++, renderStats);
     err |= mk_splat.setArg(i++, NUM_TASKS);
     verify("Failed to set mk_splat arguments!");
 }
@@ -754,7 +755,7 @@ void CLContext::enqueueBsdfSampleKernel(const RenderParams &params, const cl_uin
 void CLContext::enqueueSplatKernel(const RenderParams &params, const cl_uint iteration)
 {
     err = 0;
-    err |= mk_splat.setArg(4, iteration);
+    err |= mk_splat.setArg(5, iteration);
     verify("Failed to set mk_splat arguments!");
 
     // TODO: find out why my GTX 780 won't enqueue 1D kernels! (due to image2d_type?)
