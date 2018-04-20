@@ -30,7 +30,7 @@ class ProgressView;
 
 class Scene {
 public:
-    Scene(const std::string filename);
+    Scene();
     ~Scene();
 
     void loadEnvMap(const std::string filename);

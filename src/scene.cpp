@@ -3,7 +3,7 @@
 #include "scene.hpp"
 #include "progressview.hpp"
 
-Scene::Scene(const std::string filename)
+Scene::Scene()
 {
     // Init default material
     Material def;

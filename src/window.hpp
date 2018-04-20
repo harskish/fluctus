@@ -21,19 +21,20 @@ public:
     enum RenderMethod
     {
         WAVEFRONT,
-        MEGAKERNEL
+        MICROKERNEL
     };
     
     void draw();
     void setRenderMethod(RenderMethod method) { renderMethod = method; };
     void setFrontBuffer(int fb) { frontBuffer = fb; }
+    void setSize(int w, int h);
 
     bool available()
     {
         return !glfwWindowShouldClose(window);
     }
 
-    void setShowFPS(bool show) { show_fps = show; }
+    void setShowFPS(bool show);
     void createTextures();
 	void createPBO();
     void requestClose();

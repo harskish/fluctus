@@ -95,15 +95,29 @@ void CLContext::setup(PTWindow *window)
 
 void CLContext::setupKernels()
 {
+    // Microkernels
 	setupResetKernel();
     setupRayGenKernel();
     setupNextVertexKernel();
     setupBsdfSampleKernel();
     setupSplatKernel();
     setupSplatPreviewKernel();
-    setupPostprocessKernel();
-    setupMegaKernel();
+
+    // Wavefront kernels
+    setupWfResetKernel();
+    setupWfExtKernel();
+    setupWfRaygenKernel();
+    setupWfLogicKernel();
+    setupWfShadowKernel();
+    setupWfDiffuseKernel();
+    setupWfGlossyKernel();
+    setupWfGGXReflKernel();
+    setupWfGGXRefrKernel();
+    setupWfDeltaKernel();
+
+    // Other
     setupPickKernel();
+    setupPostprocessKernel();
 }
 
 // For copying SoA data to host
@@ -127,9 +141,25 @@ void CLContext::initMCBuffers()
 {
     // TODO: ensure 32bit divisibility in SoA mode
     const size_t t_bytes = NUM_TASKS * sizeof(GPUTaskState);
-
     tasksBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, t_bytes, NULL, &err);
     verify("Task buffer creation failed!");
+
+    // Queues
+    cl_uint pixelIndex = 0;
+    //QueueCounters counters = {}; // zero-initialized
+
+    // TODO: CL_MEM_USE_HOST_PTR for seeing queues on host
+    currentPixelIdx = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, 1 * sizeof(cl_uint), (void*)&pixelIndex, &err);
+    queueCounters = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(QueueCounters), (void*)&hostCounters, &err);
+    raygenQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    extensionQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    shadowQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    diffuseMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    glossyMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    ggxReflMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    ggxRefrMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    deltaMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    verify("MK queue creation failed");
 
     // Init tasks buffer
     GPUTaskState *initialTaskStates = new GPUTaskState[NUM_TASKS];
@@ -145,7 +175,7 @@ void CLContext::initMCBuffers()
         curr.phase = MK_GENERATE_CAMERA_RAY;
         curr.pathLen = 0;
         curr.seed = (unsigned int)rand();
-        curr.samples = 0;
+        //curr.samples = 0;
         curr.lastSpecular = (cl_uint)true;
         curr.lastPdfW = 0.0f;
 
@@ -231,31 +261,6 @@ void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::strin
     verify("Failed to create compute kernel!");
 }
 
-void CLContext::setupMegaKernel()
-{
-    buildKernel(kernel_monolith, "kernel_monolith.cl", "trace");
-
-    int i = 0;
-    err = 0;
-    err |= kernel_monolith.setArg(i++, sharedMemory[1]); // src
-    err |= kernel_monolith.setArg(i++, sharedMemory[0]); // dst
-    err |= kernel_monolith.setArg(i++, texDataBuffer);
-    err |= kernel_monolith.setArg(i++, texDescriptorBuffer);
-    err |= kernel_monolith.setArg(i++, lightBuffer);
-    err |= kernel_monolith.setArg(i++, triangleBuffer);
-    err |= kernel_monolith.setArg(i++, materialBuffer);
-    err |= kernel_monolith.setArg(i++, nodeBuffer);
-    err |= kernel_monolith.setArg(i++, indexBuffer);
-    err |= kernel_monolith.setArg(i++, environmentMap);
-    err |= kernel_monolith.setArg(i++, probTable);
-    err |= kernel_monolith.setArg(i++, aliasTable);
-    err |= kernel_monolith.setArg(i++, pdfTable);
-    err |= kernel_monolith.setArg(i++, renderParams);
-    err |= kernel_monolith.setArg(i++, renderStats);
-    err |= kernel_monolith.setArg(i++, 0); // iteration
-    verify("Failed to set kernel arguments!");
-}
-
 void CLContext::setupPickKernel()
 {
     buildKernel(kernel_pick, "kernel_pick.cl", "pick");
@@ -267,6 +272,169 @@ void CLContext::setupPickKernel()
     err |= kernel_pick.setArg(i++, indexBuffer);
     err |= kernel_pick.setArg(i++, pickResult);
     verify("Failed to set kernel_pick arguments!");
+}
+
+void CLContext::setupWfExtKernel()
+{
+    buildKernel(wf_extension, "wf_extrays.cl", "traceExtension");
+    int i = 0;
+    err = 0;
+    err |= wf_extension.setArg(i++, tasksBuffer);
+    err |= wf_extension.setArg(i++, queueCounters);
+    err |= wf_extension.setArg(i++, extensionQueue);
+    err |= wf_extension.setArg(i++, triangleBuffer);
+    err |= wf_extension.setArg(i++, nodeBuffer);
+    err |= wf_extension.setArg(i++, indexBuffer);
+    err |= wf_extension.setArg(i++, renderParams);
+    err |= wf_extension.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_extension arguments!");
+}
+
+void CLContext::setupWfLogicKernel()
+{
+    buildKernel(wf_logic, "wf_logic.cl", "logic");
+    int i = 0;
+    err = 0;
+    err |= wf_logic.setArg(i++, tasksBuffer);
+    err |= wf_logic.setArg(i++, pixelBuffer);
+    err |= wf_logic.setArg(i++, queueCounters);
+    err |= wf_logic.setArg(i++, extensionQueue);
+    err |= wf_logic.setArg(i++, shadowQueue);
+    err |= wf_logic.setArg(i++, raygenQueue);
+    err |= wf_logic.setArg(i++, diffuseMatQueue);
+    err |= wf_logic.setArg(i++, glossyMatQueue);
+    err |= wf_logic.setArg(i++, ggxReflMatQueue);
+    err |= wf_logic.setArg(i++, ggxRefrMatQueue);
+    err |= wf_logic.setArg(i++, deltaMatQueue);
+    err |= wf_logic.setArg(i++, triangleBuffer);
+    err |= wf_logic.setArg(i++, nodeBuffer);
+    err |= wf_logic.setArg(i++, indexBuffer);
+    err |= wf_logic.setArg(i++, environmentMap);
+    err |= wf_logic.setArg(i++, probTable);
+    err |= wf_logic.setArg(i++, aliasTable);
+    err |= wf_logic.setArg(i++, pdfTable);
+    err |= wf_logic.setArg(i++, materialBuffer);
+    err |= wf_logic.setArg(i++, texDataBuffer);
+    err |= wf_logic.setArg(i++, texDescriptorBuffer);
+    err |= wf_logic.setArg(i++, renderParams);
+    err |= wf_logic.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_logic arguments!");
+}
+
+void CLContext::setupWfShadowKernel()
+{
+    buildKernel(wf_shadow, "wf_shadowrays.cl", "traceShadow");
+    int i = 0;
+    err = 0;
+    err |= wf_shadow.setArg(i++, tasksBuffer);
+    err |= wf_shadow.setArg(i++, queueCounters);
+    err |= wf_shadow.setArg(i++, shadowQueue);
+    err |= wf_shadow.setArg(i++, triangleBuffer);
+    err |= wf_shadow.setArg(i++, nodeBuffer);
+    err |= wf_shadow.setArg(i++, indexBuffer);
+    err |= wf_shadow.setArg(i++, renderParams);
+    err |= wf_shadow.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_shadow arguments!");
+}
+
+void CLContext::setupWfRaygenKernel()
+{
+    buildKernel(wf_raygen, "wf_raygen.cl", "genRays");
+    int i = 0;
+    err = 0;
+    err |= wf_raygen.setArg(i++, tasksBuffer);
+    err |= wf_raygen.setArg(i++, renderParams);
+    err |= wf_raygen.setArg(i++, queueCounters);
+    err |= wf_raygen.setArg(i++, raygenQueue);
+    err |= wf_raygen.setArg(i++, extensionQueue);
+    err |= wf_raygen.setArg(i++, currentPixelIdx);
+    err |= wf_raygen.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_raygen arguments!");
+}
+
+void CLContext::setupWfDiffuseKernel()
+{
+    buildKernel(wf_diffuse, "wf_mat_diffuse.cl", "wavefrontDiffuse");
+    int i = 0;
+    err = 0;
+    err |= wf_diffuse.setArg(i++, tasksBuffer);
+    err |= wf_diffuse.setArg(i++, queueCounters);
+    err |= wf_diffuse.setArg(i++, diffuseMatQueue);
+    err |= wf_diffuse.setArg(i++, extensionQueue);
+    err |= wf_diffuse.setArg(i++, materialBuffer);
+    err |= wf_diffuse.setArg(i++, texDataBuffer);
+    err |= wf_diffuse.setArg(i++, texDescriptorBuffer);
+    err |= wf_diffuse.setArg(i++, renderParams);
+    err |= wf_diffuse.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_diffuse arguments!");
+}
+
+void CLContext::setupWfGlossyKernel()
+{
+    buildKernel(wf_glossy, "wf_mat_glossy.cl", "wavefrontGlossy");
+    int i = 0;
+    err = 0;
+    err |= wf_glossy.setArg(i++, tasksBuffer);
+    err |= wf_glossy.setArg(i++, queueCounters);
+    err |= wf_glossy.setArg(i++, glossyMatQueue);
+    err |= wf_glossy.setArg(i++, extensionQueue);
+    err |= wf_glossy.setArg(i++, materialBuffer);
+    err |= wf_glossy.setArg(i++, texDataBuffer);
+    err |= wf_glossy.setArg(i++, texDescriptorBuffer);
+    err |= wf_glossy.setArg(i++, renderParams);
+    err |= wf_glossy.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_glossy arguments!");
+}
+
+void CLContext::setupWfGGXReflKernel()
+{
+    buildKernel(wf_ggx_refl, "wf_mat_ggx_reflection.cl", "wavefrontGGXReflection");
+    int i = 0;
+    err = 0;
+    err |= wf_ggx_refl.setArg(i++, tasksBuffer);
+    err |= wf_ggx_refl.setArg(i++, queueCounters);
+    err |= wf_ggx_refl.setArg(i++, ggxReflMatQueue);
+    err |= wf_ggx_refl.setArg(i++, extensionQueue);
+    err |= wf_ggx_refl.setArg(i++, materialBuffer);
+    err |= wf_ggx_refl.setArg(i++, texDataBuffer);
+    err |= wf_ggx_refl.setArg(i++, texDescriptorBuffer);
+    err |= wf_ggx_refl.setArg(i++, renderParams);
+    err |= wf_ggx_refl.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_ggx_refl arguments!");
+}
+
+void CLContext::setupWfGGXRefrKernel()
+{
+    buildKernel(wf_ggx_refr, "wf_mat_ggx_refraction.cl", "wavefrontGGXRefraction");
+    int i = 0;
+    err = 0;
+    err |= wf_ggx_refr.setArg(i++, tasksBuffer);
+    err |= wf_ggx_refr.setArg(i++, queueCounters);
+    err |= wf_ggx_refr.setArg(i++, ggxRefrMatQueue);
+    err |= wf_ggx_refr.setArg(i++, extensionQueue);
+    err |= wf_ggx_refr.setArg(i++, materialBuffer);
+    err |= wf_ggx_refr.setArg(i++, texDataBuffer);
+    err |= wf_ggx_refr.setArg(i++, texDescriptorBuffer);
+    err |= wf_ggx_refr.setArg(i++, renderParams);
+    err |= wf_ggx_refr.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_ggx_refr arguments!");
+}
+
+void CLContext::setupWfDeltaKernel()
+{
+    buildKernel(wf_delta, "wf_mat_delta.cl", "wavefrontDelta");
+    int i = 0;
+    err = 0;
+    err |= wf_delta.setArg(i++, tasksBuffer);
+    err |= wf_delta.setArg(i++, queueCounters);
+    err |= wf_delta.setArg(i++, deltaMatQueue);
+    err |= wf_delta.setArg(i++, extensionQueue);
+    err |= wf_delta.setArg(i++, materialBuffer);
+    err |= wf_delta.setArg(i++, texDataBuffer);
+    err |= wf_delta.setArg(i++, texDescriptorBuffer);
+    err |= wf_delta.setArg(i++, renderParams);
+    err |= wf_delta.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_delta arguments!");
 }
 
 void CLContext::setupResetKernel()
@@ -281,6 +449,21 @@ void CLContext::setupResetKernel()
 	err |= mk_reset.setArg(i++, renderParams);
 	err |= mk_reset.setArg(i++, NUM_TASKS);
 	verify("Failed to set mk_reset arguments!");
+}
+
+void CLContext::setupWfResetKernel()
+{
+    buildKernel(wf_reset, "wf_reset.cl", "reset");
+
+    int i = 0;
+    err = 0;
+    err |= wf_reset.setArg(i++, tasksBuffer);
+    err |= wf_reset.setArg(i++, pixelBuffer);
+    err |= wf_reset.setArg(i++, queueCounters);
+    err |= wf_reset.setArg(i++, raygenQueue);
+    err |= wf_reset.setArg(i++, renderParams);
+    err |= wf_reset.setArg(i++, NUM_TASKS);
+    verify("Failed to set wf_reset arguments!");
 }
 
 void CLContext::setupRayGenKernel()
@@ -402,11 +585,9 @@ void CLContext::setupPixelStorage(PTWindow *window)
     GLuint gl_PBO = window->getPBO();
     unsigned int numPixels = window->getTexWidth() * window->getTexHeight();
 
-    frontBuffer = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[0], &err);
-    backBuffer = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[1], &err);
     pixelBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err); // microkernel pixel buffer
     previewBuffer = cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err); // GL preview buffer
-    sharedMemory = { frontBuffer, backBuffer, previewBuffer };
+    sharedMemory = { previewBuffer };
     verify("CL pixel storage creation failed!");
 
 	// Set new kernel args (pointers might have changed)
@@ -418,6 +599,10 @@ void CLContext::setupPixelStorage(PTWindow *window)
 		err |= mk_splat.setArg(1, pixelBuffer);
     if (mk_splat_preview())
         err |= mk_splat_preview.setArg(1, pixelBuffer);
+    if (wf_logic())
+        err |= wf_logic.setArg(1, pixelBuffer);
+    if (wf_reset())
+        err |= wf_reset.setArg(1, pixelBuffer);
     if (mk_postprocess())
     {
         err |= mk_postprocess.setArg(0, pixelBuffer);
@@ -427,7 +612,7 @@ void CLContext::setupPixelStorage(PTWindow *window)
 	verify("Failed to update kernel pixel storage args");
 }
 
-void CLContext::saveImage(std::string filename, const RenderParams &params, bool usingMicroKernel)
+void CLContext::saveImage(std::string filename, const RenderParams &params)
 {
     unsigned int numBytes = params.width * params.height * 3; // rgb
     unsigned int numFloats = params.width * params.height * 4; // rgba
@@ -440,24 +625,11 @@ void CLContext::saveImage(std::string filename, const RenderParams &params, bool
     err = 0;
     err |= cmdQueue.enqueueAcquireGLObjects(&sharedMemory);
 
-    if (usingMicroKernel && !hdr)
-    {
-        err |= cmdQueue.enqueueReadBuffer(previewBuffer, CL_TRUE, 0, numFloats * sizeof(float), dataFloats.get());
-    }
-    else if (usingMicroKernel && hdr) {
-        err |= cmdQueue.enqueueReadBuffer(pixelBuffer, CL_TRUE, 0, numFloats * sizeof(float), dataFloats.get()); // non- tonemapped && gamma-corrected
-    }
-    else
-    {
-        std::array<cl::size_type, 3> orig = { 0, 0, 0 };
-        std::array<cl::size_type, 3> dims = { params.width, params.height, 1 };
-        err |= cmdQueue.enqueueReadImage(frontBuffer, CL_TRUE, orig, dims, 0, 0, dataFloats.get());
-    }
-
+    cl::Buffer &pixels = (hdr) ? pixelBuffer : previewBuffer;
+    err |= cmdQueue.enqueueReadBuffer(pixels, CL_TRUE, 0, numFloats * sizeof(float), dataFloats.get());
     err |= cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
     err |= cmdQueue.finish();
     verify("Failed to copy pixel buffer to host!");
-
     
     if (hdr)
     {
@@ -710,15 +882,34 @@ void CLContext::fetchStatsAsync()
     verify("Failed to enqueue async stat transfer!");
 }
 
+void CLContext::updateRenderPerf(float deltaT)
+{
+    double scale = 1e6 * deltaT;
+    renderPerf.primary = statsAsync.primaryRays / scale;
+    renderPerf.extension = statsAsync.extensionRays / scale;
+    renderPerf.shadow = statsAsync.shadowRays / scale;
+    renderPerf.samples = statsAsync.samples / scale;
+    renderPerf.total = renderPerf.primary + renderPerf.extension + renderPerf.shadow;
+}
+
+const PerfNumbers CLContext::getRenderPerf()
+{
+    return renderPerf;
+}
+
 const RenderStats CLContext::getStats()
 {
     return statsAsync;
 }
 
+void CLContext::enqueueGetCounters(QueueCounters *cnt)
+{
+    err = cmdQueue.enqueueReadBuffer(queueCounters, CL_FALSE, 0, 1 * sizeof(QueueCounters), cnt);
+}
+
 void CLContext::updateParams(const RenderParams &params)
 {
-    // Blocking write!
-    err = cmdQueue.enqueueWriteBuffer(renderParams, CL_TRUE, 0, sizeof(RenderParams), &params);
+    err = cmdQueue.enqueueWriteBuffer(renderParams, CL_FALSE, 0, sizeof(RenderParams), &params);
     verify("RenderParam writing failed");
 }
 
@@ -777,64 +968,119 @@ void CLContext::enqueuePostprocessKernel(const RenderParams & params)
     verify("Failed to enqueue GL object acquisition!");
 
     // 1D range
-    err = cmdQueue.enqueueNDRangeKernel(mk_postprocess, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(mk_postprocess, cl::NullRange, cl::NDRange(params.width * params.height), cl::NullRange);
     verify("Failed to enqueue postprocess kernel!");
 
     err = cmdQueue.enqueueReleaseGLObjects(&previewBuffer);
     verify("Failed to enqueue GL object release!");
 }
 
-void CLContext::enqueueMegaKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration)
+void CLContext::enqueueWfResetKernel(const RenderParams & params)
 {
-    err = 0;
-    err |= kernel_monolith.setArg(0, sharedMemory[1 - frontBuffer]); // src
-    err |= kernel_monolith.setArg(1, sharedMemory[frontBuffer]); // dst
-    err |= kernel_monolith.setArg(15, iteration);
-    verify("Failed to set megakernel arguments!");
+    // TODO: enqueue only correct number of tasks based on queue length?
+    cl_uint numElems = std::max(NUM_TASKS, params.width * params.height);
+    err = cmdQueue.enqueueNDRangeKernel(wf_reset, cl::NullRange, cl::NDRange(numElems), cl::NullRange);
+    verify("Failed to enqueue wf_reset");
+}
 
-    size_t max_wg_size;
-    //err = device.getInfo(CL_DEVICE_MAX_WORK_GROUP_SIZE, &max_gw_size); //CL_KERNEL_WORK_GROUP_SIZE
-    max_wg_size = kernel_monolith.getWorkGroupInfo<CL_KERNEL_WORK_GROUP_SIZE>(device, &err);
-    verify("Failed to retrieve kernel work group info!");
+void CLContext::enqueueWfRaygenKernel(const RenderParams & params)
+{
+    // TODO: enqueue only correct number of tasks based on queue length?
+    err = cmdQueue.enqueueNDRangeKernel(wf_raygen, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_raygen");
+}
 
-    ndRangeSizes[0] = 32; //TODO: 32 might be too large
-    ndRangeSizes[1] = max_wg_size / ndRangeSizes[0];
+void CLContext::enqueueWfExtRayKernel(const RenderParams & params)
+{
+    // TODO: enqueue only correct number of tasks based on queue length?
+    err = cmdQueue.enqueueNDRangeKernel(wf_extension, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_extension");
+}
 
-    // Multiples of 32
-    int wgMultipleWidth = ((params.width & 0x1F) == 0) ? params.width : ((params.width & 0xFFFFFFE0) + 0x20);
-    int wgMutipleHeight = (int)(ceil(params.height / (float) ndRangeSizes[1]) * ndRangeSizes[1]);
+void CLContext::enqueueWfShadowRayKernel(const RenderParams & params)
+{
+    // TODO: enqueue only correct number of tasks based on queue length?
+    err = cmdQueue.enqueueNDRangeKernel(wf_shadow, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_shadow");
+}
 
-    cl::NDRange global(wgMultipleWidth, wgMutipleHeight);
-    cl::NDRange local(ndRangeSizes[0], ndRangeSizes[1]);
+void CLContext::enqueueWfLogicKernel(const RenderParams & params)
+{
+    // TODO: enqueue only correct number of tasks based on queue length?
+    err = cmdQueue.enqueueNDRangeKernel(wf_logic, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_logic");
+}
 
-    // Enqueue commands to be executed in order (glFinish called in tracer.cpp)
-    err = cmdQueue.enqueueAcquireGLObjects(&sharedMemory); // Take hold of texture
-    verify("Failed to enqueue GL object acquisition!");
+void CLContext::enqueueWfMaterialKernels(const RenderParams & params)
+{
+    enqueueWfDiffuseKernel(params);
+    enqueueWfGlossyKernel(params);
+    enqueueWfGGXReflKernel(params);
+    enqueueWfGGXRefrKernel(params);
+    enqueueWfDeltaKernel(params);
+}
 
-    #ifdef CPU_DEBUGGING
-        err = cmdQueue.enqueueNDRangeKernel(
-            kernel_monolith,
-            cl::NullRange,                 // offset
-            cl::NDRange(params.width, 5),  // global
-            cl::NullRange                  // local
-        );
-    #else
-        // Manually select local workgroup size
-        //err = cmdQueue.enqueueNDRangeKernel(kernel_monolith, cl::NullRange, global, local);
-        
-        // Let OpenCL implementation choose optimal local workgroup size
-        err = cmdQueue.enqueueNDRangeKernel(kernel_monolith, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
-    #endif
-    verify("Failed to enqueue megakernel!");
+void CLContext::enqueueWfDiffuseKernel(const RenderParams & params)
+{
+    // TODO: enqueue only correct number of tasks based on queue length?
+    err = cmdQueue.enqueueNDRangeKernel(wf_diffuse, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_diffuse");
+}
 
-    err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
-    verify("Failed to enqueue GL object release!");
+void CLContext::enqueueWfGlossyKernel(const RenderParams & params)
+{
+    // TODO: enqueue only correct number of tasks based on queue length?
+    err = cmdQueue.enqueueNDRangeKernel(wf_glossy, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_glossy");
+}
+
+void CLContext::enqueueWfGGXReflKernel(const RenderParams & params)
+{
+    // TODO: enqueue only correct number of tasks based on queue length?
+    err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refl, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_ggx_refl");
+}
+
+void CLContext::enqueueWfGGXRefrKernel(const RenderParams & params)
+{
+    // TODO: enqueue only correct number of tasks based on queue length?
+    err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refr, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_ggx_refr");
+}
+
+void CLContext::enqueueWfDeltaKernel(const RenderParams & params)
+{
+    // TODO: enqueue only correct number of tasks based on queue length?
+    err = cmdQueue.enqueueNDRangeKernel(wf_delta, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_delta");
+}
+
+
+// Clear wavefront queues by setting counters to zero
+void CLContext::enqueueClearWfQueues()
+{
+    QueueCounters empty = {};
+    hostCounters = empty;
+    err = cmdQueue.enqueueWriteBuffer(queueCounters, CL_FALSE, 0, sizeof(QueueCounters), &hostCounters);
+    verify("Failed to enqueue wavefront queueCounter read");
 }
 
 void CLContext::finishQueue()
 {
     err = cmdQueue.finish();
     verify("Failed to finish command queue!");
+}
+
+void CLContext::updatePixelIndex(cl_uint numPixels, cl_uint numNewPaths)
+{
+    pixelIdx = (pixelIdx + numNewPaths) % numPixels;
+    err = cmdQueue.enqueueWriteBuffer(currentPixelIdx, CL_FALSE, 0, sizeof(cl_uint), &pixelIdx); // will be available when raygen runs
+}
+
+void CLContext::resetPixelIndex()
+{
+    pixelIdx = 0;
+    err = cmdQueue.enqueueWriteBuffer(currentPixelIdx, CL_FALSE, 0, sizeof(cl_uint), &pixelIdx);
 }
 
 Hit CLContext::pickSingle(float NDCx, float NDCy)

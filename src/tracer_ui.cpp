@@ -39,13 +39,19 @@ void Tracer::setupToolbar()
     // State settings
     addStateSettings(tools);
 
+    // Run benchmark
+    auto benchmarkButton = new Button(tools, "Benchmark", ENTYPO_ICON_GAUGE);
+    benchmarkButton->setCallback([&]() {
+        runBenchmark();
+    });
+    
     // Export image
     auto exportButton = new Button(tools, "Save image", ENTYPO_ICON_CAMERA);
     exportButton->setCallback([&]() {
         auto name = saveFileDialog("Save image as", "", { "*.png", "*.hdr", "*.bmp" });
         if (name == "") return;        
         if (name.find('.') == std::string::npos) name += ".png";
-        clctx->saveImage(name, params, useWavefront);
+        clctx->saveImage(name, params);
     });
 
     // Hide toolbar by default
@@ -71,8 +77,8 @@ void Tracer::addRendererSettings(nanogui::Widget *parent)
     // Integrator
     rendererPopup->setLayout(new GroupLayout());
     new Label(rendererPopup, "Integrator", "sans-bold");
-    const std::vector<std::string> intShort = { "W-PT", "M-PT", "RT" };
-    const std::vector<std::string> intLong = { "Path tracer (Wavefront)", "Path tracer (Megakernel)", "Ray tracer" };
+    const std::vector<std::string> intShort = { "W-PT", "M-PT" };
+    const std::vector<std::string> intLong = { "Path tracer (Wavefront)", "Path tracer (Microkernel)" };
     auto integratorBox = new ComboBox(rendererPopup, intLong, intShort);
     uiMapping["INTEGRATOR_BOX"] = integratorBox;
     integratorBox->setFixedWidth(100);
@@ -85,7 +91,7 @@ void Tracer::addRendererSettings(nanogui::Widget *parent)
         if (idx == 1)
         {
             useWavefront = false;
-            window->setRenderMethod(PTWindow::RenderMethod::MEGAKERNEL);
+            window->setRenderMethod(PTWindow::RenderMethod::MICROKERNEL);
         }
             
         paramsUpdatePending = true;
@@ -158,8 +164,10 @@ void Tracer::addRendererSettings(nanogui::Widget *parent)
     slider->setRange(std::make_pair(0.01f, 1.5f));
     slider->setValue(s.getRenderScale());
     slider->setFixedWidth(80);
+    uiMapping["RENDER_SCALE_SLIDER"] = slider;
 
     auto box = new IntBox<int>(renderScalePanel);
+    uiMapping["RENDER_SCALE_BOX"] = box;
     box->setEditable(true);
     inputBoxes.push_back(box);
     box->setFormat("[1-9][0-9]*");
@@ -595,6 +603,12 @@ void Tracer::updateGUI()
 
     auto integratorBox = static_cast<ComboBox*>(uiMapping["INTEGRATOR_BOX"]);
     integratorBox->setSelectedIndex((useWavefront) ? 0 : 1);
+
+    auto scaleSlider = static_cast<Slider*>(uiMapping["RENDER_SCALE_SLIDER"]);    
+    scaleSlider->setValue(Settings::getInstance().getRenderScale());
+
+    auto scaleBox = static_cast<IntBox<int>*>(uiMapping["RENDER_SCALE_BOX"]);
+    scaleBox->setValue((int)(Settings::getInstance().getRenderScale() * 100));
 }
 
 

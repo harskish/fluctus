@@ -51,6 +51,15 @@ static PointLight test_lights[] =
     //{ RGB2f3(255, 255, 255) * 30.0f, { float3(0.0f, 10.0f, 0.0f) } },
 };
 
+typedef struct
+{
+    float primary = 0.0f;
+    float extension = 0.0f;
+    float shadow = 0.0f;
+    float samples = 0.0f;
+    float total = 0.0f;
+} PerfNumbers;
+
 class PTWindow;
 class CLContext
 {
@@ -61,7 +70,6 @@ public:
     CLContext();
     ~CLContext();
 
-    void enqueueMegaKernel(const RenderParams &params, const int frontBuffer, const cl_uint iteration);
 	void enqueueResetKernel(const RenderParams &params);
 	void enqueueRayGenKernel(const RenderParams &params);
     void enqueueNextVertexKernel(const RenderParams &params);
@@ -69,7 +77,18 @@ public:
     void enqueueSplatKernel(const RenderParams &params, const cl_uint iteration);
     void enqueueSplatPreviewKernel(const RenderParams &params);
     void enqueuePostprocessKernel(const RenderParams &params);
+    
+    void enqueueWfResetKernel(const RenderParams &params);
+    void enqueueWfRaygenKernel(const RenderParams &params);
+    void enqueueWfExtRayKernel(const RenderParams &params);
+    void enqueueWfShadowRayKernel(const RenderParams &params);
+    void enqueueWfLogicKernel(const RenderParams &params);
+    void enqueueWfMaterialKernels(const RenderParams &params);
+   
+    void enqueueClearWfQueues();
     void finishQueue();
+    void updatePixelIndex(cl_uint numPixels, cl_uint numNewPaths);
+    void resetPixelIndex();
 
     Hit pickSingle(float NDCx, float NDCy);
 
@@ -79,18 +98,27 @@ public:
     void setupStats();
     void resetStats();
     void fetchStatsAsync();
+    void updateRenderPerf(float deltaT);
+    const PerfNumbers getRenderPerf();
     const RenderStats getStats();
+    void enqueueGetCounters(QueueCounters *cnt);
 
     void updateParams(const RenderParams &params);
     void uploadSceneData(BVH *bvh, Scene *scene);
     void setupPixelStorage(PTWindow *window);
-	void saveImage(std::string filename, const RenderParams &params, bool usingMicroKernel);
+	void saveImage(std::string filename, const RenderParams &params);
     void createEnvMap(EnvironmentMap *map);
 private:
     void printDevices();
     void setupScene();
     void verify(std::string msg, int pred = -1);
     void packTextures(Scene *scene);
+
+    void enqueueWfDiffuseKernel(const RenderParams &params);
+    void enqueueWfGlossyKernel(const RenderParams &params);
+    void enqueueWfGGXReflKernel(const RenderParams &params);
+    void enqueueWfGGXRefrKernel(const RenderParams &params);
+    void enqueueWfDeltaKernel(const RenderParams &params);
     
     void setupKernels();
 	void setupResetKernel();
@@ -100,8 +128,17 @@ private:
     void setupSplatKernel();
     void setupSplatPreviewKernel();
     void setupPostprocessKernel();
-    void setupMegaKernel();
     void setupPickKernel();
+    void setupWfExtKernel();
+    void setupWfResetKernel();
+    void setupWfLogicKernel();
+    void setupWfShadowKernel();
+    void setupWfRaygenKernel();
+    void setupWfDiffuseKernel();
+    void setupWfGlossyKernel();
+    void setupWfGGXReflKernel();
+    void setupWfGGXRefrKernel();
+    void setupWfDeltaKernel();
     void initMCBuffers();
 
     void buildKernel(cl::Kernel &target, std::string fileName, std::string methodName);
@@ -127,32 +164,56 @@ private:
     cl::Context context;
     cl::CommandQueue cmdQueue;
     
-    // Kernels
-    cl::Kernel kernel_monolith;
+    // General kernels
     cl::Kernel kernel_pick;
-	cl::Kernel mk_reset;
+    cl::Kernel mk_postprocess;
+
+    // Luxrender-style microkernels
+    cl::Kernel mk_reset;
     cl::Kernel mk_raygen;
     cl::Kernel mk_next_vertex;
     cl::Kernel mk_sample_bsdf;
     cl::Kernel mk_splat;
     cl::Kernel mk_splat_preview;
-    cl::Kernel mk_postprocess;
+    
+    // Aila-style wavefront kernels
+    cl::Kernel wf_reset;
+    cl::Kernel wf_extension;
+    cl::Kernel wf_raygen;
+    cl::Kernel wf_logic;
+    cl::Kernel wf_shadow;
+    cl::Kernel wf_diffuse;
+    cl::Kernel wf_glossy;
+    cl::Kernel wf_ggx_refl;
+    cl::Kernel wf_ggx_refr;
+    cl::Kernel wf_delta;
 
     // Pixel storage
-    cl::Buffer pixelBuffer; // raw (linear) pixel data, not used by OpenGL
+    cl::Buffer pixelBuffer;     // raw (linear) pixel data, not used by OpenGL
     cl::BufferGL previewBuffer; // post-processed buffer, shown on screen
-    cl::ImageGL frontBuffer;
-    cl::ImageGL backBuffer;
-    std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (tex1, tex2, mk_pixelbuffer)
+    std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (previewBuffer)
     
     cl::Buffer lightBuffer;
     cl::Buffer pickResult;
     cl::Buffer renderParams;                // contains only one RenderParam
     cl::Buffer renderStats;                 // ray + sample counts
     RenderStats statsAsync;                 // fetched asynchronously from device after each iteration
+    PerfNumbers renderPerf;
     
-    // Microkernel buffer
+    // Microkernel buffers
     cl::Buffer tasksBuffer;
+    cl::Buffer raygenQueue;     // indices of paths to regenerate
+    cl::Buffer extensionQueue;  // indices of paths to extend
+    cl::Buffer shadowQueue;     // indices of shadow ray casts
+    cl::Buffer diffuseMatQueue;
+    cl::Buffer glossyMatQueue;
+    cl::Buffer ggxReflMatQueue;
+    cl::Buffer ggxRefrMatQueue;
+    cl::Buffer deltaMatQueue;
+    cl::Buffer currentPixelIdx; // points to next pixel, since NUM_TASKS != #pixels
+    cl::Buffer queueCounters;   // atomic counters keeping track of queue lengths
+    QueueCounters hostCounters = {};
+    cl_uint pixelIdx = 0;
 
 	// Environment map data
     cl::Image2D environmentMap;

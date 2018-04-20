@@ -202,25 +202,54 @@ typedef struct
     // Path state:
     float3 orig;     // path segment origin
     float3 dir;      // path segment direction
+    float3 shadowOrig;
+    float3 shadowDir;
     float3 T;        // throughput * pdf (for numerical stability)
     float3 Ei;       // irradiance
+    float3 lastBsdf; // added to Ei if shadow ray unblocked
+    float3 lastEmission;
+    float3 lastT;
     // Last hit:
     float3 P;
     float3 N;
     float2 uvTex;
     // Path state:
     PathPhase phase;
-	cl_float lastPdfW; // prev. brdf pdf, for MIS
+	cl_float lastPdfW; // prev. brdf pdf, for MIS (implicit light samples)
     cl_uint pathLen; // number of segments in path
     cl_uint seed;
 	cl_uint lastSpecular; // prevents NEE
-	cl_int samples;  // counted per pixel
+    cl_uint shadowRayBlocked;
+    cl_uint backfaceHit; // for certain bsdf functions
+    cl_uint pixelIndex;
+    // Previously evaluated light sample
+    cl_float lastPdfDirect;    // pdfW of sampled NEE sample
+    cl_float lastPdfImplicit;  // pdfW of implicit NEE sample
+    cl_float lastCosTh;
+    cl_float lastLightPickProb;
+    cl_float shadowRayLen;
     // Last hit:
     cl_float t;
     cl_int i;        // index of hit triangle, -1 by default
     cl_int areaLightHit;
     cl_int matId;    // index of hit material
 } GPUTaskState;
+
+// Atomic counters for queues
+// Incremented once per workgroup for efficiency
+typedef struct
+{
+    // Path state queues
+    cl_uint raygenQueue;
+    cl_uint extensionQueue;
+    cl_uint shadowQueue;
+    // Material queues
+    cl_uint diffuseQueue;
+    cl_uint glossyQueue;
+    cl_uint ggxReflQueue;
+    cl_uint ggxRefrQueue;
+    cl_uint deltaQueue;
+} QueueCounters;
 
 typedef struct
 {

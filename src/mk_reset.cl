@@ -1,7 +1,12 @@
 #include "geom.h"
 
 // Reset state of all paths. Done after camera/renderparam changes.
-kernel void reset(global GPUTaskState *tasks, global float *pixels, global RenderParams *params, uint numTasks)
+kernel void reset(
+    global GPUTaskState *tasks,
+    global float *pixels,
+    global RenderParams *params,
+    uint numTasks
+)
 {
 	const size_t gid = get_global_id(0) + get_global_id(1) * params->width;
 	const uint limit = min(params->width * params->height, numTasks);
@@ -12,8 +17,7 @@ kernel void reset(global GPUTaskState *tasks, global float *pixels, global Rende
 	const uint x = get_global_id(0);
 	const uint y = get_global_id(1);
 
-	// Reset sample count and color for each pixel
-	WriteI32(samples, tasks, 0);
+	// Reset color for each pixel
 	vstore4((float4)(0.0f), (y * params->width + x), pixels);
 
 	// Reset path phase
@@ -27,7 +31,7 @@ kernel void reset(global GPUTaskState *tasks, global float *pixels, global Rende
 	WriteFloat3(T, tasks, one);
 	WriteU32(pathLen, tasks, 0);
 	WriteU32(lastSpecular, tasks, 1);
-	WriteF32(lastPdfW, tasks, 0.0f);
+	WriteF32(lastPdfW, tasks, 1.0f);
 
 	// Reset RNG seed?
 	// Or just keep accumulating...?

@@ -26,6 +26,7 @@ public:
 
     bool running();
     void update();
+    void runBenchmark();
     void resizeBuffers(int w, int h);
     void handleMouseButton(int key, int action, int mods);
     void handleCursorPos(double x, double y);

@@ -10,7 +10,7 @@ kernel void process(global float *pixelsRaw, global float *pixelsPreview, global
     // PixelsRaw is as big as numTasks
 
     const size_t gid = get_global_id(0);
-    const uint limit = min(params->width * params->height, numTasks);
+    const uint limit = params->width * params->height;
     if (gid >= limit)
         return;
 

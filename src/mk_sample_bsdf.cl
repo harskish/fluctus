@@ -120,8 +120,8 @@ kernel void sampleBsdf(
             atomic_inc(&stats->shadowRays);
 
             // Calculate direct lighting
-            float cosLight = max(dot(params->areaLight.N, -L), 0.0f);
-            if (!occluded && cosLight > 1e-6f)
+            float cosLight = max(dot(params->areaLight.N, -L), 0.0f); // only frontside hits count
+            if (!occluded && cosLight > 0.0f)
             {
                 const float3 brdf = bxdfEval(&hit, &mat, backface, textures, texData, r.dir, L);
                 float cosTh = max(0.0f, dot(L, hit.N)); // cos at surface

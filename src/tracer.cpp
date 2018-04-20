@@ -25,7 +25,7 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     toggleGUI();
 }
 
-// Run whenever a scene is laoded
+// Run whenever a scene is loaded
 void Tracer::init(int width, int height, std::string sceneFile)
 {
     float renderScale = Settings::getInstance().getRenderScale();
@@ -65,7 +65,7 @@ void Tracer::init(int width, int height, std::string sceneFile)
     window->hideMessage();
 }
 
-inline void printStats(const RenderStats &stats, CLContext *ctx)
+inline void printStats(CLContext *ctx)
 {
     static double lastPrinted = 0;
     double now = glfwGetTime();
@@ -73,12 +73,10 @@ inline void printStats(const RenderStats &stats, CLContext *ctx)
     if (delta > 1.0)
     {
         lastPrinted = now;
-        double scale = 1e6 * delta;
-        double prim = stats.primaryRays / scale;
-        double ext = stats.extensionRays / scale;
-        double shdw = stats.shadowRays / scale;
-        double samp = stats.samples / scale;
-        printf("%.1fM primary, %.2fM extension, %.2fM shadow, %.2fM samples, total: %.2fMRays/s\r", prim, ext, shdw, samp, prim + ext + shdw);
+        ctx->updateRenderPerf(delta); // updated perf can now be accessed from anywhere
+        PerfNumbers perf = ctx->getRenderPerf();
+        printf("%.1fM primary, %.1fM extension, %.1fM shadow, %.1fM samples, total: %.1fMRays/s\r",
+            perf.primary, perf.extension, perf.shadow, perf.samples, perf.total);
 
         // Reset stat counters (synchronously...)
         ctx->resetStats();
@@ -113,20 +111,72 @@ void Tracer::update()
         iteration = 0; // accumulation reset
     }
 
+    QueueCounters cnt;
+    
     if (useWavefront)
     {
+        // Aila-style WF
+        cl_uint maxBounces = params.maxBounces;
+        int N = 1;
+        
+        if (iteration == 0)
+        {
+            // Set to 2-bounce for preview
+            params.maxBounces = std::min((cl_uint)2, maxBounces);
+            clctx->updateParams(params);
+            N = 3;
+
+            // Create and trace primary rays
+            clctx->resetPixelIndex();
+            clctx->enqueueWfResetKernel(params);
+            clctx->enqueueWfLogicKernel(params);
+            clctx->enqueueWfRaygenKernel(params);
+            clctx->enqueueWfExtRayKernel(params);
+            clctx->enqueueClearWfQueues();
+        }
+
+        // Advance wavefront N segments
+        for (int i = 0; i < N; i++)
+        {
+            // Fill queues
+            clctx->enqueueWfLogicKernel(params);
+
+            // Operate on queues
+            clctx->enqueueWfRaygenKernel(params);
+            clctx->enqueueWfMaterialKernels(params);
+            clctx->enqueueGetCounters(&cnt); // the subsequent kernels don't grow the queues
+            clctx->enqueueWfExtRayKernel(params);
+            clctx->enqueueWfShadowRayKernel(params);
+
+            // Clear queues
+            clctx->enqueueClearWfQueues();
+        }
+
+        // Postprocess
+        clctx->enqueuePostprocessKernel(params);
+
+        // Reset bounces
+        if (iteration == 0)
+        {
+            params.maxBounces = maxBounces;
+            clctx->updateParams(params);
+        }
+    }
+    else
+    {
+        // Luxrender-style microkernels
         if (iteration == 0)
         {
             // Interactive preview: 1 bounce indirect
             clctx->enqueueResetKernel(params);
             clctx->enqueueRayGenKernel(params);
-            
+
             // Two segments
             clctx->enqueueNextVertexKernel(params);
             clctx->enqueueBsdfSampleKernel(params, iteration);
             clctx->enqueueNextVertexKernel(params);
             clctx->enqueueBsdfSampleKernel(params, iteration + 1);
-            
+
             // Preview => also splat incomplete paths
             clctx->enqueueSplatPreviewKernel(params);
         }
@@ -148,31 +198,207 @@ void Tracer::update()
         // Postprocess
         clctx->enqueuePostprocessKernel(params);
     }
-    else
-    {
-        // Megakernel
-        clctx->enqueueMegaKernel(params, frontBuffer, iteration);
-        frontBuffer = 1 - frontBuffer;
-        window->setFrontBuffer(frontBuffer);
-    }
 
     // Finish command queue
     clctx->finishQueue();
 
+    // Enqueue WF pixel index update
+    clctx->updatePixelIndex(params.width * params.height, cnt.raygenQueue);
+
     // Draw progress to screen
     window->draw();
 
-    // Display render statistics (MRays/s) of previous frame
-    // Asynchronously transfer render statistics from device
-    printStats(clctx->getStats(), clctx);
-    clctx->fetchStatsAsync();
+    
+    if (useWavefront)
+    {
+        // Update statsAsync based on queues
+        clctx->statsAsync.extensionRays += cnt.extensionQueue;
+        clctx->statsAsync.shadowRays += cnt.shadowQueue;
+        clctx->statsAsync.primaryRays += cnt.raygenQueue;
+        clctx->statsAsync.samples += (iteration > 0) ? cnt.raygenQueue : 0;
+    }
+    else
+    {
+        // Explicit atomic render stats only on MK
+        clctx->fetchStatsAsync();
+    }
+
+    // Display render statistics (MRays/s)
+    printStats(clctx);
 
     // Update iteration counter
     iteration++;
 
     if (iteration % 1000 == 0)
-    {
         saveImage();
+}
+
+// Runs benchmark on conference, egyptcat and kitchen (30s each)
+// Generates csv (stats over time) or txt (averages)
+void Tracer::runBenchmark()
+{
+    // Setup renderer state for benchmarking
+    params.width = 1024;
+    params.height = 1024;
+    Settings::getInstance().setRenderScale(1.0f);
+    window->setSize(params.width, params.height);
+    updateGUI();
+
+    // Called when scene changes
+    auto resetRenderer = [&]()
+    {
+        iteration = 0;   
+        glFinish();
+        clctx->updateParams(params);
+        clctx->enqueueResetKernel(params);
+        clctx->enqueueWfResetKernel(params);
+        clctx->finishQueue();
+        clctx->resetStats();
+    };
+    
+    std::vector<const char*> scenes =
+    { 
+        "assets/egyptcat/egyptcat.obj",
+        "assets/conference/conference.obj",
+        "assets/country_kitchen/Country-Kitchen.obj",
+    };
+
+    std::stringstream simpleReport;
+    std::stringstream csvReport;
+    csvReport << "scene;time;primary;extension;shadow;total;samples\n";
+
+    // Stats include time dimension
+    std::vector<RenderStats> statsLog;
+    double lastLogTime = 0;
+
+    auto logStats = [&](const char* scene, double elapsed, double deltaT)
+    {
+        RenderStats stats = clctx->getStats();
+        statsLog.push_back(stats);
+        clctx->resetStats();
+        lastLogTime = glfwGetTime();
+        double s = 1e6 * deltaT;
+        csvReport << scene << ";" << elapsed << ";" << stats.primaryRays / s << ";"
+            << stats.extensionRays / s << ";" << stats.shadowRays / s << ";"
+            << (stats.primaryRays + stats.extensionRays + stats.shadowRays) / s << ";"
+            << stats.samples / s << "\n";
+    };
+
+    toggleGUI();
+    window->setShowFPS(false);
+    auto prg = window->getProgressView();
+    
+    const double RENDER_LEN = 30.0;
+    for (int i = 0; i < scenes.size(); i++) {
+        std::string counter = std::to_string(i + 1) + "/" + std::to_string(scenes.size());
+        init(params.width, params.height, scenes[i]);
+        resetRenderer();
+
+        double startT = glfwGetTime();
+        double currT = startT;
+        while (currT - startT < RENDER_LEN)
+        {
+            QueueCounters cnt;
+
+            glfwPollEvents();
+            if (!window->available()) exit(0); // react to exit button
+
+            if (useWavefront)
+            {
+                clctx->enqueueWfLogicKernel(params);
+                clctx->enqueueWfRaygenKernel(params);
+                clctx->enqueueWfMaterialKernels(params);
+                clctx->enqueueGetCounters(&cnt);
+                clctx->enqueueWfExtRayKernel(params);
+                clctx->enqueueWfShadowRayKernel(params);
+                clctx->enqueueClearWfQueues();
+            }
+            else
+            {
+                clctx->enqueueRayGenKernel(params);
+                clctx->enqueueNextVertexKernel(params);
+                clctx->enqueueBsdfSampleKernel(params, iteration);
+                clctx->enqueueSplatKernel(params, frontBuffer);
+            }
+
+            clctx->enqueuePostprocessKernel(params);
+
+            // Synchronize
+            clctx->finishQueue();
+
+            // Update statistics
+            if (useWavefront)
+            {
+                // Update statsAsync based on queues
+                clctx->statsAsync.extensionRays += cnt.extensionQueue;
+                clctx->statsAsync.shadowRays += cnt.shadowQueue;
+                clctx->statsAsync.primaryRays += cnt.raygenQueue;
+                clctx->statsAsync.samples += (iteration > 0) ? cnt.raygenQueue : 0;
+            }
+            else
+            {
+                // Fetch explicit stats from device
+                clctx->fetchStatsAsync();
+            }
+
+            // Update index of next pixel to shade
+            clctx->updatePixelIndex(params.width * params.height, cnt.raygenQueue);
+
+            // Draw image + loading bar
+            prg->showMessage("Running benchmark " + counter, (currT - startT) / RENDER_LEN);
+
+            // Save statistics every half a second to log for further processing
+            double deltaT = currT - lastLogTime;
+            if (deltaT > 0.5)
+                logStats(scenes[i], currT - startT, deltaT);
+
+            iteration++;
+            currT = glfwGetTime();
+        }
+
+        // Process statistics for current scene
+        logStats(scenes[scenes.size() - 1], currT - startT, currT - lastLogTime);
+        double time = currT - startT;
+        unsigned long long sums[] = { 0, 0, 0, 0 };
+        for (RenderStats &s : statsLog)
+        {
+            sums[0] += s.primaryRays;
+            sums[1] += s.extensionRays;
+            sums[2] += s.shadowRays;
+            sums[3] += s.samples;
+        }
+
+        double scale = 1e6 * time;
+        double prim = sums[0] / scale;
+        double ext = sums[1] / scale;
+        double shdw = sums[2] / scale;
+        double samp = sums[3] / scale;
+        
+        char statistics[512];
+        sprintf(statistics, "%s: %.1fM primary, %.2fM extension, %.2fM shadow, %.2fM samples, total: %.2fM rays/s", scenes[i], prim, ext, shdw, samp, prim + ext + shdw);
+        std::cout << statistics << std::endl;
+        simpleReport << statistics << std::endl;
+        statsLog.clear();
+    }
+
+    prg->hide();
+    toggleGUI();
+    window->setShowFPS(true);
+
+    // Output report
+    std::string outpath = saveFileDialog("Save results", "", { "*.txt", "*.csv" });
+    if (outpath != "")
+    {
+        if (!endsWith(outpath, ".csv") && !endsWith(outpath, ".txt")) outpath += ".txt";
+        std::ofstream outfile(outpath);
+
+        if (!outfile.good()) {
+            std::cout << "Failed to write benchmark report!" << std::endl;
+            return;
+        }
+
+        std::string contents = (endsWith(outpath, ".csv")) ? csvReport.str() : simpleReport.str();
+        outfile << contents;
     }
 }
 
@@ -182,10 +408,10 @@ void Tracer::selectScene(std::string file)
     if (file == "")
     {
         std::string selected = openFileDialog("Select a scene file", "assets/", { "*.obj", "*.ply" });
-        file = (selected != "") ? selected : "assets/teapot.ply";
+        file = (selected != "") ? selected : "assets/egyptcat/egyptcat.obj";
     }
 
-    scene.reset(new Scene(file));
+    scene.reset(new Scene());
     scene->loadModel(file, window->getProgressView());
     if (envMap)
         scene->setEnvMap(envMap);
@@ -377,7 +603,7 @@ void Tracer::saveImage()
 {
     std::time_t epoch = std::time(nullptr);
     std::string fileName = "output_" + std::to_string(epoch) + ".png";
-    clctx->saveImage(fileName, params, useWavefront);
+    clctx->saveImage(fileName, params);
 }
 
 void Tracer::loadHierarchy(const std::string filename, std::vector<RTTriangle>& triangles)
@@ -518,7 +744,7 @@ void Tracer::toggleLightSourceMode()
 void Tracer::toggleRenderer()
 {
     useWavefront = !useWavefront;
-    window->setRenderMethod((useWavefront) ? PTWindow::RenderMethod::WAVEFRONT : PTWindow::RenderMethod::MEGAKERNEL);
+    window->setRenderMethod((useWavefront) ? PTWindow::RenderMethod::WAVEFRONT : PTWindow::RenderMethod::MICROKERNEL);
 }
 
 void Tracer::handleChar(unsigned int codepoint)

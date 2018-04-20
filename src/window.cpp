@@ -176,13 +176,20 @@ void PTWindow::draw()
     case WAVEFRONT:
         drawPixelBuffer();
         break;
-    case MEGAKERNEL:
-        drawTexture();
+    case MICROKERNEL:
+        drawPixelBuffer();
         break;
     default:
         std::cout << "Invalid render method!" << std::endl;
         break;
     }
+}
+
+void PTWindow::setSize(int w, int h)
+{
+    screen->setSize({ w, h });
+    glfwSetWindowSize(window, w, h);
+    if (progress) progress->center();
 }
 
 // https://devtalk.nvidia.com/default/topic/541646/opengl/draw-pbo-into-the-screen-performance/
@@ -442,6 +449,12 @@ void PTWindow::drawTexture()
 		calcFPS(1.0, "Fluctus");
 }
 
+void PTWindow::setShowFPS(bool show)
+{
+    show_fps = show;
+    if (!show) glfwSetWindowTitle(window, "Fluctus");
+}
+
 // Create front and back buffers
 void PTWindow::createTextures()
 {
@@ -526,8 +539,8 @@ double PTWindow::calcFPS(double interval, std::string theWindowTitle)
     {
         fps = (double)frameCount / (tNow - tLast);
         
-        const RenderStats stats = clctx->getStats();
-        float MRps = (stats.primaryRays + stats.extensionRays + stats.shadowRays) / (1e6f * (tNow - tLast));
+        const PerfNumbers perf = clctx->getRenderPerf();
+        float MRps = perf.total;
  
         // If the user specified a window title to append the FPS value to...
         if (theWindowTitle.length() > 0)
