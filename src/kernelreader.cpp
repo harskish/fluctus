@@ -1,19 +1,9 @@
 #include "kernelreader.hpp"
 
+// Needs to use custom preprocessor to avoid NVIDIA cache issues
 void kernelFromSource(const std::string filename, cl::Context &context, cl::Program &program, int &err)
 {
-    std::ifstream f(filename);
-
-    if (!f)
-    {
-        std::cout << "Could not open kernel file '" + filename + "'" << std::endl;
-        waitExit();
-    }
-
-    std::stringstream buffer;
-    buffer << f.rdbuf();
-    
-    const std::string &tmp = buffer.str();
+    std::string tmp = readKernel(filename);
     program = cl::Program(context, tmp, false, &err);
 }
 
