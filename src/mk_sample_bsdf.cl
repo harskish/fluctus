@@ -45,6 +45,9 @@ kernel void sampleBsdf(
     Hit hit = readHitSoA(tasks, gid, numTasks);
     Material mat = materials[hit.matId];
 
+    // Apply potential normal map
+    hit.N = tangentSpaceNormal(hit, tris, mat, textures, texData);
+
     // Fix backside hits
     bool backface = dot(hit.N, r.dir) > 0.0f;
     if (backface) hit.N *= -1.0f;

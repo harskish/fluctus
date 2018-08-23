@@ -12,6 +12,7 @@ Scene::Scene(const std::string filename)
     def.Ns = 700.0f;
     def.map_Kd = -1;
     def.map_Ks = -1;
+    def.map_N = -1;
     def.type = BXDF_GLOSSY;
     materials.push_back(def);
 }
@@ -256,7 +257,8 @@ void Scene::loadObjWithMaterials(const std::string filePath, ProgressView *progr
         m.Ns = t_mat.shininess;
         m.Ni = t_mat.ior;
         m.map_Kd = tryImportTexture(unixifyPath(folderPath + t_mat.diffuse_texname), unixifyPath(t_mat.diffuse_texname));
-        m.map_Ks = tryImportTexture(folderPath + t_mat.specular_texname, t_mat.specular_texname);
+        m.map_Ks = tryImportTexture(unixifyPath(folderPath + t_mat.specular_texname), unixifyPath(t_mat.specular_texname));
+        m.map_N = tryImportTexture(unixifyPath(folderPath + t_mat.bump_texname), unixifyPath(t_mat.bump_texname)); // map_bump in mtl treated as normal map
         m.type = parseShaderType(t_mat.unknown_parameter["shader"]);
 
         materials.push_back(m);

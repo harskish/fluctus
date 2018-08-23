@@ -119,6 +119,7 @@ typedef struct
     cl_float Ni;   // index of refraction
     cl_int map_Kd; // diffuse texture descriptor idx
     cl_int map_Ks; // specular texture descriptor idx
+    cl_int map_N;  // normal texture descriptor idx
     cl_int type;   // BXDF type, defined in bxdf.cl
 } Material;
 

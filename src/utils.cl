@@ -119,10 +119,15 @@ inline float3 readTexture(float2 uvTex, TexDescriptor tex, global uchar *data)
     float3 c = (float3)(*(pix + 0), *(pix + 1), *(pix + 2));
 	c /= 255.0f;
 	
-	// Gamma correction
-	c.xyz = pow(c.xyz, 2.2f);
-
     return c;
+}
+
+// Performs gamma correction
+inline float3 matGetAlbedo(float3 fallback, float2 uv, int idx, global TexDescriptor *textures, global uchar *texData)
+{
+	float3 val = (idx != -1) ? readTexture(uv, textures[idx], texData) : fallback;
+	val.xyz = pow(val.xyz, 2.2f);
+    return val;
 }
 
 inline float3 matGetFloat3(float3 fallback, float2 uv, int idx, global TexDescriptor *textures, global uchar *texData)
@@ -130,14 +135,47 @@ inline float3 matGetFloat3(float3 fallback, float2 uv, int idx, global TexDescri
 	return (idx != -1) ? readTexture(uv, textures[idx], texData) : fallback;
 }
 
+// Construct tangent space, convert normal into world space
+inline float3 tangentSpaceNormal(Hit hit, global Triangle *tris, const Material mat, global TexDescriptor *textures, global uchar *texData)
+{
+    if (mat.map_N == -1)
+        return hit.N;
+    
+    const float3 defaultVal = (float3)(0.5f, 0.5f, 1.0f); // flat surface
+    float3 texNormal = matGetFloat3(defaultVal, hit.uvTex, mat.map_N, textures, texData);
+    texNormal = 2.0f * texNormal - (float3)(1.0f, 1.0f, 1.0f);
+    
+    Triangle t = tris[hit.i];
+    
+    float3 e1 = t.v1.p - t.v0.p;
+    float3 e2 = t.v2.p - t.v0.p;
+    float3 t1 = t.v1.t - t.v0.t;
+    float3 t2 = t.v2.t - t.v0.t;
+
+    // Compute T, B using inverse of [t1.x t1.y; t2.x t2.y]
+    float invDet = 1.0f / (t1.x * t2.y - t1.y * t2.x);
+    float3 T = normalize(invDet * (e1 * t2.y - e2 * t1.y));
+    float3 B = normalize(invDet * (e2 * t1.x - e1 * t2.x));
+
+    // Expanded matrix multiply M * hit.N
+    float3 N;
+    N.x = T.x*texNormal.x + B.x*texNormal.y + hit.N.x*texNormal.z;
+    N.y = T.y*texNormal.x + B.y*texNormal.y + hit.N.y*texNormal.z;
+    N.z = T.z*texNormal.x + B.z*texNormal.y + hit.N.z*texNormal.z;
+
+    return normalize(N);
+}
+
+// Read all material parameters at once
+// Can alternatlvely be read separately in bsdf sampling/eval code
 inline void getMaterialParameters(Hit hit, global Triangle *tris, global Material *materials, global uchar *texData, global TexDescriptor *textures, float3 *Kd, float3 *N, float3 *Ks, float *refr)
 {
     const Material mat = materials[hit.matId];
 
-	*Kd = matGetFloat3(mat.Kd, hit.uvTex, mat.map_Kd, textures, texData);
+	*Kd = matGetAlbedo(mat.Kd, hit.uvTex, mat.map_Kd, textures, texData);
 	*Ks = matGetFloat3(mat.Ks, hit.uvTex, mat.map_Ks, textures, texData);
+    *N = tangentSpaceNormal(hit, tris, mat, textures, texData);
     *refr = mat.Ni;
-    *N = hit.N; // no normal maps yet
 }
 
 // Product area measure => solid angle measure
