@@ -82,6 +82,7 @@ public:
     void enqueueBsdfSampleKernel(const RenderParams &params, const cl_uint iteration);
     void enqueueSplatKernel(const RenderParams &params, const cl_uint iteration);
     void enqueueSplatPreviewKernel(const RenderParams &params);
+    void enqueuePostprocessKernel(const RenderParams &params);
     void finishQueue();
 
     void setup(PTWindow *window);
@@ -93,7 +94,7 @@ public:
 
     void updateParams(const RenderParams &params);
     void uploadSceneData(BVH *bvh, Scene *scene);
-    void setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO);
+    void setupPixelStorage(PTWindow *window);
 	void saveImage(std::string filename, const RenderParams &params, bool usingMicroKernel);
     void createEnvMap(EnvironmentMap *map);
 private:
@@ -109,6 +110,7 @@ private:
     void setupBsdfSampleKernel();
     void setupSplatKernel();
     void setupSplatPreviewKernel();
+    void setupPostprocessKernel();
     void setupMegaKernel();
     void initMCBuffers();
 
@@ -123,7 +125,7 @@ private:
 #ifdef CPU_DEBUGGING
     const cl_uint NUM_TASKS = 1;
 #else
-    const cl_uint NUM_TASKS = 1 << 21;   // the amount of paths in flight simultaneously, limited by VRAM
+    const cl_uint NUM_TASKS = 1 << 20;   // the amount of paths in flight simultaneously, limited by VRAM
 #endif
 
     // For showing progress
@@ -143,9 +145,11 @@ private:
     cl::Kernel mk_sample_bsdf;
     cl::Kernel mk_splat;
     cl::Kernel mk_splat_preview;
+    cl::Kernel mk_postprocess;
 
     // Pixel storage
-    cl::BufferGL pixelBuffer;
+    cl::Buffer pixelBuffer; // raw (linear) pixel data, not used by OpenGL
+    cl::BufferGL previewBuffer; // post-processed buffer, shown on screen
     cl::ImageGL frontBuffer;
     cl::ImageGL backBuffer;
     std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (tex1, tex2, mk_pixelbuffer)

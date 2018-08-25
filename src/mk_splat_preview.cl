@@ -11,13 +11,9 @@ kernel void splatPreview(global GPUTaskState *tasks, global float *pixels, globa
         return;
 
     // Ignore path state => all threads perform splat
-    const uint x = get_global_id(0);
-    const uint y = get_global_id(1);
-
-    // Splat preview
     WriteI32(samples, tasks, 0); // force overwrite on next iteration
     float4 color = (float4)(ReadFloat3(Ei, tasks), 1.0f);
-    vstore4(color, (y * params->width + x), pixels);
+    vstore4(color, gid, pixels);
 
     // Reset path state
     const float3 zero = (float3)(0.0f);

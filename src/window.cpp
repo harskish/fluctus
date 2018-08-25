@@ -257,18 +257,8 @@ void PTWindow::drawPixelBuffer()
 
 				void main()
 				{
+                    // Texture contains tonemapped and gamma-corrected data
 					vec4 color = texture(texSampler, texVarying);
-					if (color.a > 0.0)
-                        color = color / color.a;
-
-					if (isnan4(color))
-						color = vec4(1.0, 0.0, 1.0, 1.0);
-                    if (isinf4(color))
-                        color = vec4(0.0, 1.0, 1.0, 1.0);
-
-                    // Gamma correction
-                    color.xyz = pow(color.xyz, vec3(1.0 / 2.2));
-
                     fragColor = color;
 				}
 			)

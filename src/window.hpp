@@ -50,9 +50,13 @@ public:
     GLFWwindow *glfwWindowPtr() { return window; }
     GLuint *getTexPtr() { return gl_textures; }
 	GLuint getPBO() { return gl_PBO; }
-    void getFBSize(unsigned int &w, unsigned int &h);
+    void getFBSize(unsigned int &w, unsigned int &h); // unscaled FB
     nanogui::Screen *getScreen() { return screen; }
     ProgressView *getProgressView() { return progress; }
+
+    // Internal rendering resolution
+    unsigned int getTexWidth() { return textureWidth; }
+    unsigned int getTexHeight() { return textureHeight; }
 
 private:
     void drawPixelBuffer();

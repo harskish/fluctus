@@ -154,8 +154,15 @@ typedef struct
 
 typedef struct
 {
+    cl_float exposure;
+    cl_uint tmOperator;
+} PostProcessParams;
+
+typedef struct
+{
     AreaLight areaLight;
-    Camera camera;         // camera struct
+    Camera camera;
+    PostProcessParams ppParams;
     cl_uint width;         // window width
     cl_uint height;        // window height
     cl_uint n_objects;     // number of objects in scene

@@ -30,7 +30,7 @@ CLContext::CLContext()
 	#ifdef CPU_DEBUGGING
 		platform.getDevices(CL_DEVICE_TYPE_CPU, &clDevices);
 	#else
-		platform.getDevices(CL_DEVICE_TYPE_GPU, &clDevices);
+		platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
 	#endif
 
     // Init shared context
@@ -80,7 +80,7 @@ void CLContext::setup(PTWindow *window)
     setupStats();
 
     // Create OpenCL buffer from OpenGL PBO
-    setupPixelStorage(window->getTexPtr(), window->getPBO());
+    setupPixelStorage(window);
 
     // Allocate device memory for scene
     setupScene();
@@ -98,6 +98,7 @@ void CLContext::setupKernels()
     setupBsdfSampleKernel();
     setupSplatKernel();
     setupSplatPreviewKernel();
+    setupPostprocessKernel();
     setupMegaKernel();
 }
 
@@ -242,7 +243,7 @@ void CLContext::setupResetKernel()
 	int i = 0;
 	err = 0;
 	err |= mk_reset.setArg(i++, tasksBuffer);
-	err |= mk_reset.setArg(i++, sharedMemory.back());
+	err |= mk_reset.setArg(i++, pixelBuffer);
 	err |= mk_reset.setArg(i++, renderParams);
 	err |= mk_reset.setArg(i++, NUM_TASKS);
 	verify("Failed to set mk_reset arguments!");
@@ -316,7 +317,7 @@ void CLContext::setupSplatKernel()
     int i = 0;
     err = 0;
     err |= mk_splat.setArg(i++, tasksBuffer);
-	err |= mk_splat.setArg(i++, sharedMemory.back()); // pixel buffer
+	err |= mk_splat.setArg(i++, pixelBuffer);
     err |= mk_splat.setArg(i++, renderParams);
     err |= mk_splat.setArg(i++, NUM_TASKS);
     verify("Failed to set mk_splat arguments!");
@@ -330,10 +331,24 @@ void CLContext::setupSplatPreviewKernel()
     int i = 0;
     err = 0;
     err |= mk_splat_preview.setArg(i++, tasksBuffer);
-    err |= mk_splat_preview.setArg(i++, sharedMemory.back()); // pixel buffer
+    err |= mk_splat_preview.setArg(i++, pixelBuffer);
     err |= mk_splat_preview.setArg(i++, renderParams);
     err |= mk_splat_preview.setArg(i++, NUM_TASKS);
     verify("Failed to set mk_splat_preview arguments!");
+}
+
+void CLContext::setupPostprocessKernel()
+{
+    buildKernel(mk_postprocess, "mk_postprocess.cl", "process");
+
+    // Set initial kernel params
+    int i = 0;
+    err = 0;
+    err |= mk_postprocess.setArg(i++, pixelBuffer); // raw pixels
+    err |= mk_postprocess.setArg(i++, sharedMemory.back()); // preview
+    err |= mk_postprocess.setArg(i++, renderParams);
+    err |= mk_postprocess.setArg(i++, NUM_TASKS);
+    verify("Failed to set mk_postprocess arguments!");
 }
 
 CLContext::~CLContext()
@@ -341,28 +356,39 @@ CLContext::~CLContext()
     std::cout << "Calling CLContext destructor!" << std::endl;
 }
 
-void CLContext::setupPixelStorage(GLuint *tex_arr, GLuint gl_PBO)
+void CLContext::setupPixelStorage(PTWindow *window)
 {
     if (sharedMemory.size() > 0)
     {
         sharedMemory.clear(); // memory freed by cl-cpp-wrapper
     }
 
+    GLuint *tex_arr = window->getTexPtr();
+    GLuint gl_PBO = window->getPBO();
+    unsigned int numPixels = window->getTexWidth() * window->getTexHeight();
+
     frontBuffer = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[0], &err);
     backBuffer = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, tex_arr[1], &err);
-    pixelBuffer = cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err); // microkernel pixel buffer
-    sharedMemory = { frontBuffer, backBuffer, pixelBuffer };
+    pixelBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err); // microkernel pixel buffer
+    previewBuffer = cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err); // GL preview buffer
+    sharedMemory = { frontBuffer, backBuffer, previewBuffer };
     verify("CL pixel storage creation failed!");
 
 	// Set new kernel args (pointers might have changed)
 	// Megakernel args reset anyway due to ping pong
 	err = 0;
 	if (mk_reset())
-		err |= mk_reset.setArg(1, sharedMemory.back());
+		err |= mk_reset.setArg(1, pixelBuffer);
 	if (mk_splat())
-		err |= mk_splat.setArg(1, sharedMemory.back());
+		err |= mk_splat.setArg(1, pixelBuffer);
     if (mk_splat_preview())
-        err |= mk_splat_preview.setArg(1, sharedMemory.back());
+        err |= mk_splat_preview.setArg(1, pixelBuffer);
+    if (mk_postprocess())
+    {
+        err |= mk_postprocess.setArg(0, pixelBuffer);
+        err |= mk_postprocess.setArg(1, previewBuffer);
+    }
+        
 	verify("Failed to update kernel pixel storage args");
 }
 
@@ -373,13 +399,18 @@ void CLContext::saveImage(std::string filename, const RenderParams &params, bool
 	std::unique_ptr<unsigned char[]> dataBytes(new unsigned char[numBytes]);
     std::unique_ptr<float[]> dataFloats(new float[numFloats]);
 
+    bool hdr = endsWith(filename, ".hdr") || endsWith(filename, ".HDR");
+
     // Copy data to host
     err = 0;
     err |= cmdQueue.enqueueAcquireGLObjects(&sharedMemory);
 
-    if (usingMicroKernel)
+    if (usingMicroKernel && !hdr)
     {
-        err |= cmdQueue.enqueueReadBuffer(pixelBuffer, CL_TRUE, 0, numFloats * sizeof(float), dataFloats.get());
+        err |= cmdQueue.enqueueReadBuffer(previewBuffer, CL_TRUE, 0, numFloats * sizeof(float), dataFloats.get());
+    }
+    else if (usingMicroKernel && hdr) {
+        err |= cmdQueue.enqueueReadBuffer(pixelBuffer, CL_TRUE, 0, numFloats * sizeof(float), dataFloats.get()); // non- tonemapped && gamma-corrected
     }
     else
     {
@@ -392,7 +423,7 @@ void CLContext::saveImage(std::string filename, const RenderParams &params, bool
     err |= cmdQueue.finish();
     verify("Failed to copy pixel buffer to host!");
 
-    bool hdr = endsWith(filename, ".hdr") || endsWith(filename, ".HDR");
+    
     if (hdr)
     {
         // Save linear unclamped values
@@ -418,7 +449,8 @@ void CLContext::saveImage(std::string filename, const RenderParams &params, bool
     }
     else
     {
-        // Clamp, gamma correct, convert to bytes
+        // Convert to bytes
+        // Already tonemapped and gamma-corrected
         int counter = 0;
         for (int i = 0; i < numFloats; i += 4)
         {
@@ -426,17 +458,6 @@ void CLContext::saveImage(std::string filename, const RenderParams &params, bool
             float g = dataFloats[i + 1];
             float b = dataFloats[i + 2];
             float a = dataFloats[i + 3];
-
-            // Divide alpha
-            r /= a;
-            g /= a;
-            b /= a;
-
-            // Gamma correct
-            auto gamma = [](float value) { return powf(value, 1.0f / 2.2f); };
-            r = gamma(r);
-            g = gamma(g);
-            b = gamma(b);
 
             // Convert to bytes
             auto clamp = [](float value) { return std::max(0.0f, std::min(1.0f, value)); };
@@ -675,11 +696,8 @@ void CLContext::updateParams(const RenderParams &params)
 
 void CLContext::enqueueResetKernel(const RenderParams &params)
 {
-	std::vector<cl::Memory> pixelBuffer { sharedMemory.back() };
 	err = 0;
-	err |= cmdQueue.enqueueAcquireGLObjects(&pixelBuffer); // Take hold of PBO
 	err |= cmdQueue.enqueueNDRangeKernel(mk_reset, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
-	err |= cmdQueue.enqueueReleaseGLObjects(&pixelBuffer);
 	verify("Failed to enqueue reset kernel!");
 }
 
@@ -712,30 +730,29 @@ void CLContext::enqueueSplatKernel(const RenderParams &params, const cl_uint ite
     err |= mk_splat.setArg(4, iteration);
     verify("Failed to set mk_splat arguments!");
 
-    // Splat kernel must be aware of GL-CL sharing
-	std::vector<cl::Memory> pixelBuffer { sharedMemory.back() };
-    err = cmdQueue.enqueueAcquireGLObjects(&pixelBuffer); // Take hold of PBO
-    verify("Failed to enqueue GL object acquisition!");
-
     // TODO: find out why my GTX 780 won't enqueue 1D kernels! (due to image2d_type?)
     // TODO: also, look at having global wg be a multiple of local wg (or a multiple of 32/64)
     err = cmdQueue.enqueueNDRangeKernel(mk_splat, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     verify("Failed to enqueue splat kernel!");
-
-    err = cmdQueue.enqueueReleaseGLObjects(&pixelBuffer);
-    verify("Failed to enqueue GL object release!");
 }
 
 void CLContext::enqueueSplatPreviewKernel(const RenderParams &params)
 {
-    std::vector<cl::Memory> pixelBuffer{ sharedMemory.back() };
-    err = cmdQueue.enqueueAcquireGLObjects(&pixelBuffer); // Take hold of PBO
-    verify("Failed to enqueue GL object acquisition!");
-
     err = cmdQueue.enqueueNDRangeKernel(mk_splat_preview, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     verify("Failed to enqueue splat preview kernel!");
+}
 
-    err = cmdQueue.enqueueReleaseGLObjects(&pixelBuffer);
+void CLContext::enqueuePostprocessKernel(const RenderParams & params)
+{   
+    std::vector<cl::Memory> previewBuffer{ sharedMemory.back() };
+    err = cmdQueue.enqueueAcquireGLObjects(&previewBuffer);
+    verify("Failed to enqueue GL object acquisition!");
+
+    // 1D range
+    err = cmdQueue.enqueueNDRangeKernel(mk_postprocess, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue postprocess kernel!");
+
+    err = cmdQueue.enqueueReleaseGLObjects(&previewBuffer);
     verify("Failed to enqueue GL object release!");
 }
 

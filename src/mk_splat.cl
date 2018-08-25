@@ -15,15 +15,12 @@ kernel void splat(global GPUTaskState *tasks, global float *pixels, global Rende
     if (*phase != MK_SPLAT_SAMPLE)
         return;
 
-    const uint x = get_global_id(0);
-    const uint y = get_global_id(1);
-
 	// Accumulate radiance
 	global int *samples = (global int*)&ReadI32(samples, tasks);
     float4 color = (float4)(ReadFloat3(Ei, tasks), 1.0f);
-	float4 prev = vload4((y * params->width + x), pixels);
+	float4 prev = vload4(gid, pixels);
 	if (*samples > 0) color += prev;
-	vstore4(color, (y * params->width + x), pixels);
+	vstore4(color, gid, pixels);
 	*samples += 1;
 
 	// Reset path state

@@ -39,6 +39,7 @@ private:
     void setupToolbar();
     void addRendererSettings(nanogui::Widget *parent);
     void addCameraSettings(nanogui::Widget *parent);
+    void addTonemapSettings(nanogui::Widget *parent);
     void addEnvMapSettings(nanogui::Widget *parent);
     void addAreaLightSettings(nanogui::Widget *parent);
     void addStateSettings(nanogui::Widget *parent);
@@ -60,6 +61,7 @@ private:
     void updateCamera();
     void updateAreaLight();
     void initCamera();
+    void initPostProcessing();
     void initAreaLight();
     void saveImage();
 	

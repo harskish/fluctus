@@ -27,6 +27,9 @@ void Tracer::setupToolbar()
     // Camera
     addCameraSettings(tools);
 
+    // Tonemapping
+    addTonemapSettings(tools);
+
     // Environment map
     addEnvMapSettings(tools);
 
@@ -259,6 +262,64 @@ void Tracer::addCameraSettings(Widget *parent)
         fovBox->setValue(params.camera.fov);
         speedSlider->setValue(cameraSpeed);
         speedBox->setValue(cameraSpeed);
+    });
+}
+
+
+void Tracer::addTonemapSettings(Widget *parent)
+{
+    PopupButton *tmBtn = new PopupButton(parent, "Tonemapping");
+    Popup *tmPopup = tmBtn->popup();
+    tmPopup->setLayout(new GroupLayout());
+
+    // Exposure
+    Widget *expWidget = new Widget(tmPopup);
+    expWidget->setLayout(new BoxLayout(Orientation::Horizontal));
+    Label *explabel = new Label(expWidget, "Exposure");
+    auto expSlider = new Slider(expWidget);
+    expSlider->setRange(std::make_pair(0.1f, 4.0f));
+    expSlider->setValue(params.ppParams.exposure);
+    expSlider->setFixedWidth(100);
+    auto expBox = new FloatBox<cl_float>(expWidget);
+    inputBoxes.push_back(expBox);
+    expBox->setEditable(true);
+    expBox->setMinMaxValues(0.1f, 5.0f);
+    expBox->setValue(params.ppParams.exposure);
+    expBox->setFormat("[0-9]*\\.?[0-9]+");
+    expBox->setCallback([expSlider, this](cl_float val) {
+        params.ppParams.exposure = val;
+        expSlider->setValue(val);
+        clctx->updateParams(params); // setting paramsUpdatePending causes accumulation reset
+    });
+    expBox->setFixedWidth(80);
+    expBox->setValue(params.ppParams.exposure);
+    expSlider->setCallback([expBox, this](cl_float val) {
+        params.ppParams.exposure = val;
+        expBox->setValue(val);
+        clctx->updateParams(params);
+    });
+
+    // Tonemapping operator
+    Widget *opWidget = new Widget(tmPopup);
+    opWidget->setLayout(new BoxLayout(Orientation::Horizontal));
+    auto opLabel = new Label(opWidget, "Operator");
+    opLabel->setFixedWidth(60);
+    const std::vector<std::string> desc = { "Linear", "Reinhard", "Uncharted 2" };
+    auto opBox = new ComboBox(opWidget, desc);
+    opBox->setFixedWidth(172);
+    opBox->setCallback([&](int idx) {
+        params.ppParams.tmOperator = idx;
+        clctx->updateParams(params);
+    });
+    opBox->setSelectedIndex(2);
+
+    // Reset
+    Button *resetButton = new Button(tmPopup, "Reset");
+    resetButton->setCallback([expSlider, expBox, opBox, this]() {
+        initPostProcessing();
+        expSlider->setValue(params.ppParams.exposure);
+        expBox->setValue(params.ppParams.exposure);
+        opBox->setSelectedIndex(2);
     });
 }
 

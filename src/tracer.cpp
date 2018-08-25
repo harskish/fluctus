@@ -4,6 +4,11 @@
 
 Tracer::Tracer(int width, int height) : useWavefront(true)
 {
+    // Before UI
+    initCamera();
+    initPostProcessing();
+    initAreaLight();
+
     // done only once (VS debugging stops working if context is recreated)
     window = new PTWindow(width, height, this); // this = glfw user pointer
     window->setShowFPS(true);
@@ -12,8 +17,6 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     window->setupGUI();
     clctx->setup(window);
     setupToolbar();
-    initCamera();
-    initAreaLight();
 
     // done whenever a new scene is selected
     init(width, height);
@@ -140,8 +143,11 @@ void Tracer::update()
             clctx->enqueueBsdfSampleKernel(params, iteration);
 
             // Splat results
-            clctx->enqueueSplatKernel(params, frontBuffer);
+            clctx->enqueueSplatKernel(params, iteration);
         }
+
+        // Postprocess
+        clctx->enqueuePostprocessKernel(params);
     }
     else
     {
@@ -253,7 +259,7 @@ void Tracer::resizeBuffers(int width, int height)
 
     window->createTextures();
     window->createPBO();
-    clctx->setupPixelStorage(window->getTexPtr(), window->getPBO());
+    clctx->setupPixelStorage(window);
     paramsUpdatePending = true;
 }
 
@@ -369,6 +375,16 @@ void Tracer::initCamera()
     params.camera = cam;
     cameraRotation = float2(0.0f);
     cameraSpeed = 1.0f;
+    paramsUpdatePending = true;
+}
+
+void Tracer::initPostProcessing()
+{
+    PostProcessParams p;
+    p.exposure = 1.0f;
+    p.tmOperator = 2; // UC2 default
+
+    params.ppParams = p;
     paramsUpdatePending = true;
 }
 
