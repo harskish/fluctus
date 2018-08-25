@@ -150,6 +150,8 @@ typedef struct
     float3 up;      // 16B
     float3 right;   // 16B
     cl_float fov;   // 4B
+    cl_float apertureSize; // DoF
+    cl_float focalDist;    // DoF
 } Camera;
 
 typedef struct
@@ -165,7 +167,6 @@ typedef struct
     PostProcessParams ppParams;
     cl_uint width;         // window width
     cl_uint height;        // window height
-    cl_uint n_objects;     // number of objects in scene
     cl_uint n_tris;
     cl_uint n_lights;      // number of lights in scene
     cl_uint useEnvMap;

@@ -195,14 +195,14 @@ void Tracer::addCameraSettings(Widget *parent)
 {
     PopupButton *camBtn = new PopupButton(parent, "Camera");
     Popup *camPopup = camBtn->popup();
-    camPopup->setAnchorHeight(61);
+    //camPopup->setAnchorHeight(61);
     camPopup->setLayout(new GroupLayout());
 
     // FOV
     Widget *fovWidget = new Widget(camPopup);
     fovWidget->setLayout(new BoxLayout(Orientation::Horizontal));
     Label *fovlabel = new Label(fovWidget, "FOV");
-    fovlabel->setFixedWidth(40);
+    fovlabel->setFixedWidth(50);
     auto fovSlider = new Slider(fovWidget);
     uiMapping["FOV_SLIDER"] = fovSlider;
     fovSlider->setRange(std::make_pair(0.01f, 179.0f));
@@ -231,7 +231,7 @@ void Tracer::addCameraSettings(Widget *parent)
     Widget *speedWidget = new Widget(camPopup);
     speedWidget->setLayout(new BoxLayout(Orientation::Horizontal));
     Label *speedLabel = new Label(speedWidget, "Speed");
-    speedLabel->setFixedWidth(40);
+    speedLabel->setFixedWidth(50);
     auto speedSlider = new Slider(speedWidget);
     uiMapping["CAM_SPEED_SLIDER"] = speedSlider;
     speedSlider->setRange(std::make_pair(0.1f, 100.0f));
@@ -254,14 +254,47 @@ void Tracer::addCameraSettings(Widget *parent)
         speedBox->setValue(val);
     });
 
+    // Aperture size
+    Widget *apertureWidget = new Widget(camPopup);
+    apertureWidget->setLayout(new BoxLayout(Orientation::Horizontal));
+    Label *apertureLabel = new Label(apertureWidget, "Aperture");
+    apertureLabel->setFixedWidth(50);
+    auto apertureSlider = new Slider(apertureWidget);
+    uiMapping["CAM_APERTURE_SLIDER"] = apertureSlider;
+    apertureSlider->setRange(std::make_pair(0.0f, 0.003f));
+    apertureSlider->setValue(params.camera.apertureSize);
+    apertureSlider->setFixedWidth(80);
+    auto apertureBox = new FloatBox<float>(apertureWidget);
+    uiMapping["CAM_APERTURE_BOX"] = apertureBox;
+    apertureBox->setFixedWidth(80);
+    apertureBox->setValue(params.camera.apertureSize);
+    apertureBox->setEditable(true);
+    inputBoxes.push_back(apertureBox);
+    apertureBox->setFormat("[0-9]*\\.?[0-9]+");
+    apertureBox->setCallback([apertureSlider, this](float val) {
+        params.camera.apertureSize = val;
+        apertureSlider->setValue(std::max(0.0f, std::min(val, 0.003f)));
+        paramsUpdatePending = true;
+    });
+    apertureSlider->setCallback([apertureBox, this](float val) {
+        params.camera.apertureSize = val;
+        apertureBox->setValue(val);
+        paramsUpdatePending = true;
+    });
+
+    // Help message
+    new Label(camPopup, "Right click to set focal distance");
+
     // Reset
     Button *resetButton = new Button(camPopup, "Reset");
-    resetButton->setCallback([fovSlider, fovBox, speedSlider, speedBox, this]() {
+    resetButton->setCallback([fovSlider, fovBox, speedSlider, speedBox, apertureSlider, apertureBox, this]() {
         initCamera();
         fovSlider->setValue(params.camera.fov);
         fovBox->setValue(params.camera.fov);
         speedSlider->setValue(cameraSpeed);
         speedBox->setValue(cameraSpeed);
+        apertureSlider->setValue(params.camera.apertureSize);
+        apertureBox->setValue(params.camera.apertureSize);
     });
 }
 
@@ -277,14 +310,16 @@ void Tracer::addTonemapSettings(Widget *parent)
     expWidget->setLayout(new BoxLayout(Orientation::Horizontal));
     Label *explabel = new Label(expWidget, "Exposure");
     auto expSlider = new Slider(expWidget);
+    uiMapping["EXPOSURE_SLIDER"] = expSlider;
     expSlider->setRange(std::make_pair(0.1f, 4.0f));
-    expSlider->setValue(params.ppParams.exposure);
+    //expSlider->setValue(params.ppParams.exposure);
     expSlider->setFixedWidth(100);
     auto expBox = new FloatBox<cl_float>(expWidget);
+    uiMapping["EXPOSURE_BOX"] = expBox;
     inputBoxes.push_back(expBox);
     expBox->setEditable(true);
     expBox->setMinMaxValues(0.1f, 5.0f);
-    expBox->setValue(params.ppParams.exposure);
+    //expBox->setValue(params.ppParams.exposure);
     expBox->setFormat("[0-9]*\\.?[0-9]+");
     expBox->setCallback([expSlider, this](cl_float val) {
         params.ppParams.exposure = val;
@@ -306,6 +341,7 @@ void Tracer::addTonemapSettings(Widget *parent)
     opLabel->setFixedWidth(60);
     const std::vector<std::string> desc = { "Linear", "Reinhard", "Uncharted 2" };
     auto opBox = new ComboBox(opWidget, desc);
+    uiMapping["TONEMAP_OP_BOX"] = opBox;
     opBox->setFixedWidth(172);
     opBox->setCallback([&](int idx) {
         params.ppParams.tmOperator = idx;
@@ -543,8 +579,19 @@ void Tracer::updateGUI()
 
     auto camSpeedSlider = static_cast<Slider*>(uiMapping["CAM_SPEED_SLIDER"]);
     auto camSpeedBox = static_cast<FloatBox<float>*>(uiMapping["CAM_SPEED_BOX"]);
+    auto apertureBox = static_cast<FloatBox<float>*>(uiMapping["CAM_APERTURE_BOX"]);
+    auto apertureSlider = static_cast<Slider*>(uiMapping["CAM_APERTURE_SLIDER"]);
     camSpeedSlider->setValue(cameraSpeed);
     camSpeedBox->setValue(cameraSpeed);
+    apertureBox->setValue(params.camera.apertureSize);
+    apertureSlider->setValue(params.camera.apertureSize);
+
+    auto expBox = static_cast<FloatBox<float>*>(uiMapping["EXPOSURE_BOX"]);
+    auto expSlider = static_cast<Slider*>(uiMapping["EXPOSURE_SLIDER"]);
+    auto opBox = static_cast<ComboBox*>(uiMapping["TONEMAP_OP_BOX"]);
+    expBox->setValue(params.ppParams.exposure);
+    expSlider->setValue(params.ppParams.exposure);
+    opBox->setSelectedIndex(params.ppParams.tmOperator);
 
     auto integratorBox = static_cast<ComboBox*>(uiMapping["INTEGRATOR_BOX"]);
     integratorBox->setSelectedIndex((useWavefront) ? 0 : 1);

@@ -70,6 +70,15 @@ inline float2 sampleRegular(int n, int dim)
     return (float2)(xm1, ym1);
 }
 
+// http://mathworld.wolfram.com/DiskPointPicking.html
+inline float2 uniformSampleDisk(uint *seed)
+{
+    float sqrt_r = sqrt(rand(seed));
+    float th = M_2PI_F * rand(seed);
+    return (float2)(sqrt_r * cos(th), sqrt_r * sin(th));
+}
+
+
 inline float3 cosSampleHemisphere(float3 n, uint *seed, float *p)
 {
     float r1 = 2.0f * M_PI_F * rand(seed);

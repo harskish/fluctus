@@ -76,6 +76,9 @@ void CLContext::setup(PTWindow *window)
     // Setup RenderParams
     setupParams();
 
+    // Setup pick result buffer
+    setupPickResult();
+
     // Setup RenerStats
     setupStats();
 
@@ -100,6 +103,7 @@ void CLContext::setupKernels()
     setupSplatPreviewKernel();
     setupPostprocessKernel();
     setupMegaKernel();
+    setupPickKernel();
 }
 
 // For copying SoA data to host
@@ -233,6 +237,19 @@ void CLContext::setupMegaKernel()
     err |= kernel_monolith.setArg(i++, renderStats);
     err |= kernel_monolith.setArg(i++, 0); // iteration
     verify("Failed to set kernel arguments!");
+}
+
+void CLContext::setupPickKernel()
+{
+    buildKernel(kernel_pick, "kernel_pick.cl", "pick");
+    int i = 0;
+    err = 0;
+    err |= kernel_pick.setArg(i++, renderParams);
+    err |= kernel_pick.setArg(i++, triangleBuffer);
+    err |= kernel_pick.setArg(i++, nodeBuffer);
+    err |= kernel_pick.setArg(i++, indexBuffer);
+    err |= kernel_pick.setArg(i++, pickResult);
+    verify("Failed to set kernel_pick arguments!");
 }
 
 void CLContext::setupResetKernel()
@@ -532,16 +549,6 @@ void CLContext::createEnvMap(EnvironmentMap *map)
 
 void CLContext::setupScene()
 {
-    size_t s_bytes = sizeof(test_spheres);
-
-    // READ_WRITE due to Apple's OpenCL bug...?
-    sphereBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, s_bytes, NULL, &err);
-    verify("Sphere buffer creation failed!");
-
-    // Blocking write!
-    err = cmdQueue.enqueueWriteBuffer(sphereBuffer, CL_TRUE, 0, s_bytes, test_spheres);
-    verify("Sphere buffer writing failed!");
-
     // Lights
     size_t l_bytes = sizeof(test_lights);
     lightBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, l_bytes, NULL, &err);
@@ -656,15 +663,18 @@ void CLContext::setupParams()
 {
     renderParams = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(RenderParams) * 1, NULL, &err);
     verify("Params buffer creation failed!");
-    std::cout << "RenderParam allocation succeeded!" << std::endl;
+}
+
+void CLContext::setupPickResult()
+{
+    pickResult = cl::Buffer(context, CL_MEM_WRITE_ONLY, sizeof(Hit) * 1, NULL, &err);
+    verify("Pick result creation failed!");
 }
 
 void CLContext::setupStats()
 {
     renderStats = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(RenderStats) * 1, NULL, &err);
     verify("RenderStats creation failed!");
-    std::cout << "RenderStats allocation succeeded!" << std::endl;
-
     resetStats();
 }
 
@@ -807,6 +817,23 @@ void CLContext::finishQueue()
 {
     err = cmdQueue.finish();
     verify("Failed to finish command queue!");
+}
+
+Hit CLContext::pickSingle(float NDCx, float NDCy)
+{
+    err = 0;
+    err |= kernel_pick.setArg(5, NDCx);
+    err |= kernel_pick.setArg(6, NDCy);
+    verify("Failed to set pick kernel coordinates");
+
+    Hit hit;
+
+    err |= cmdQueue.enqueueNDRangeKernel(kernel_pick, cl::NullRange, cl::NDRange(1), cl::NullRange);
+    err |= cmdQueue.enqueueReadBuffer(pickResult, CL_FALSE, 0, 1 * sizeof(Hit), &hit);
+    cmdQueue.finish();
+    verify("Failed to execute pick kernel or get result");
+
+    return hit;
 }
 
 cl::Platform &CLContext::getPlatformByName(std::vector<cl::Platform> &platforms, std::string name) {

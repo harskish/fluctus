@@ -43,11 +43,18 @@ kernel void genCameraRays(global GPUTaskState *tasks, global RenderParams *param
     SCRy *= scale;
 
     // World space coorinates of pixel
-    float3 rayTarget = params->camera.pos + params->camera.right * SCRx + params->camera.up * SCRy + params->camera.dir;
-    float3 rayDirection = normalize(rayTarget - params->camera.pos);
+    float3 rayOrig = params->camera.pos;
+    float3 rayTarget = rayOrig + params->camera.right * SCRx + params->camera.up * SCRy + params->camera.dir;
+    float3 rayDirection = normalize(rayTarget - rayOrig);
+
+    // Depth of field
+    float3 fp = params->camera.pos + rayDirection * params->camera.focalDist;
+    float2 rnd = uniformSampleDisk(&seed);
+    rayOrig += params->worldRadius * params->camera.apertureSize * (params->camera.right * rnd.x + params->camera.up * rnd.y);
+    rayDirection = normalize(fp - rayOrig);
 
     // Construct camera ray
-    WriteFloat3(orig, tasks, params->camera.pos);
+    WriteFloat3(orig, tasks, rayOrig);
     WriteFloat3(dir, tasks, rayDirection);
 
     // Update path state

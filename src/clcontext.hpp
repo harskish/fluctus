@@ -45,20 +45,6 @@
 
 using FireRays::float3;
 
-// Test scene
-static Sphere test_spheres[] =
-{
-    // radius, position, Kd
-    //{ 1.0f, float4(0.0f, 0.0f, 0.0f, 0.0f), RGB2f3(255, 0, 0) },             // big sphere
-    //{ 0.0f, float4(0.0f, 1.5f, 0.0f, 0.0f), RGB2f3(255, 255, 255) },             // small sphere
-    { float4(0.0f, 0.0f, +1008.0f, 0.0f), RGB2f3(180, 190, 180), 1000.0f },  // back wall
-    { float4(0.0f, 0.0f, -1008.0f, 0.0f), RGB2f3(180, 190, 180), 1000.0f },  // front (visible) wall
-    { float4(0.0f, -1001.0f, 0.0f, 0.0f), RGB2f3(0, 0, 255), 1000.0f },      // floor
-    { float4(-1008.0f, 0.0f, 0.0f, 0.0f), RGB2f3(205, 110, 15), 1000.0f },   // left wall
-    { float4(+1008.0f, 0.0f, 0.0f, 0.0f), RGB2f3(255, 0, 255), 1000.0f },    // right wall
-    { float4(0.0f, +1020.0f, 0.0f, 0.0f), RGB2f3(0, 0, 255), 1000.0f },      // ceiling
-};
-
 static PointLight test_lights[] =
 {
     { RGB2f3(255, 255, 255) * 30.0f, {float3(2.0f, 4.0f, 0.0f)} },
@@ -85,8 +71,11 @@ public:
     void enqueuePostprocessKernel(const RenderParams &params);
     void finishQueue();
 
+    Hit pickSingle(float NDCx, float NDCy);
+
     void setup(PTWindow *window);
     void setupParams();
+    void setupPickResult();
     void setupStats();
     void resetStats();
     void fetchStatsAsync();
@@ -112,6 +101,7 @@ private:
     void setupSplatPreviewKernel();
     void setupPostprocessKernel();
     void setupMegaKernel();
+    void setupPickKernel();
     void initMCBuffers();
 
     void buildKernel(cl::Kernel &target, std::string fileName, std::string methodName);
@@ -125,7 +115,7 @@ private:
 #ifdef CPU_DEBUGGING
     const cl_uint NUM_TASKS = 1;
 #else
-    const cl_uint NUM_TASKS = 1 << 20;   // the amount of paths in flight simultaneously, limited by VRAM
+    const cl_uint NUM_TASKS = 1 << 21;   // the amount of paths in flight simultaneously, limited by VRAM
 #endif
 
     // For showing progress
@@ -139,6 +129,7 @@ private:
     
     // Kernels
     cl::Kernel kernel_monolith;
+    cl::Kernel kernel_pick;
 	cl::Kernel mk_reset;
     cl::Kernel mk_raygen;
     cl::Kernel mk_next_vertex;
@@ -154,8 +145,8 @@ private:
     cl::ImageGL backBuffer;
     std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (tex1, tex2, mk_pixelbuffer)
     
-    cl::Buffer sphereBuffer;
     cl::Buffer lightBuffer;
+    cl::Buffer pickResult;
     cl::Buffer renderParams;                // contains only one RenderParam
     cl::Buffer renderStats;                 // ray + sample counts
     RenderStats statsAsync;                 // fetched asynchronously from device after each iteration

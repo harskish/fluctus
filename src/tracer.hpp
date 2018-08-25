@@ -64,6 +64,12 @@ private:
     void initPostProcessing();
     void initAreaLight();
     void saveImage();
+
+    // Shoot single picking ray through cursor
+    Hit pickSingle();
+
+    // Set DoF depth by right clicking
+    void pickDofDepth();
 	
 	void saveState();
     void loadState();

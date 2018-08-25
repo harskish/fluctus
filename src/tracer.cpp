@@ -33,7 +33,6 @@ void Tracer::init(int width, int height, std::string sceneFile)
     params.width = static_cast<unsigned int>(width * renderScale);
     params.height = static_cast<unsigned int>(height * renderScale);
     params.n_lights = sizeof(test_lights) / sizeof(PointLight);
-    params.n_objects = sizeof(test_spheres) / sizeof(Sphere);
     params.useEnvMap = (cl_uint)false;
     params.useAreaLight = (cl_uint)true;
     params.envMapStrength = 1.0f;
@@ -293,6 +292,8 @@ void Tracer::iterateStateItems(StateIO mode)
 		rw(cameraRotation.y);
 		rw(cameraSpeed);
 		rw(params.camera.fov);
+        rw(params.camera.focalDist);
+        rw(params.camera.apertureSize);
 		rwVec(params.camera.dir);
 		rwVec(params.camera.pos);
 		rwVec(params.camera.right);
@@ -316,6 +317,10 @@ void Tracer::iterateStateItems(StateIO mode)
 		rw(params.sampleImpl);
         rw(params.useRoulette);
 
+        // Post processing
+        rw(params.ppParams.exposure);
+        rw(params.ppParams.tmOperator);
+
 		std::cout << ((mode == StateIO::WRITE) ? "State dumped" : "State imported") << std::endl;
 	}
 	else
@@ -325,6 +330,37 @@ void Tracer::iterateStateItems(StateIO mode)
 
 	#undef rw
 	#undef rwVec
+}
+
+Hit Tracer::pickSingle()
+{
+    // Position relative to upper-left
+    double xpos, ypos;
+    glfwGetCursorPos(window->glfwWindowPtr(), &xpos, &ypos);
+
+    int width, height;
+    glfwGetWindowSize(window->glfwWindowPtr(), &width, &height);
+
+    // Ignores FB scaling
+    float NDCx = xpos / width;
+    float NDCy = (height - ypos) / height;
+
+    return clctx->pickSingle(NDCx, NDCy);
+}
+
+// Set DoF depth based on hit distance
+void Tracer::pickDofDepth()
+{
+    Hit hit = pickSingle();
+    
+    printf("Pick result: i = %d, dist = %.2f\n\n", hit.i, hit.t);
+
+    // If scene hit, set focal distance
+    if (hit.i > -1)
+    {
+        params.camera.focalDist = hit.t;
+        paramsUpdatePending = true;
+    }
 }
 
 void Tracer::saveState()
@@ -371,10 +407,13 @@ void Tracer::initCamera()
     cam.up = float3(0.0f, 1.0f, 0.0f);
     cam.dir = float3(0.0f, 0.0f, -1.0f);
     cam.fov = 60.0f;
+    cam.apertureSize = 0.0f;
+    cam.focalDist = 0.5f;
 
     params.camera = cam;
     cameraRotation = float2(0.0f);
     cameraSpeed = 1.0f;
+
     paramsUpdatePending = true;
 }
 
@@ -611,7 +650,11 @@ void Tracer::handleMouseButton(int key, int action, int mods)
             break;
         case GLFW_MOUSE_BUTTON_RIGHT:
             if(action == GLFW_PRESS) mouseButtonState[2] = true;
-            if(action == GLFW_RELEASE) mouseButtonState[2] = false;
+            if (action == GLFW_RELEASE)
+            {
+                mouseButtonState[2] = false;
+                pickDofDepth();
+            }
             break;
     }
 }
