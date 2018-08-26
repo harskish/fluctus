@@ -1,9 +1,18 @@
 #include "kernelreader.hpp"
 
-// Needs to use custom preprocessor to avoid NVIDIA cache issues
 void kernelFromSource(const std::string filename, cl::Context &context, cl::Program &program, int &err)
 {
-    std::string tmp = readKernel(filename);
+    std::ifstream f(filename);
+    if (!f)
+    {
+        std::cout << "Could not open kernel file '" + filename + "'" << std::endl;
+        waitExit();
+    }
+
+    std::stringstream buffer;
+    buffer << f.rdbuf();
+
+    const std::string &tmp = buffer.str();
     program = cl::Program(context, tmp, false, &err);
 }
 
@@ -98,7 +107,7 @@ cl::Program kernelFromFile(const std::string filename, const std::string buildOp
     {
         std::cout << "Building kernel " << filename << std::endl;
 
-        kernelFromSource(sourcePath, context, program, err);
+        kernelFromSourceExpanded(sourcePath, context, program, err);
         cl::vector<cl::Device> devices = { device };
         err = program.build(devices, buildOpts.c_str());
 

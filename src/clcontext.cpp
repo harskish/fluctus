@@ -205,9 +205,26 @@ void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::strin
         buildOpts += " -g -s \"" + getAbsolutePath("src/" + fileName) + "\"";
     #endif
     
-    // Build program using cache or sources
-    cl::Program program = kernelFromFile(fileName, buildOpts, platform, context, device, err);
-    verify("Failed to create kernel program");
+    cl::Program program;
+
+    // CPU debugging segfaults if trying to use cached kernel!
+    // Also need to let the driver do the include handling
+    #ifdef CPU_DEBUGGING
+        kernelFromSource("src/" + fileName, context, program, err);
+        cl::vector<cl::Device> devices = { device };
+        err = program.build(devices, buildOpts.c_str());
+
+        // Check build log
+        std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+        if (buildLog.length() > 2)
+            std::cout << "\n[" << fileName << " build log]:" << buildLog << std::endl;
+
+        verify("Kernel compilation failed");
+    #else
+        // Build program using cache or sources
+        program = kernelFromFile(fileName, buildOpts, platform, context, device, err);
+        verify("Failed to create kernel program");
+    #endif
 
     // Creating compute kernel from program
     target = cl::Kernel(program, methodName.c_str(), &err);
