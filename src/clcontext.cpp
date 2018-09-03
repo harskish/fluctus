@@ -226,7 +226,7 @@ void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::strin
     window->showMessage("Building kernel", fileName);
 
     // Define build options to check cached kernel validity
-    std::string buildOpts = "-DGPU -I./src -cl-denorms-are-zero";
+    std::string buildOpts = "-DGPU -I./src -cl-denorms-are-zero -cl-fast-relaxed-math";
     Settings &s = Settings::getInstance();
     if (s.getUseBitstack()) buildOpts += " -DUSE_BITSTACK";
     if (s.getUseSoA()) buildOpts += " -DUSE_SOA";
