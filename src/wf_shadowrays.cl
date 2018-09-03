@@ -4,13 +4,13 @@
 
 // Trace shadow ray for all paths in queue
 kernel void traceShadow(
-    global GPUTaskState *tasks,
-    global QueueCounters *queueLens,
-    global uint *shadowQueue,
-    global Triangle *tris,
-    global GPUNode *nodes,
-    global uint *indices,
-    global RenderParams *params,
+    global GPUTaskState* tasks,
+    global QueueCounters* queueLens,
+    global uint* shadowQueue,
+    global Triangle* tris,
+    global GPUNode* nodes,
+    global uint* indices,
+    global RenderParams* params,
     uint numTasks
 )
 {

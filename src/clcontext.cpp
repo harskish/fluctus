@@ -65,7 +65,7 @@ CLContext::CLContext()
     std::cout << "DEVICE: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
     // Create command queue for context
-    cmdQueue = cl::CommandQueue(context, device, 0, &err);
+    cmdQueue = cl::CommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
     verify("Failed to create command queue!");
 }
 
@@ -318,6 +318,7 @@ void CLContext::setupWfLogicKernel()
     err |= wf_logic.setArg(i++, texDescriptorBuffer);
     err |= wf_logic.setArg(i++, renderParams);
     err |= wf_logic.setArg(i++, NUM_TASKS);
+    err |= wf_logic.setArg(i++, (cl_uint)false);
     verify("Failed to set wf_logic arguments!");
 }
 
@@ -907,6 +908,36 @@ void CLContext::enqueueGetCounters(QueueCounters *cnt)
     err = cmdQueue.enqueueReadBuffer(queueCounters, CL_FALSE, 0, 1 * sizeof(QueueCounters), cnt);
 }
 
+void CLContext::checkTracingPerf()
+{
+    // Check ray tracing perf without overhead
+    cl_ulong t0Ext, t0Shadow;
+    cl_ulong t1Ext, t1Shadow;
+
+    clGetEventProfilingInfo(extRayEvent(), CL_PROFILING_COMMAND_START, sizeof(t0Ext), &t0Ext, NULL);
+    clGetEventProfilingInfo(extRayEvent(), CL_PROFILING_COMMAND_END, sizeof(t1Ext), &t1Ext, NULL);
+    clGetEventProfilingInfo(shdwRayEvent(), CL_PROFILING_COMMAND_START, sizeof(t0Shadow), &t0Shadow, NULL);
+    clGetEventProfilingInfo(shdwRayEvent(), CL_PROFILING_COMMAND_END, sizeof(t1Shadow), &t1Shadow, NULL);
+
+    // Extension rays
+    double timeNs = t1Ext - t0Ext;
+    double timeMs = timeNs / 1000000.0;
+    double timeS = timeMs / 1000.0;
+
+    double scale = 1e6 * timeS;
+    double MRaysExt = statsAsync.extensionRays / scale;
+    printf("Ext ray time: %0.3f milliseconds, speed: %.2f MRays/s \n", timeMs, MRaysExt);
+
+    // Shadow rays
+    timeNs = t1Shadow - t0Shadow;
+    timeMs = timeNs / 1000000.0;
+    timeS = timeMs / 1000.0;
+
+    scale = 1e6 * timeS;
+    double MRaysShadow = statsAsync.shadowRays / scale;
+    printf("Shadow ray time: %0.3f milliseconds, speed: %.2f MRays/s \n", timeMs, MRaysShadow);
+}
+
 void CLContext::updateParams(const RenderParams &params)
 {
     err = cmdQueue.enqueueWriteBuffer(renderParams, CL_FALSE, 0, sizeof(RenderParams), &params);
@@ -977,7 +1008,6 @@ void CLContext::enqueuePostprocessKernel(const RenderParams & params)
 
 void CLContext::enqueueWfResetKernel(const RenderParams & params)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
     cl_uint numElems = std::max(NUM_TASKS, params.width * params.height);
     err = cmdQueue.enqueueNDRangeKernel(wf_reset, cl::NullRange, cl::NDRange(numElems), cl::NullRange);
     verify("Failed to enqueue wf_reset");
@@ -985,29 +1015,26 @@ void CLContext::enqueueWfResetKernel(const RenderParams & params)
 
 void CLContext::enqueueWfRaygenKernel(const RenderParams & params)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
     err = cmdQueue.enqueueNDRangeKernel(wf_raygen, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_raygen");
 }
 
 void CLContext::enqueueWfExtRayKernel(const RenderParams & params)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
-    err = cmdQueue.enqueueNDRangeKernel(wf_extension, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(wf_extension, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &extRayEvent);
     verify("Failed to enqueue wf_extension");
 }
 
 void CLContext::enqueueWfShadowRayKernel(const RenderParams & params)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
-    err = cmdQueue.enqueueNDRangeKernel(wf_shadow, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(wf_shadow, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &shdwRayEvent);
     verify("Failed to enqueue wf_shadow");
 }
 
-void CLContext::enqueueWfLogicKernel(const RenderParams & params)
+void CLContext::enqueueWfLogicKernel(const bool firstIteration)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
-    err = cmdQueue.enqueueNDRangeKernel(wf_logic, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err |= wf_logic.setArg(23, (cl_uint)firstIteration);
+    err |= cmdQueue.enqueueNDRangeKernel(wf_logic, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_logic");
 }
 
@@ -1022,35 +1049,30 @@ void CLContext::enqueueWfMaterialKernels(const RenderParams & params)
 
 void CLContext::enqueueWfDiffuseKernel(const RenderParams & params)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
     err = cmdQueue.enqueueNDRangeKernel(wf_diffuse, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_diffuse");
 }
 
 void CLContext::enqueueWfGlossyKernel(const RenderParams & params)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
     err = cmdQueue.enqueueNDRangeKernel(wf_glossy, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_glossy");
 }
 
 void CLContext::enqueueWfGGXReflKernel(const RenderParams & params)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
     err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refl, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_ggx_refl");
 }
 
 void CLContext::enqueueWfGGXRefrKernel(const RenderParams & params)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
     err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refr, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_ggx_refr");
 }
 
 void CLContext::enqueueWfDeltaKernel(const RenderParams & params)
 {
-    // TODO: enqueue only correct number of tasks based on queue length?
     err = cmdQueue.enqueueNDRangeKernel(wf_delta, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_delta");
 }

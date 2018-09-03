@@ -3,6 +3,11 @@
 #include "utils.cl"
 #include "env_map.cl"
 
+void addToMaterialQueueLocalAtomics(const uint, const Material, global QueueCounters*,
+    global uint*, global uint*, global uint*, global uint*, global uint*);
+void addToMaterialQueueNaive(const uint, const Material, global QueueCounters*,
+    global uint*, global uint*, global uint*, global uint*, global uint*);
+
 // Logic kernel
 kernel void logic(
     global GPUTaskState *tasks,
@@ -27,12 +32,14 @@ kernel void logic(
     global uchar *texData,
     global TexDescriptor *textures,
     global RenderParams *params,
-    uint numTasks
+    uint numTasks,
+    uint firstItaration
 )
 {
     uint gid = get_global_id(0);
+    uint maxId = firstItaration ? min(params->width * params->height, numTasks) : numTasks;
 
-    if (gid >= numTasks)
+    if (gid >= maxId)
         return;
 
     bool emitterHit = false;
@@ -157,7 +164,6 @@ kernel void logic(
 	        float4 prev = vload4(pixIdx, pixels);
             color += prev;
             vstore4(color, pixIdx, pixels);
-            //atomic_inc(&stats->samples);
         }
 
         // Put into raygen queue
@@ -262,7 +268,29 @@ kernel void logic(
         }
     }
 
-    // Place rays in proper material queue
+    WriteU32(seed, tasks, seed);
+
+    //addToMaterialQueueLocalAtomics(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue);
+    addToMaterialQueueNaive(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue);
+}
+
+
+/*  Two different methods for enqueuing paths based on their material
+    Would ideally use warp/wavefront voting functions, but those don't work on OCL 1.2 */
+
+
+// Naive solution that uses global atomics
+inline void addToMaterialQueueNaive(
+    const uint gid,
+    const Material mat,
+    global QueueCounters *queueLens,
+    global uint* diffuseQueue,
+    global uint* glossyQueue,
+    global uint* ggxReflQueue,
+    global uint* ggxRefrQueue,
+    global uint* deltaQueue
+)
+{
     global uint *queue;
     global uint *queueLen;
     switch(mat.type)
@@ -295,6 +323,79 @@ kernel void logic(
     
     uint idx = atomic_inc(queueLen);
     queue[idx] = gid;
+}
 
-    WriteU32(seed, tasks, seed);
+// Minimize global atomics
+// No real performance gain on GTX 1060 3GB
+kernel void addToMaterialQueueLocalAtomics(
+    const uint gid,
+    const Material mat,
+    global QueueCounters *queueLens,
+    global uint* diffuseQueue,
+    global uint* glossyQueue,
+    global uint* ggxReflQueue,
+    global uint* ggxRefrQueue,
+    global uint* deltaQueue
+)
+{
+    local uint nDiffuse, nGlossy, nGGXRefl, nGGXRefr, nDelta;
+    nDiffuse = nGlossy = nGGXRefl = nGGXRefr = nDelta = 0;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    global uint* queue;
+    global uint* queueLenGlobal;
+    local uint* queueLenLocal;
+
+    queue = diffuseQueue;
+    queueLenGlobal = &queueLens->diffuseQueue;
+    queueLenLocal = &nDiffuse;
+
+    switch(mat.type)
+    {
+        case BXDF_DIFFUSE:
+			queue = diffuseQueue;
+            queueLenGlobal = &queueLens->diffuseQueue;
+            queueLenLocal = &nDiffuse;
+            break;
+		case BXDF_GLOSSY:
+			queue = glossyQueue;
+            queueLenGlobal = &queueLens->glossyQueue;
+            queueLenLocal = &nGlossy;
+            break;
+		case BXDF_GGX_ROUGH_REFLECTION:
+            queue = ggxReflQueue;
+            queueLenGlobal = &queueLens->ggxReflQueue;
+            queueLenLocal = &nGGXRefl;
+            break;
+		case BXDF_GGX_ROUGH_DIELECTRIC:
+			queue = ggxRefrQueue;
+            queueLenGlobal = &queueLens->ggxRefrQueue;
+            queueLenLocal = &nGGXRefr;
+            break;
+        case BXDF_IDEAL_REFLECTION:
+		case BXDF_IDEAL_DIELECTRIC:
+			queue = deltaQueue;
+            queueLenGlobal = &queueLens->deltaQueue;
+            queueLenLocal = &nDelta;
+            break;
+        default:
+            printf("WF_LOGIC: INCORRECT MATERIAL TYPE: %d (gid %u)!\n", mat.type, gid);
+            return;
+    }
+    
+    // Count material types locally
+    uint posLocal = atomic_inc(queueLenLocal);
+    
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // First in queue updates global counter
+    if (posLocal == 0)
+        *queueLenLocal = atomic_add(queueLenGlobal, *queueLenLocal);
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // Add to queue
+    uint idx = *queueLenLocal + posLocal;
+    queue[idx] = gid;
 }

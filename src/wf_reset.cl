@@ -3,11 +3,11 @@
 
 // Reset state of all paths. Done after camera/renderparam changes.
 kernel void reset(
-    global GPUTaskState *tasks,
-    global float *pixels,
-    global QueueCounters *queueLens,
-    global uint *raygenQueue,
-    global RenderParams *params,
+    global GPUTaskState* tasks,
+    global float* pixels,
+    global QueueCounters* queueLens,
+    global uint* raygenQueue,
+    global RenderParams* params,
     uint numTasks
 )
 {

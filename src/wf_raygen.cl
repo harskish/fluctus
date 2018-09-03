@@ -2,12 +2,12 @@
 #include "utils.cl"
 
 kernel void genRays(
-    global GPUTaskState *tasks,
-    global RenderParams *params,
-    global QueueCounters *queueLens,
-    global uint *raygenQueue,
-    global uint *extensionQueue,
-    global uint *currPixelIdx,
+    global GPUTaskState* tasks,
+    global RenderParams* params,
+    global QueueCounters* queueLens,
+    global uint* raygenQueue,
+    global uint* extensionQueue,
+    global uint* currPixelIdx,
     uint numTasks
 )
 {

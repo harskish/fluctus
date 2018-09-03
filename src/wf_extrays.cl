@@ -3,14 +3,14 @@
 
 // Trace extension ray for all paths in queue
 kernel void traceExtension(
-    global GPUTaskState *tasks,
-    global QueueCounters *queueLens,
-    global uint *extQueue,
-    global Triangle *tris,
-    global GPUNode *nodes,
-    global uint *indices,
-    global RenderParams *params,
-    uint numTasks
+    global GPUTaskState* tasks,
+    global QueueCounters* queueLens,
+    global uint* extQueue,
+    global Triangle* tris,
+    global GPUNode* nodes,
+    global uint* indices,
+    global RenderParams* params,
+    const uint numTasks
 )
 {
     uint gid_direct = get_global_id(0);

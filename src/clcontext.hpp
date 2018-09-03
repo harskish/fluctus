@@ -82,7 +82,7 @@ public:
     void enqueueWfRaygenKernel(const RenderParams &params);
     void enqueueWfExtRayKernel(const RenderParams &params);
     void enqueueWfShadowRayKernel(const RenderParams &params);
-    void enqueueWfLogicKernel(const RenderParams &params);
+    void enqueueWfLogicKernel(const bool firstIteration);
     void enqueueWfMaterialKernels(const RenderParams &params);
    
     void enqueueClearWfQueues();
@@ -102,6 +102,8 @@ public:
     const PerfNumbers getRenderPerf();
     const RenderStats getStats();
     void enqueueGetCounters(QueueCounters *cnt);
+
+    void checkTracingPerf();
 
     void updateParams(const RenderParams &params);
     void uploadSceneData(BVH *bvh, Scene *scene);
@@ -150,7 +152,7 @@ private:
     int err;                                // error code returned from api calls
     size_t ndRangeSizes[2];                 // kernel workgroup sizes
 #ifdef CPU_DEBUGGING
-    const cl_uint NUM_TASKS = 1;
+    const cl_uint NUM_TASKS = 8;
 #else
     const cl_uint NUM_TASKS = 1 << 21;   // the amount of paths in flight simultaneously, limited by VRAM
 #endif
@@ -196,9 +198,13 @@ private:
     cl::Buffer lightBuffer;
     cl::Buffer pickResult;
     cl::Buffer renderParams;                // contains only one RenderParam
+    
+    // Performance statistics
     cl::Buffer renderStats;                 // ray + sample counts
     RenderStats statsAsync;                 // fetched asynchronously from device after each iteration
     PerfNumbers renderPerf;
+    cl::Event extRayEvent;
+    cl::Event shdwRayEvent;
     
     // Microkernel buffers
     cl::Buffer tasksBuffer;

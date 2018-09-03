@@ -129,7 +129,7 @@ void Tracer::update()
             // Create and trace primary rays
             clctx->resetPixelIndex();
             clctx->enqueueWfResetKernel(params);
-            clctx->enqueueWfLogicKernel(params);
+            clctx->enqueueWfLogicKernel(iteration == 0);
             clctx->enqueueWfRaygenKernel(params);
             clctx->enqueueWfExtRayKernel(params);
             clctx->enqueueClearWfQueues();
@@ -139,7 +139,7 @@ void Tracer::update()
         for (int i = 0; i < N; i++)
         {
             // Fill queues
-            clctx->enqueueWfLogicKernel(params);
+            clctx->enqueueWfLogicKernel(iteration == 0);
 
             // Operate on queues
             clctx->enqueueWfRaygenKernel(params);
@@ -207,7 +207,6 @@ void Tracer::update()
 
     // Draw progress to screen
     window->draw();
-
     
     if (useWavefront)
     {
@@ -222,6 +221,9 @@ void Tracer::update()
         // Explicit atomic render stats only on MK
         clctx->fetchStatsAsync();
     }
+
+    // Calculate tracing performance without overhead
+    //clctx->checkTracingPerf();
 
     // Display render statistics (MRays/s)
     printStats(clctx);
@@ -305,7 +307,7 @@ void Tracer::runBenchmark()
 
             if (useWavefront)
             {
-                clctx->enqueueWfLogicKernel(params);
+                clctx->enqueueWfLogicKernel(false);
                 clctx->enqueueWfRaygenKernel(params);
                 clctx->enqueueWfMaterialKernels(params);
                 clctx->enqueueGetCounters(&cnt);
