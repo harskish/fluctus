@@ -67,6 +67,10 @@ CLContext::CLContext()
     // Create command queue for context
     cmdQueue = cl::CommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
     verify("Failed to create command queue!");
+
+    // Setup WF task buffer size
+    cl_uint bufferSize = Settings::getInstance().getWfBufferSize();
+    NUM_TASKS = bufferSize;
 }
 
 void CLContext::setup(PTWindow *window)

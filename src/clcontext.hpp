@@ -151,11 +151,8 @@ private:
 
     int err;                                // error code returned from api calls
     size_t ndRangeSizes[2];                 // kernel workgroup sizes
-#ifdef CPU_DEBUGGING
-    const cl_uint NUM_TASKS = 8;
-#else
-    const cl_uint NUM_TASKS = 1 << 21;   // the amount of paths in flight simultaneously, limited by VRAM
-#endif
+    
+    cl_uint NUM_TASKS = 0;  // the amount of paths in flight simultaneously, limited by VRAM, defined in settings
 
     // For showing progress
     PTWindow *window;

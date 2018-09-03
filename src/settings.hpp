@@ -27,6 +27,7 @@ public:
     void setRenderScale(float s) { renderScale = s; };
     bool getUseBitstack() { return clUseBitstack; }
     bool getUseSoA() { return clUseSoA; }
+    unsigned int getWfBufferSize() { return wfBufferSize; }
 
 private:
     Settings();
@@ -39,6 +40,7 @@ private:
     std::string deviceName;
     std::string envMapName;
     std::map<unsigned int, std::string> shortcuts;
+    unsigned int wfBufferSize;
     bool clUseBitstack;
     bool clUseSoA;
     int windowWidth;

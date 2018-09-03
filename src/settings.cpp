@@ -17,6 +17,7 @@ void Settings::init()
     renderScale = 1.0f;
     windowWidth = 640;
     windowHeight = 480;
+    wfBufferSize = 1 << 20; // appropriate for dedicated GPU
     clUseBitstack = false;
     clUseSoA = true;
 }
@@ -64,6 +65,7 @@ void Settings::import(json j)
     if (contains(j, "windowHeight")) this->windowHeight = j["windowHeight"].get<int>();
     if (contains(j, "clUseBitstack")) this->clUseBitstack = j["clUseBitstack"].get<bool>();
     if (contains(j, "clUseSoA")) this->clUseSoA = j["clUseSoA"].get<bool>();
+    if (contains(j, "wfBufferSize")) this->wfBufferSize = j["wfBufferSize"].get<unsigned int>();
 
     // Map of numbers 1-5 to scenes (shortcuts)
     if (contains(j, "shortcuts"))
