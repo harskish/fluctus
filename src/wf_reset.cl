@@ -46,6 +46,6 @@ kernel void reset(
     Hit hit = EMPTY_HIT(FLT_MAX);
     writeHitSoA(hit, tasks, gid, numTasks);
 
-	// Reset RNG seed?
-	// Or just keep accumulating...?
+	// Reset RNG seed
+    WriteU32(seed, tasks, gid);
 }

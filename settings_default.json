@@ -11,7 +11,7 @@
       "2": "assets/conference/conference.obj",
       "3": "assets/country_kitchen/Country-Kitchen.obj"
     },
-    "envMap": "assets/env_maps/dawn.hdr"
+    "envMap": "assets/env_maps/night.hdr"
   },
   "debug": {
     "platformName": "Intel",

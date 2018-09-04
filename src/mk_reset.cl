@@ -33,6 +33,6 @@ kernel void reset(
 	WriteU32(lastSpecular, tasks, 1);
 	WriteF32(lastPdfW, tasks, 1.0f);
 
-	// Reset RNG seed?
-	// Or just keep accumulating...?
+	// Reset RNG seed
+	WriteU32(seed, tasks, gid);
 }

@@ -146,6 +146,12 @@ cl::Program kernelFromFile(const std::string filename, const std::string buildOp
     return program;
 }
 
+std::string readKernel(std::string path)
+{
+    std::vector<std::string> incl;
+    return readKernel(path, incl);
+}
+
 // Read kernel file, handle includes by recursion
 // Used to enable kernel caching on NVIDIA hardware
 std::string readKernel(std::string path, std::vector<std::string> &incl)

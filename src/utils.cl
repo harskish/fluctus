@@ -161,8 +161,13 @@ inline float3 tangentSpaceNormal(Hit hit, global Triangle *tris, const Material 
     float3 t1 = t.v1.t - t.v0.t;
     float3 t2 = t.v2.t - t.v0.t;
 
+    // Detect invalid normal map
+    float det = (t1.x * t2.y - t1.y * t2.x);
+    if (det == 0.0)
+        return hit.N;
+
     // Compute T, B using inverse of [t1.x t1.y; t2.x t2.y]
-    float invDet = 1.0f / (t1.x * t2.y - t1.y * t2.x);
+    float invDet = 1.0f / det;
     float3 T = normalize(invDet * (e1 * t2.y - e2 * t1.y));
     float3 B = normalize(invDet * (e2 * t1.x - e1 * t2.x));
 

@@ -56,13 +56,14 @@ CLContext::CLContext()
         };
     #endif
 
+    // Select correct device from context based on settings
+    device = getDeviceByName(clDevices, Settings::getInstance().getDeviceName());
+    std::cout << "DEVICE: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
+
+    // Restrict context to selected device
+    clDevices = { device };
     context = cl::Context(clDevices, props, NULL, NULL, &err);
     verify("Failed to create shared context");
-
-    // Select correct device from context based on settings
-    std::vector<cl::Device> devices = context.getInfo<CL_CONTEXT_DEVICES>();
-    device = getDeviceByName(devices, Settings::getInstance().getDeviceName());
-    std::cout << "DEVICE: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
 
     // Create command queue for context
     cmdQueue = cl::CommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
@@ -150,7 +151,6 @@ void CLContext::initMCBuffers()
 
     // Queues
     cl_uint pixelIndex = 0;
-    //QueueCounters counters = {}; // zero-initialized
 
     // TODO: CL_MEM_USE_HOST_PTR for seeing queues on host
     currentPixelIdx = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, 1 * sizeof(cl_uint), (void*)&pixelIndex, &err);
@@ -164,56 +164,6 @@ void CLContext::initMCBuffers()
     ggxRefrMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
     deltaMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
     verify("MK queue creation failed");
-
-    // Init tasks buffer
-    GPUTaskState *initialTaskStates = new GPUTaskState[NUM_TASKS];
-    
-    // Initial task state
-    auto getDefaultState = []()
-    {
-        GPUTaskState curr;
-        curr.orig = float3(0.0f); // overwritten in raygen kernel
-        curr.dir = float3(0.0f, 0.0f, -1.0f); // overwritten in raygen kernel
-        curr.T = float3(1.0f);
-        curr.Ei = float3(0.0f);
-        curr.phase = MK_GENERATE_CAMERA_RAY;
-        curr.pathLen = 0;
-        curr.seed = (unsigned int)rand();
-        //curr.samples = 0;
-        curr.lastSpecular = (cl_uint)true;
-        curr.lastPdfW = 0.0f;
-
-        return curr;
-    };
-
-    // Write initial state in SoA or AoS format
-    if (Settings::getInstance().getUseSoA())
-    {
-        // Maximum coalescing: 32bit boundaries
-        GPUTaskState curr = getDefaultState();
-        float *curr_data = (float*)(&curr);
-        float *data = (float*)initialTaskStates;
-        for (int i = 0; i < NUM_TASKS; i++)
-        {
-            for (int j = 0; j < sizeof(GPUTaskState) / sizeof(float); j++) // 32 bits at a time
-            {
-                curr.seed = (unsigned int)rand();
-                data[j * NUM_TASKS + i] = curr_data[j];
-            }
-        }
-
-        // GPUTaskState *recovered = new GPUTaskState[NUM_TASKS];
-        // copyToHost(recovered, initialTaskStates, NUM_TASKS);
-        // delete[] recovered;
-    }
-    else
-    {
-        std::for_each(initialTaskStates + 0, initialTaskStates + NUM_TASKS, [&](GPUTaskState &s) { s = getDefaultState(); });
-    }
-    
-    err = cmdQueue.enqueueWriteBuffer(tasksBuffer, CL_TRUE, 0, t_bytes, initialTaskStates);
-    delete[] initialTaskStates;
-    verify("Task buffer writing failed!");
 
     const size_t memoryUsageMiB = t_bytes / (2 << 19);
     std::cout << "Microkernel state data: " << memoryUsageMiB << " MiB" << std::endl;
