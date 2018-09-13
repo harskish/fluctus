@@ -4,7 +4,15 @@
 
 // Performs post processing, e.g. tone mapping
 // Restult is shown on the screen by OpenGL or written into a file for exporting
-kernel void process(global float *pixelsRaw, global float *pixelsPreview, global RenderParams *params, uint numTasks)
+kernel void process(
+    global float *pixelsRaw,      // CL only
+    global float *denoiserAlbedo, // CL only
+    global float *denoiserNormal, // CL only
+    global float *pixelsPreview,    // GL-CL shared
+    global float *denoiserAlbedoGL, // GL-CL shared
+    global float *denoiserNormalGL, // GL-CL shared
+    global RenderParams *params,
+    uint numTasks)
 {
     // PixelPreview is as big as the render resolution
     // PixelsRaw is as big as numTasks
@@ -36,4 +44,10 @@ kernel void process(global float *pixelsRaw, global float *pixelsPreview, global
     
     // Output color
     vstore4(color, gid, pixelsPreview);
+
+    // Output optional denoiser features
+    float4 normal = vload4(gid, denoiserNormal);
+    vstore4((normal.w > 1.0f) ? normal / normal.w : normal, gid, denoiserNormalGL);
+    float4 albedo = vload4(gid, denoiserAlbedo);
+    vstore4((albedo.w > 1.0f) ? albedo / albedo.w : albedo, gid, denoiserAlbedoGL);
 }

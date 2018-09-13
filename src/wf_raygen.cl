@@ -80,6 +80,7 @@ kernel void genRays(
 	WriteFloat3(Ei, tasks, zero);
 	WriteFloat3(T, tasks, one);
 	WriteU32(pathLen, tasks, 0);
+    WriteU32(firstDiffuseHit, tasks, 0);
     WriteU32(lastSpecular, tasks, 1);
 	WriteF32(lastPdfW, tasks, 1.0f);
     WriteF32(lastPdfDirect, tasks, 0.0f);

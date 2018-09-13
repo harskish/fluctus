@@ -31,6 +31,7 @@ kernel void splat(global GPUTaskState *tasks, global float *pixels, global Rende
 	WriteFloat3(Ei, tasks, zero);
 	WriteFloat3(T, tasks, one);
 	WriteU32(pathLen, tasks, 0);
+    WriteU32(firstDiffuseHit, tasks, 0);
 
 	// Just keep accumulating seed
     //uint seed = get_global_id(1) * params->width + get_global_id(0) + *samples * params->width * params->height; // unique for each pixel

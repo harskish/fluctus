@@ -10,6 +10,7 @@
 //   MK_SAMPLE_BSDF => MK_SPLAT_SAMPLE
 kernel void sampleBsdf(
     global GPUTaskState *tasks,
+    global float *denoiserAlbedo, // for Optix denoiser
     global Material *materials,
     global uchar *texData,
     global TexDescriptor *textures,
@@ -22,8 +23,7 @@ kernel void sampleBsdf(
     global uint *indices,
     global RenderParams *params,
     global RenderStats *stats,
-    uint numTasks,
-    uint iteration)
+    uint numTasks)
 {
     const size_t gid = get_global_id(0) + get_global_id(1) * params->width;
     const uint limit = min(params->width * params->height, numTasks);
@@ -52,6 +52,19 @@ kernel void sampleBsdf(
     bool backface = dot(hit.N, r.dir) > 0.0f;
     if (backface) hit.N *= -1.0f;
     float3 orig = hit.P - 1e-3f * r.dir;  // avoid self-shadowing
+
+#define USE_OPTIX_DENOISER
+#ifdef USE_OPTIX_DENOISER
+    // Accumulate albedo for denoiser
+    global uint* diffuseHit = &ReadU32(firstDiffuseHit, tasks);
+    bool isDiffuse = !BXDF_IS_SINGULAR(mat.type); // && (mat.Ns < 1e6f || mat.type == BXDF_DIFFUSE);
+    if (isDiffuse && !(*diffuseHit))
+    {
+        *diffuseHit = 1;
+        float3 albedo = matGetFloat3(mat.Kd, hit.uvTex, mat.map_Kd, textures, texData); // not gamma-corrected
+        add_float4(denoiserAlbedo + gid * 4, (float4)(albedo, 1.0f));
+    }
+#endif
 
     // Perform next event estimation
     if (params->sampleExpl && !BXDF_IS_SINGULAR(mat.type))

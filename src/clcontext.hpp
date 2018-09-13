@@ -189,7 +189,11 @@ private:
 
     // Pixel storage
     cl::Buffer pixelBuffer;     // raw (linear) pixel data, not used by OpenGL
+    cl::Buffer denoiserAlbedoBuffer;
+    cl::Buffer denoiserNormalBuffer;
     cl::BufferGL previewBuffer; // post-processed buffer, shown on screen
+    cl::BufferGL denoiserAlbedoBufferGL;
+    cl::BufferGL denoiserNormalBufferGL;
     std::vector<cl::Memory> sharedMemory;   // device memory used for pixel data (previewBuffer)
     
     cl::Buffer lightBuffer;

@@ -5,6 +5,8 @@
 kernel void reset(
     global GPUTaskState* tasks,
     global float* pixels,
+    global float* denoiserAlbedo,
+    global float* denoiserNormal,
     global QueueCounters* queueLens,
     global uint* raygenQueue,
     global RenderParams* params,
@@ -15,7 +17,12 @@ kernel void reset(
 
     // Clear screen
 	if (gid < params->width * params->height)
+    {
         vstore4((float4)(0.0f), gid, pixels);
+        vstore4((float4)(0.0f), gid, denoiserNormal);
+        // default value for direct emission (not updated in logic kernel)
+        vstore4((float4)(0.1f, 0.1f, 0.1f, 0.0f), gid, denoiserAlbedo);
+    }
     
     // Clear path data
     if (gid >= numTasks)
@@ -39,6 +46,8 @@ kernel void reset(
     WriteU32(backfaceHit, tasks, 0);
     WriteU32(shadowRayBlocked, tasks, 1);
     WriteU32(pixelIndex, tasks, 0);
+    WriteU32(firstDiffuseHit, tasks, 0);
+
     WriteFloat3(lastEmission, tasks, zero);
     WriteFloat3(lastBsdf, tasks, zero);
 

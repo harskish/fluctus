@@ -222,6 +222,7 @@ typedef struct
     cl_uint shadowRayBlocked;
     cl_uint backfaceHit; // for certain bsdf functions
     cl_uint pixelIndex;
+    cl_uint firstDiffuseHit; // for accumulating denoiser optional features
     // Previously evaluated light sample
     cl_float lastPdfDirect;    // pdfW of sampled NEE sample
     cl_float lastPdfImplicit;  // pdfW of implicit NEE sample

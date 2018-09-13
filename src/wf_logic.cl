@@ -12,6 +12,8 @@ void addToMaterialQueueNaive(const uint, const Material, global QueueCounters*,
 kernel void logic(
     global GPUTaskState *tasks,
     global float *pixels,
+    global float *denoiserNormal, // for Optix denoiser
+    global float *denoiserAlbedo, // for Optix denoiser
     global QueueCounters *queueLens,
     global uint *extQueue,
     global uint *shadowQueue,
@@ -66,7 +68,7 @@ kernel void logic(
         float3 bg = (float3)(0.0f, 0.0f, 0.0f);
         if (params->useEnvMap && (len == 1 || params->sampleImpl))
             bg = evalEnvMapDir(envMap, r.dir) * params->envMapStrength;
-        
+
         // MIS
         float weight = 1.0f;
         bool lastSpecular = ReadU32(lastSpecular, tasks);
@@ -161,9 +163,7 @@ kernel void logic(
         {
             uint pixIdx = ReadU32(pixelIndex, tasks);
             float4 color = (float4)(ReadFloat3(Ei, tasks), 1.0f);
-	        float4 prev = vload4(pixIdx, pixels);
-            color += prev;
-            vstore4(color, pixIdx, pixels);
+            add_float4(pixels + pixIdx * 4, color);
         }
 
         // Put into raygen queue
@@ -180,6 +180,32 @@ kernel void logic(
     bool backface = dot(hit.N, r.dir) > 0.0f;
     if (backface) hit.N *= -1.0f;
     float3 orig = hit.P - 1e-3f * r.dir;
+
+#define USE_OPTIX_DENOISER
+#ifdef USE_OPTIX_DENOISER
+    // Accumulate first hit normal (in camera space) for denoiser
+    if (len == 1)
+    {
+        // Rotaiton matrix: (R^T)^-1 = R
+        float3 r1 = params->camera.right;
+        float3 r2 = params->camera.up;
+        float3 r3 = -params->camera.dir;
+        float4 normal = (float4)(mulMat3x3(r1, r2, r3, hit.N), 1.0f);
+        uint pixIdx = ReadU32(pixelIndex, tasks);
+        add_float4(denoiserNormal + pixIdx * 4, normal);
+    }
+
+    // Accumulate albedo for denoiser
+    global uint* diffuseHit = &ReadU32(firstDiffuseHit, tasks);
+    bool isDiffuse = !BXDF_IS_SINGULAR(mat.type); // && (mat.Ns < 1e6f || mat.type == BXDF_DIFFUSE);
+    if (isDiffuse && !(*diffuseHit))
+    {
+        *diffuseHit = 1;
+        uint pixIdx = ReadU32(pixelIndex, tasks);
+        float3 albedo = matGetFloat3(mat.Kd, hit.uvTex, mat.map_Kd, textures, texData); // not gamma-corrected
+        add_float4(denoiserAlbedo + pixIdx * 4, (float4)(albedo, 1.0f));
+    }
+#endif
 
     // Update updated hit struct
     writeHitSoA(hit, tasks, gid, numTasks);

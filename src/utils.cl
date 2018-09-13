@@ -238,4 +238,81 @@ inline float luminance(float3 v)
 	return 0.212671f * v.x + 0.715160f * v.y + 0.072169f * v.z;
 }
 
+// OpenCL has no native atomic floats
+inline void atomic_add_float(volatile __global float* addr, float value)
+{
+    union {
+        unsigned int u32;
+        float        f32;
+    } next, expected, current;
+    current.f32 = *addr;
+    do {
+        expected.f32 = current.f32;
+        next.f32 = expected.f32 + value;
+        current.u32 = atomic_cmpxchg((volatile __global unsigned int *)addr,
+            expected.u32, next.u32);
+    } while (current.u32 != expected.u32);
+}
+
+inline void atomic_add_float3(volatile __global float3* ptr, float3 value)
+{
+    volatile __global float* p = (volatile __global float*)ptr;
+    atomic_add_float(p + 0, value.x);
+    atomic_add_float(p + 1, value.y);
+    atomic_add_float(p + 2, value.z);
+}
+
+inline void atomic_add_float4(volatile __global float4* ptr, float4 value)
+{
+    volatile __global float* p = (volatile __global float*)ptr;
+    atomic_add_float(p + 0, value.x);
+    atomic_add_float(p + 1, value.y);
+    atomic_add_float(p + 2, value.z);
+    atomic_add_float(p + 3, value.w);
+}
+
+inline void normal_add_float3(__global float* ptr, float3 value)
+{
+    float4 prev = vload4(0, ptr);
+    float4 sum = prev + (float4)(value, 0.0f);
+    vstore4(sum, 0, ptr);
+}
+
+inline void normal_add_float4(__global float* ptr, float4 value)
+{
+    float4 prev = vload4(0, ptr);
+    float4 sum = prev + value;
+    vstore4(sum, 0, ptr);
+}
+
+#define FLT_FLOAT_ATOMICS
+
+inline void add_float3(__global float* ptr, float3 value)
+{
+#ifdef FLT_FLOAT_ATOMICS
+    return atomic_add_float3(ptr, value);
+#else
+    return normal_add_float3(ptr, value);
+#endif
+}
+
+inline void add_float4(__global float* ptr, float4 value)
+{
+#ifdef FLT_FLOAT_ATOMICS
+    return atomic_add_float4(ptr, value);
+#else
+    return normal_add_float4(ptr, value);
+#endif
+}
+
+inline float3 mulMat3x3(const float3 r1, const float3 r2, const float3 r3, const float3 v)
+{
+    return (float3)(dot(r1, v), dot(r2, v), dot(r3, v));
+}
+
+inline float4 mulMat4x4(const float4 r1, const float4 r2, const float4 r3, const float4 r4, const float4 v)
+{
+    return (float4)(dot(r1, v), dot(r2, v), dot(r3, v), dot(r4, v));
+}
+
 #endif

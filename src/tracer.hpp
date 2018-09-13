@@ -16,6 +16,10 @@
 #include "sbvh.hpp"
 #include "scene.hpp"
 
+#ifdef WITH_OPTIX
+#include "OptixDenoiser.hpp"
+#endif
+
 using namespace FireRays;
 
 class Tracer
@@ -84,6 +88,14 @@ private:
     void toggleRenderer();
     void initEnvMap();
     void init(int width, int height, std::string sceneFile = "");
+
+#ifdef WITH_OPTIX
+    OptixDenoiser denoiser;
+    optix::Buffer denoisedResult;
+    bool useDenoiser = true;
+#else
+    bool useDenoiser = false;
+#endif
 
     PTWindow *window;
     CLContext *clctx;

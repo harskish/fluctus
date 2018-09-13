@@ -3,8 +3,8 @@ project(Fluctus)
 
 add_subdirectory(ext ext_build)
 
-include_directories(
-    ext/nanogui/include
+set(INCLUDE_DIRS
+	ext/nanogui/include
     ${GLEW_INCLUDE_DIR}
     ${NANOGUI_EXTRA_INCS}
     ${IL_INCLUDE_DIR}
@@ -14,8 +14,14 @@ include_directories(
     include
 )
 
-file(GLOB PROJECT_KERNELS src/*.cl)
-source_group("Kernels" FILES ${PROJECT_KERNELS})
+set(LIBRARIES
+	nanogui
+    ${NANOGUI_EXTRA_LIBS}
+    ${OPENGL_LIBRARIES}
+    ${OpenCL_LIBRARY}
+    ${IL_LIBRARIES}
+    ${ILU_LIBRARIES}
+)
 
 set(SOURCE_FILES
     src/main.cpp
@@ -58,16 +64,40 @@ set(SOURCE_FILES
     src/utils.h
 	src/utils.cpp)
 
+# OptiX for AI denoiser, optional
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+set(OptiX_INSTALL_DIR "$ENV{OptiX_INSTALL_DIR}" CACHE PATH "Path to OptiX installed location.")
+find_package(OptiX)
+if(NOT optix_LIBRARY OR NOT OptiX_INCLUDE)
+	message(WARNING "OptiX not found, disabling AI denoiser.")
+else()
+	message(STATUS "OptiX found, building with AI denoiser.")
+    add_definitions(-DWITH_OPTIX) 
+	set(LIBRARIES
+		${LIBRARIES}
+		${optix_LIBRARY}
+	)
+	set(INCLUDE_DIRS
+		${INCLUDE_DIRS}
+		${OptiX_INCLUDE}
+	)
+    set(SOURCE_FILES
+        ${SOURCE_FILES}
+        src/OptixDenoiser.hpp
+        src/OptixDenoiser.cpp
+    )
+endif()
+
+include_directories(${INCLUDE_DIRS})
+
+file(GLOB PROJECT_KERNELS src/*.cl)
+source_group("Kernels" FILES ${PROJECT_KERNELS})
+
+
+
 add_executable(Fluctus ${SOURCE_FILES} ${PROJECT_KERNELS})
 
-target_link_libraries(Fluctus
-    nanogui
-    ${NANOGUI_EXTRA_LIBS}
-    ${OPENGL_LIBRARIES}
-    ${OpenCL_LIBRARY}
-    ${IL_LIBRARIES}
-    ${ILU_LIBRARIES}
-)
+target_link_libraries(Fluctus ${LIBRARIES})
 
 set_target_properties(Fluctus PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 

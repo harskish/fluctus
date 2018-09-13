@@ -251,6 +251,8 @@ void CLContext::setupWfLogicKernel()
     err = 0;
     err |= wf_logic.setArg(i++, tasksBuffer);
     err |= wf_logic.setArg(i++, pixelBuffer);
+    err |= wf_logic.setArg(i++, denoiserNormalBuffer);
+    err |= wf_logic.setArg(i++, denoiserAlbedoBuffer);
     err |= wf_logic.setArg(i++, queueCounters);
     err |= wf_logic.setArg(i++, extensionQueue);
     err |= wf_logic.setArg(i++, shadowQueue);
@@ -401,6 +403,8 @@ void CLContext::setupResetKernel()
 	err = 0;
 	err |= mk_reset.setArg(i++, tasksBuffer);
 	err |= mk_reset.setArg(i++, pixelBuffer);
+	err |= mk_reset.setArg(i++, denoiserAlbedoBuffer);
+	err |= mk_reset.setArg(i++, denoiserNormalBuffer);
 	err |= mk_reset.setArg(i++, renderParams);
 	err |= mk_reset.setArg(i++, NUM_TASKS);
 	verify("Failed to set mk_reset arguments!");
@@ -414,6 +418,8 @@ void CLContext::setupWfResetKernel()
     err = 0;
     err |= wf_reset.setArg(i++, tasksBuffer);
     err |= wf_reset.setArg(i++, pixelBuffer);
+    err |= wf_reset.setArg(i++, denoiserAlbedoBuffer);
+    err |= wf_reset.setArg(i++, denoiserNormalBuffer);
     err |= wf_reset.setArg(i++, queueCounters);
     err |= wf_reset.setArg(i++, raygenQueue);
     err |= wf_reset.setArg(i++, renderParams);
@@ -445,6 +451,7 @@ void CLContext::setupNextVertexKernel()
     err |= mk_next_vertex.setArg(i++, materialBuffer);
     err |= mk_next_vertex.setArg(i++, texDataBuffer);
     err |= mk_next_vertex.setArg(i++, texDescriptorBuffer);
+    err |= mk_next_vertex.setArg(i++, denoiserNormalBuffer);
     err |= mk_next_vertex.setArg(i++, triangleBuffer);
     err |= mk_next_vertex.setArg(i++, nodeBuffer);
     err |= mk_next_vertex.setArg(i++, indexBuffer);
@@ -464,6 +471,7 @@ void CLContext::setupBsdfSampleKernel()
     int i = 0;
     err = 0;
     err |= mk_sample_bsdf.setArg(i++, tasksBuffer);
+    err |= mk_sample_bsdf.setArg(i++, denoiserAlbedoBuffer);
     err |= mk_sample_bsdf.setArg(i++, materialBuffer);
     err |= mk_sample_bsdf.setArg(i++, texDataBuffer);
     err |= mk_sample_bsdf.setArg(i++, texDescriptorBuffer);
@@ -477,7 +485,6 @@ void CLContext::setupBsdfSampleKernel()
     err |= mk_sample_bsdf.setArg(i++, renderParams);
     err |= mk_sample_bsdf.setArg(i++, renderStats);
     err |= mk_sample_bsdf.setArg(i++, NUM_TASKS);
-    err |= mk_sample_bsdf.setArg(i++, 0);
     verify("Failed to set mk_sample_bsdf arguments!");
 }
 
@@ -518,7 +525,11 @@ void CLContext::setupPostprocessKernel()
     int i = 0;
     err = 0;
     err |= mk_postprocess.setArg(i++, pixelBuffer); // raw pixels
-    err |= mk_postprocess.setArg(i++, sharedMemory.back()); // preview
+    err |= mk_postprocess.setArg(i++, denoiserAlbedoBuffer);
+    err |= mk_postprocess.setArg(i++, denoiserNormalBuffer);
+    err |= mk_postprocess.setArg(i++, previewBuffer); // tonemapped output
+    err |= mk_postprocess.setArg(i++, denoiserAlbedoBufferGL);
+    err |= mk_postprocess.setArg(i++, denoiserNormalBufferGL);
     err |= mk_postprocess.setArg(i++, renderParams);
     err |= mk_postprocess.setArg(i++, NUM_TASKS);
     verify("Failed to set mk_postprocess arguments!");
@@ -537,31 +548,53 @@ void CLContext::setupPixelStorage(PTWindow *window)
     }
 
     GLuint *tex_arr = window->getTexPtr();
-    GLuint gl_PBO = window->getPBO();
     unsigned int numPixels = window->getTexWidth() * window->getTexHeight();
 
     pixelBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err); // microkernel pixel buffer
-    previewBuffer = cl::BufferGL(context, CL_MEM_READ_WRITE, gl_PBO, &err); // GL preview buffer
-    sharedMemory = { previewBuffer };
+    denoiserAlbedoBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err);
+    denoiserNormalBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err);
+    previewBuffer = cl::BufferGL(context, CL_MEM_READ_WRITE, window->getPBO(), &err); // GL preview buffer
+    denoiserAlbedoBufferGL = cl::BufferGL(context, CL_MEM_READ_WRITE, window->getAlbedoPBO(), &err);
+    denoiserNormalBufferGL = cl::BufferGL(context, CL_MEM_READ_WRITE, window->getNormalPBO(), &err);
+    sharedMemory = { previewBuffer, denoiserAlbedoBufferGL, denoiserNormalBufferGL };
     verify("CL pixel storage creation failed!");
 
 	// Set new kernel args (pointers might have changed)
-	// Megakernel args reset anyway due to ping pong
 	err = 0;
-	if (mk_reset())
-		err |= mk_reset.setArg(1, pixelBuffer);
 	if (mk_splat())
 		err |= mk_splat.setArg(1, pixelBuffer);
     if (mk_splat_preview())
         err |= mk_splat_preview.setArg(1, pixelBuffer);
+    if (mk_next_vertex())
+        err |= mk_next_vertex.setArg(4, denoiserNormalBuffer);
+    if (mk_sample_bsdf())
+        err |= mk_sample_bsdf.setArg(1, denoiserAlbedoBuffer);
+    if (mk_reset())
+    {
+        err |= mk_reset.setArg(1, pixelBuffer);
+        err |= mk_reset.setArg(2, denoiserAlbedoBuffer);
+        err |= mk_reset.setArg(3, denoiserNormalBuffer);
+    }
     if (wf_logic())
+    {
         err |= wf_logic.setArg(1, pixelBuffer);
+        err |= wf_logic.setArg(2, denoiserNormalBuffer);
+        err |= wf_logic.setArg(3, denoiserAlbedoBuffer);
+    }
     if (wf_reset())
+    {
         err |= wf_reset.setArg(1, pixelBuffer);
+        err |= wf_reset.setArg(2, denoiserAlbedoBuffer);
+        err |= wf_reset.setArg(3, denoiserNormalBuffer);
+    }
     if (mk_postprocess())
     {
         err |= mk_postprocess.setArg(0, pixelBuffer);
-        err |= mk_postprocess.setArg(1, previewBuffer);
+        err |= mk_postprocess.setArg(1, denoiserAlbedoBuffer);
+        err |= mk_postprocess.setArg(2, denoiserNormalBuffer);
+        err |= mk_postprocess.setArg(3, previewBuffer);
+        err |= mk_postprocess.setArg(4, denoiserAlbedoBufferGL);
+        err |= mk_postprocess.setArg(5, denoiserNormalBufferGL);
     }
         
 	verify("Failed to update kernel pixel storage args");
@@ -575,6 +608,8 @@ void CLContext::saveImage(std::string filename, const RenderParams &params)
     std::unique_ptr<float[]> dataFloats(new float[numFloats]);
 
     bool hdr = endsWith(filename, ".hdr") || endsWith(filename, ".HDR");
+
+    glFinish();
 
     // Copy data to host
     err = 0;
@@ -923,7 +958,6 @@ void CLContext::enqueueBsdfSampleKernel(const RenderParams &params, const cl_uin
 {
     // Enqueue 1D range
     err = 0;
-    err |= mk_sample_bsdf.setArg(14, iteration);
     err = cmdQueue.enqueueNDRangeKernel(mk_sample_bsdf, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue bsdf sample kernel!");
 }
@@ -948,15 +982,14 @@ void CLContext::enqueueSplatPreviewKernel(const RenderParams &params)
 
 void CLContext::enqueuePostprocessKernel(const RenderParams & params)
 {   
-    std::vector<cl::Memory> previewBuffer{ sharedMemory.back() };
-    err = cmdQueue.enqueueAcquireGLObjects(&previewBuffer);
+    err = cmdQueue.enqueueAcquireGLObjects(&sharedMemory);
     verify("Failed to enqueue GL object acquisition!");
 
     // 1D range
     err = cmdQueue.enqueueNDRangeKernel(mk_postprocess, cl::NullRange, cl::NDRange(params.width * params.height), cl::NullRange);
     verify("Failed to enqueue postprocess kernel!");
 
-    err = cmdQueue.enqueueReleaseGLObjects(&previewBuffer);
+    err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
     verify("Failed to enqueue GL object release!");
 }
 
@@ -987,7 +1020,7 @@ void CLContext::enqueueWfShadowRayKernel(const RenderParams & params)
 
 void CLContext::enqueueWfLogicKernel(const bool firstIteration)
 {
-    err |= wf_logic.setArg(23, (cl_uint)firstIteration);
+    err |= wf_logic.setArg(25, (cl_uint)firstIteration);
     err |= cmdQueue.enqueueNDRangeKernel(wf_logic, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_logic");
 }

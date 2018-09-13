@@ -12,6 +12,9 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     // done only once (VS debugging stops working if context is recreated)
     window = new PTWindow(width, height, this); // this = glfw user pointer
     window->setShowFPS(true);
+#ifdef WITH_OPTIX
+    denoiser.bindBuffers(window);
+#endif
     clctx = new CLContext();
     window->setCLContextPtr(clctx);
     window->setupGUI();
@@ -111,7 +114,7 @@ void Tracer::update()
         iteration = 0; // accumulation reset
     }
 
-    QueueCounters cnt;
+    QueueCounters cnt = {};
     
     if (useWavefront)
     {
@@ -152,9 +155,6 @@ void Tracer::update()
             clctx->enqueueClearWfQueues();
         }
 
-        // Postprocess
-        clctx->enqueuePostprocessKernel(params);
-
         // Reset bounces
         if (iteration == 0)
         {
@@ -194,10 +194,10 @@ void Tracer::update()
             // Splat results
             clctx->enqueueSplatKernel(params, iteration);
         }
-
-        // Postprocess
-        clctx->enqueuePostprocessKernel(params);
     }
+
+    // Postprocess
+    clctx->enqueuePostprocessKernel(params);
 
     // Finish command queue
     clctx->finishQueue();
@@ -205,8 +205,28 @@ void Tracer::update()
     // Enqueue WF pixel index update
     clctx->updatePixelIndex(params.width * params.height, cnt.raygenQueue);
 
-    // Draw progress to screen
+    // Denoise and draw preview
+#ifdef WITH_OPTIX
+    const int threshold = 10;
+    if (!useDenoiser || iteration < threshold)
+    {
+        // Don't run denoiser (yet)
+        window->draw();
+    }
+    else if (iteration % threshold == 0) 
+    {
+        // Denoise sparingly (expensive!)
+        denoiser.denoise();
+        window->drawDenoised();
+    }
+    else
+    {
+        // Display cached result, keep UI responsive
+        window->displayDenoised();
+    }
+#else
     window->draw();
+#endif
     
     if (useWavefront)
     {
@@ -485,8 +505,11 @@ void Tracer::resizeBuffers(int width, int height)
     if (pv) pv->center();
 
     window->createTextures();
-    window->createPBO();
+    window->createPBOs();
     clctx->setupPixelStorage(window);
+#ifdef WITH_OPTIX
+    denoiser.resizeBuffers(window);
+#endif
     paramsUpdatePending = true;
 }
 
@@ -813,6 +836,7 @@ void Tracer::handleKeypress(int key, int scancode, int action, int mods)
         // Don't force init
         matchKeep(GLFW_KEY_F2,          saveState());
         matchKeep(GLFW_KEY_F5,          saveImage());
+        matchKeep(GLFW_KEY_F6,          useDenoiser = !useDenoiser; updateGUI());
         matchKeep(GLFW_KEY_U,           toggleGUI());
     }
 }

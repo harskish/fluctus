@@ -135,6 +135,14 @@ void Tracer::addRendererSettings(nanogui::Widget *parent)
         params.useRoulette = value;
         paramsUpdatePending = true;
     });
+#ifdef WITH_OPTIX
+    auto denoiserBox = new CheckBox(rendererPopup, "Denoise");
+    uiMapping["DENOISE_TOGGLE"] = denoiserBox;
+    denoiserBox->setChecked(useDenoiser);
+    denoiserBox->setCallback([&](bool value) {
+        useDenoiser = value;
+    });
+#endif
 
     Widget *depthPanel = new Widget(rendererPopup);
     depthPanel->setLayout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
@@ -581,6 +589,11 @@ void Tracer::updateGUI()
     implSampleToggle->setChecked(params.sampleImpl);
     areaLightToggle->setChecked(params.useAreaLight);
     rrToggle->setChecked(params.useRoulette);
+
+#ifdef WITH_OPTIX    
+    auto denoiseToggle = static_cast<CheckBox*>(uiMapping["DENOISE_TOGGLE"]);
+    denoiseToggle->setChecked(useDenoiser);
+#endif
     
     auto maxBouncesBox = static_cast<IntBox<int>*>(uiMapping["MAX_BOUNCES_BOX"]);
     maxBouncesBox->setValue(params.maxBounces);

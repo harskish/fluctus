@@ -9,6 +9,7 @@ kernel void nextVertex(
     global Material *materials,
     global uchar *texData,
     global TexDescriptor *textures,
+    global float *denoiserNormal, // for Optix denoiser
     global Triangle *tris,
     global GPUNode *nodes,
     global uint *indices,
@@ -45,6 +46,20 @@ kernel void nextVertex(
     global uint *len = &ReadU32(pathLen, tasks);
     atomic_inc((*len == 0) ? &stats->primaryRays : &stats->extensionRays);
     *len += 1;
+
+    // Accumulate first hit normal (in camera space) for denoiser
+#define USE_OPTIX_DENOISER
+#ifdef USE_OPTIX_DENOISER
+    if (*len == 1)
+    {
+        // Rotaiton matrix: (R^T)^-1 = R
+        float3 r1 = params->camera.right;
+        float3 r2 = params->camera.up;
+        float3 r3 = -params->camera.dir;
+        float4 normal = (float4)(mulMat3x3(r1, r2, r3, hit.N), 1.0f);
+        add_float4(denoiserNormal + gid * 4, normal);
+    }
+#endif
 
     // Implicit environment map sample
     if (hit.i < 0)
