@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cfloat>
+#include <cassert>
 #include "bvh.hpp"
 
 BVH::BVH(std::vector<RTTriangle>* tris, SplitMode mode)

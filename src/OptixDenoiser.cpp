@@ -2,6 +2,7 @@
 
 #include "OptixDenoiser.hpp"
 #include "window.hpp"
+#include "utils.h"
 
 using namespace optix;
 

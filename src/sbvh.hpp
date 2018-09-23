@@ -1,17 +1,13 @@
 #pragma once
 
 #include <vector>
-#include <algorithm>
-#include <numeric>
-#include <iterator>
 #include <fstream>
-
 #include "bvh.hpp"
-#include "bvhnode.hpp"
 #include "math/int3.hpp"
 
 using FireRays::int3;
 class ProgressView;
+class SBVHNode;
 
 /*
 	Split BVH (SBVH), based on "Spatial Splits in Bounding Volume Hierarchies" by Stich et al.

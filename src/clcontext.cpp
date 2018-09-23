@@ -1,22 +1,29 @@
 #include "clcontext.hpp"
+#include "utils.h"
+#include "geom.h"
+#include "triangle.hpp"
+#include "bvhnode.hpp"
+#include "settings.hpp"
+#include "bvh.hpp"
+#include "scene.hpp"
+#include "texture.hpp"
+#include "window.hpp"
+#include "kernel_impl.hpp"
+#include "IL/ilu.h"
+#include <glad/glad.h>
+#include <GLFW/glfw3.h> // texture conversion stuff
+#include <string>
+#include <vector>
 
-inline bool platformIsNvidia(cl::Platform platform)
-{
-    std::string name = platform.getInfo<CL_PLATFORM_NAME>();
-    return name.find("NVIDIA") != std::string::npos;
-}
-
-inline std::string getAbsolutePath(std::string filename)
-{
-    const int MAX_LENTH = 4096;
-    char resolved_path[MAX_LENTH];
-    #ifdef _WIN32
-        _fullpath(resolved_path, filename.c_str(), MAX_LENTH);
-    #else
-        realpath(filename.c_str(), resolved_path);
-    #endif
-    return std::string(resolved_path);
-}
+#if defined(__APPLE__)
+#include <OpenCL/cl_gl_ext.h>
+#include <OpenGL/OpenGL.h>
+#elif defined(__linux__)
+#include <GL/glxew.h>
+#elif defined(_WIN32)
+#define NOMINMAX
+#include <Windows.h>
+#endif
 
 CLContext::CLContext()
 {
@@ -77,6 +84,9 @@ CLContext::CLContext()
 void CLContext::setup(PTWindow *window)
 {
     this->window = window;
+
+    // Set global OpenCL build settings
+    setKernelBuildSettings();
 
     // Setup RenderParams
     setupParams();
@@ -146,393 +156,201 @@ void CLContext::initMCBuffers()
 {
     // TODO: ensure 32bit divisibility in SoA mode
     const size_t t_bytes = NUM_TASKS * sizeof(GPUTaskState);
-    tasksBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, t_bytes, NULL, &err);
+    deviceBuffers.tasksBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, t_bytes, NULL, &err);
     verify("Task buffer creation failed!");
 
     // Queues
     cl_uint pixelIndex = 0;
 
     // TODO: CL_MEM_USE_HOST_PTR for seeing queues on host
-    currentPixelIdx = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, 1 * sizeof(cl_uint), (void*)&pixelIndex, &err);
-    queueCounters = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(QueueCounters), (void*)&hostCounters, &err);
-    raygenQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
-    extensionQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
-    shadowQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
-    diffuseMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
-    glossyMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
-    ggxReflMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
-    ggxRefrMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
-    deltaMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    deviceBuffers.currentPixelIdx = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, 1 * sizeof(cl_uint), (void*)&pixelIndex, &err);
+    deviceBuffers.queueCounters = cl::Buffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(QueueCounters), (void*)&hostCounters, &err);
+    deviceBuffers.raygenQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    deviceBuffers.extensionQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    deviceBuffers.shadowQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    deviceBuffers.diffuseMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    deviceBuffers.glossyMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    deviceBuffers.ggxReflMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    deviceBuffers.ggxRefrMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
+    deviceBuffers.deltaMatQueue = cl::Buffer(context, CL_MEM_READ_WRITE, NUM_TASKS * sizeof(cl_uint), NULL, &err);
     verify("MK queue creation failed");
 
     const size_t memoryUsageMiB = t_bytes / (2 << 19);
     std::cout << "Microkernel state data: " << memoryUsageMiB << " MiB" << std::endl;
 }
 
-// Build kernel based on file name and entrypoint method name. Save compiled kernel in target.
-// Platform and build specific build options are automatically set.
-void CLContext::buildKernel(cl::Kernel &target, std::string fileName, std::string methodName)
+void CLContext::setKernelBuildSettings()
 {
-    // Kernel already exists
-    if (target()) return;
-
-    // Show progress
-    window->showMessage("Building kernel", fileName);
-
-    // Define build options to check cached kernel validity
-    std::string buildOpts = "-DGPU -I./src -cl-denorms-are-zero -cl-fast-relaxed-math";
+    std::string buildOpts = "-DGPU -I./src -cl-denorms-are-zero -cl-fast-relaxed-math -cl-kernel-arg-info -DFLT_FLOAT_ATOMICS";
     Settings &s = Settings::getInstance();
     if (s.getUseBitstack()) buildOpts += " -DUSE_BITSTACK";
     if (s.getUseSoA()) buildOpts += " -DUSE_SOA";
     if (platformIsNvidia(platform)) buildOpts += " -cl-nv-verbose";
-    #ifdef CPU_DEBUGGING
-        buildOpts += " -g -s \"" + getAbsolutePath("src/" + fileName) + "\"";
-    #endif
-    
-    cl::Program program;
 
-    // CPU debugging segfaults if trying to use cached kernel!
-    // Also need to let the driver do the include handling
-    #ifdef CPU_DEBUGGING
-        kernelFromSource("src/" + fileName, context, program, err);
-        cl::vector<cl::Device> devices = { device };
-        err = program.build(devices, buildOpts.c_str());
-
-        // Check build log
-        std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-        if (buildLog.length() > 2)
-            std::cout << "\n[" << fileName << " build log]:" << buildLog << std::endl;
-
-        verify("Kernel compilation failed");
-    #else
-        // Build program using cache or sources
-        program = kernelFromFile(fileName, buildOpts, platform, context, device, err);
-        verify("Failed to create kernel program");
-    #endif
-
-    // Creating compute kernel from program
-    target = cl::Kernel(program, methodName.c_str(), &err);
-    verify("Failed to create compute kernel!");
+    // Static, shared by all kernels
+    flt::Kernel::setBuildOptions(buildOpts);
 }
 
 void CLContext::setupPickKernel()
 {
-    buildKernel(kernel_pick, "kernel_pick.cl", "pick");
-    int i = 0;
-    err = 0;
-    err |= kernel_pick.setArg(i++, renderParams);
-    err |= kernel_pick.setArg(i++, triangleBuffer);
-    err |= kernel_pick.setArg(i++, nodeBuffer);
-    err |= kernel_pick.setArg(i++, indexBuffer);
-    err |= kernel_pick.setArg(i++, pickResult);
-    verify("Failed to set kernel_pick arguments!");
+    if (!kernel_pick)
+        kernel_pick = new PickKernel();
+
+    window->showMessage("Building kernel", "kernel_pick");
+    kernel_pick->build("src/kernel_pick.cl", "pick", context, device, platform);
 }
 
 void CLContext::setupWfExtKernel()
 {
-    buildKernel(wf_extension, "wf_extrays.cl", "traceExtension");
-    int i = 0;
-    err = 0;
-    err |= wf_extension.setArg(i++, tasksBuffer);
-    err |= wf_extension.setArg(i++, queueCounters);
-    err |= wf_extension.setArg(i++, extensionQueue);
-    err |= wf_extension.setArg(i++, triangleBuffer);
-    err |= wf_extension.setArg(i++, nodeBuffer);
-    err |= wf_extension.setArg(i++, indexBuffer);
-    err |= wf_extension.setArg(i++, renderParams);
-    err |= wf_extension.setArg(i++, NUM_TASKS);
-    verify("Failed to set wf_extension arguments!");
+    if (!wf_extension)
+        wf_extension = new WFExtensionKernel();
+
+    window->showMessage("Building kernel", "wf_extrays");
+    wf_extension->build("src/wf_extrays.cl", "traceExtension", context, device, platform);
 }
 
 void CLContext::setupWfLogicKernel()
 {
-    buildKernel(wf_logic, "wf_logic.cl", "logic");
-    int i = 0;
-    err = 0;
-    err |= wf_logic.setArg(i++, tasksBuffer);
-    err |= wf_logic.setArg(i++, pixelBuffer);
-    err |= wf_logic.setArg(i++, denoiserNormalBuffer);
-    err |= wf_logic.setArg(i++, denoiserAlbedoBuffer);
-    err |= wf_logic.setArg(i++, queueCounters);
-    err |= wf_logic.setArg(i++, extensionQueue);
-    err |= wf_logic.setArg(i++, shadowQueue);
-    err |= wf_logic.setArg(i++, raygenQueue);
-    err |= wf_logic.setArg(i++, diffuseMatQueue);
-    err |= wf_logic.setArg(i++, glossyMatQueue);
-    err |= wf_logic.setArg(i++, ggxReflMatQueue);
-    err |= wf_logic.setArg(i++, ggxRefrMatQueue);
-    err |= wf_logic.setArg(i++, deltaMatQueue);
-    err |= wf_logic.setArg(i++, triangleBuffer);
-    err |= wf_logic.setArg(i++, nodeBuffer);
-    err |= wf_logic.setArg(i++, indexBuffer);
-    err |= wf_logic.setArg(i++, environmentMap);
-    err |= wf_logic.setArg(i++, probTable);
-    err |= wf_logic.setArg(i++, aliasTable);
-    err |= wf_logic.setArg(i++, pdfTable);
-    err |= wf_logic.setArg(i++, materialBuffer);
-    err |= wf_logic.setArg(i++, texDataBuffer);
-    err |= wf_logic.setArg(i++, texDescriptorBuffer);
-    err |= wf_logic.setArg(i++, renderParams);
-    err |= wf_logic.setArg(i++, NUM_TASKS);
-    err |= wf_logic.setArg(i++, (cl_uint)false);
-    verify("Failed to set wf_logic arguments!");
+    if (!wf_logic)
+        wf_logic = new WFLogicKernel();
+
+    window->showMessage("Building kernel", "wf_logic");
+    wf_logic->build("src/wf_logic.cl", "logic", context, device, platform);
 }
 
 void CLContext::setupWfShadowKernel()
 {
-    buildKernel(wf_shadow, "wf_shadowrays.cl", "traceShadow");
-    int i = 0;
-    err = 0;
-    err |= wf_shadow.setArg(i++, tasksBuffer);
-    err |= wf_shadow.setArg(i++, queueCounters);
-    err |= wf_shadow.setArg(i++, shadowQueue);
-    err |= wf_shadow.setArg(i++, triangleBuffer);
-    err |= wf_shadow.setArg(i++, nodeBuffer);
-    err |= wf_shadow.setArg(i++, indexBuffer);
-    err |= wf_shadow.setArg(i++, renderParams);
-    err |= wf_shadow.setArg(i++, NUM_TASKS);
-    verify("Failed to set wf_shadow arguments!");
+    if (!wf_shadow)
+        wf_shadow = new WFShadowKernel();
+
+    window->showMessage("Building kernel", "wf_shadowrays");
+    wf_shadow->build("src/wf_shadowrays.cl", "traceShadow", context, device, platform);
 }
 
 void CLContext::setupWfRaygenKernel()
 {
-    buildKernel(wf_raygen, "wf_raygen.cl", "genRays");
-    int i = 0;
-    err = 0;
-    err |= wf_raygen.setArg(i++, tasksBuffer);
-    err |= wf_raygen.setArg(i++, renderParams);
-    err |= wf_raygen.setArg(i++, queueCounters);
-    err |= wf_raygen.setArg(i++, raygenQueue);
-    err |= wf_raygen.setArg(i++, extensionQueue);
-    err |= wf_raygen.setArg(i++, currentPixelIdx);
-    err |= wf_raygen.setArg(i++, NUM_TASKS);
-    verify("Failed to set wf_raygen arguments!");
+    if (!wf_raygen)
+        wf_raygen = new WFRaygenKernel();
+
+    window->showMessage("Building kernel", "wf_raygen");
+    wf_raygen->build("src/wf_raygen.cl", "genRays", context, device, platform);
 }
 
 void CLContext::setupWfDiffuseKernel()
 {
-    buildKernel(wf_diffuse, "wf_mat_diffuse.cl", "wavefrontDiffuse");
-    int i = 0;
-    err = 0;
-    err |= wf_diffuse.setArg(i++, tasksBuffer);
-    err |= wf_diffuse.setArg(i++, queueCounters);
-    err |= wf_diffuse.setArg(i++, diffuseMatQueue);
-    err |= wf_diffuse.setArg(i++, extensionQueue);
-    err |= wf_diffuse.setArg(i++, materialBuffer);
-    err |= wf_diffuse.setArg(i++, texDataBuffer);
-    err |= wf_diffuse.setArg(i++, texDescriptorBuffer);
-    err |= wf_diffuse.setArg(i++, renderParams);
-    err |= wf_diffuse.setArg(i++, NUM_TASKS);
-    verify("Failed to set wf_diffuse arguments!");
+    if (!wf_diffuse)
+        wf_diffuse = new WFDiffuseKernel();
+
+    window->showMessage("Building kernel", "wf_mat_diffuse");
+    wf_diffuse->build("src/wf_mat_diffuse.cl", "wavefrontDiffuse", context, device, platform);
 }
 
 void CLContext::setupWfGlossyKernel()
 {
-    buildKernel(wf_glossy, "wf_mat_glossy.cl", "wavefrontGlossy");
-    int i = 0;
-    err = 0;
-    err |= wf_glossy.setArg(i++, tasksBuffer);
-    err |= wf_glossy.setArg(i++, queueCounters);
-    err |= wf_glossy.setArg(i++, glossyMatQueue);
-    err |= wf_glossy.setArg(i++, extensionQueue);
-    err |= wf_glossy.setArg(i++, materialBuffer);
-    err |= wf_glossy.setArg(i++, texDataBuffer);
-    err |= wf_glossy.setArg(i++, texDescriptorBuffer);
-    err |= wf_glossy.setArg(i++, renderParams);
-    err |= wf_glossy.setArg(i++, NUM_TASKS);
-    verify("Failed to set wf_glossy arguments!");
+    if (!wf_glossy)
+        wf_glossy = new WFGlossyKernel();
+
+    window->showMessage("Building kernel", "wf_mat_glossy");
+    wf_glossy->build("src/wf_mat_glossy.cl", "wavefrontGlossy", context, device, platform);
 }
 
 void CLContext::setupWfGGXReflKernel()
 {
-    buildKernel(wf_ggx_refl, "wf_mat_ggx_reflection.cl", "wavefrontGGXReflection");
-    int i = 0;
-    err = 0;
-    err |= wf_ggx_refl.setArg(i++, tasksBuffer);
-    err |= wf_ggx_refl.setArg(i++, queueCounters);
-    err |= wf_ggx_refl.setArg(i++, ggxReflMatQueue);
-    err |= wf_ggx_refl.setArg(i++, extensionQueue);
-    err |= wf_ggx_refl.setArg(i++, materialBuffer);
-    err |= wf_ggx_refl.setArg(i++, texDataBuffer);
-    err |= wf_ggx_refl.setArg(i++, texDescriptorBuffer);
-    err |= wf_ggx_refl.setArg(i++, renderParams);
-    err |= wf_ggx_refl.setArg(i++, NUM_TASKS);
-    verify("Failed to set wf_ggx_refl arguments!");
+    if (!wf_ggx_refl)
+        wf_ggx_refl = new WFGGXReflKernel();
+
+    window->showMessage("Building kernel", "wf_mat_ggx_reflection");
+    wf_ggx_refl->build("src/wf_mat_ggx_reflection.cl", "wavefrontGGXReflection", context, device, platform);
 }
 
 void CLContext::setupWfGGXRefrKernel()
 {
-    buildKernel(wf_ggx_refr, "wf_mat_ggx_refraction.cl", "wavefrontGGXRefraction");
-    int i = 0;
-    err = 0;
-    err |= wf_ggx_refr.setArg(i++, tasksBuffer);
-    err |= wf_ggx_refr.setArg(i++, queueCounters);
-    err |= wf_ggx_refr.setArg(i++, ggxRefrMatQueue);
-    err |= wf_ggx_refr.setArg(i++, extensionQueue);
-    err |= wf_ggx_refr.setArg(i++, materialBuffer);
-    err |= wf_ggx_refr.setArg(i++, texDataBuffer);
-    err |= wf_ggx_refr.setArg(i++, texDescriptorBuffer);
-    err |= wf_ggx_refr.setArg(i++, renderParams);
-    err |= wf_ggx_refr.setArg(i++, NUM_TASKS);
-    verify("Failed to set wf_ggx_refr arguments!");
+    if (!wf_ggx_refr)
+        wf_ggx_refr = new WFGGXRefrKernel();
+
+    window->showMessage("Building kernel", "wf_mat_ggx_refraction");
+    wf_ggx_refr->build("src/wf_mat_ggx_refraction.cl", "wavefrontGGXRefraction", context, device, platform);
 }
 
 void CLContext::setupWfDeltaKernel()
 {
-    buildKernel(wf_delta, "wf_mat_delta.cl", "wavefrontDelta");
-    int i = 0;
-    err = 0;
-    err |= wf_delta.setArg(i++, tasksBuffer);
-    err |= wf_delta.setArg(i++, queueCounters);
-    err |= wf_delta.setArg(i++, deltaMatQueue);
-    err |= wf_delta.setArg(i++, extensionQueue);
-    err |= wf_delta.setArg(i++, materialBuffer);
-    err |= wf_delta.setArg(i++, texDataBuffer);
-    err |= wf_delta.setArg(i++, texDescriptorBuffer);
-    err |= wf_delta.setArg(i++, renderParams);
-    err |= wf_delta.setArg(i++, NUM_TASKS);
-    verify("Failed to set wf_delta arguments!");
-}
+    if (!wf_delta)
+        wf_delta = new WFDeltaKernel();
 
-void CLContext::setupResetKernel()
-{
-	buildKernel(mk_reset, "mk_reset.cl", "reset");
-
-	// Set initial kernel params
-	int i = 0;
-	err = 0;
-	err |= mk_reset.setArg(i++, tasksBuffer);
-	err |= mk_reset.setArg(i++, pixelBuffer);
-	err |= mk_reset.setArg(i++, denoiserAlbedoBuffer);
-	err |= mk_reset.setArg(i++, denoiserNormalBuffer);
-	err |= mk_reset.setArg(i++, renderParams);
-	err |= mk_reset.setArg(i++, NUM_TASKS);
-	verify("Failed to set mk_reset arguments!");
+    window->showMessage("Building kernel", "wf_mat_delta");
+    wf_delta->build("src/wf_mat_delta.cl", "wavefrontDelta", context, device, platform);
 }
 
 void CLContext::setupWfResetKernel()
 {
-    buildKernel(wf_reset, "wf_reset.cl", "reset");
+    if (!wf_reset)
+        wf_reset = new WFResetKernel();
+    
+    window->showMessage("Building kernel", "wf_reset");
+    wf_reset->build("src/wf_reset.cl", "reset", context, device, platform);
+}
 
-    int i = 0;
-    err = 0;
-    err |= wf_reset.setArg(i++, tasksBuffer);
-    err |= wf_reset.setArg(i++, pixelBuffer);
-    err |= wf_reset.setArg(i++, denoiserAlbedoBuffer);
-    err |= wf_reset.setArg(i++, denoiserNormalBuffer);
-    err |= wf_reset.setArg(i++, queueCounters);
-    err |= wf_reset.setArg(i++, raygenQueue);
-    err |= wf_reset.setArg(i++, renderParams);
-    err |= wf_reset.setArg(i++, NUM_TASKS);
-    verify("Failed to set wf_reset arguments!");
+void CLContext::setupResetKernel()
+{
+    if (!mk_reset)
+        mk_reset = new MKResetKernel();
+
+    window->showMessage("Building kernel", "mk_reset");
+    mk_reset->build("src/mk_reset.cl", "reset", context, device, platform);
 }
 
 void CLContext::setupRayGenKernel()
 {
-    buildKernel(mk_raygen, "mk_raygen.cl", "genCameraRays");
+    if (!mk_raygen)
+        mk_raygen = new MKRaygenKernel();
 
-    // Set initial kernel params
-    int i = 0;
-    err = 0;
-    err |= mk_raygen.setArg(i++, tasksBuffer);
-    err |= mk_raygen.setArg(i++, renderParams);
-    err |= mk_raygen.setArg(i++, NUM_TASKS);
-    verify("Failed to set mk_raygen arguments!");
+    window->showMessage("Building kernel", "mk_raygen");
+    mk_raygen->build("src/mk_raygen.cl", "genCameraRays", context, device, platform);
 }
 
 void CLContext::setupNextVertexKernel()
 {
-    buildKernel(mk_next_vertex, "mk_next_vertex.cl", "nextVertex");
+    if (!mk_next_vertex)
+        mk_next_vertex = new MKNextVertexKernel();
 
-    // Set initial kernel params
-    int i = 0;
-    err = 0;
-    err |= mk_next_vertex.setArg(i++, tasksBuffer);
-    err |= mk_next_vertex.setArg(i++, materialBuffer);
-    err |= mk_next_vertex.setArg(i++, texDataBuffer);
-    err |= mk_next_vertex.setArg(i++, texDescriptorBuffer);
-    err |= mk_next_vertex.setArg(i++, denoiserNormalBuffer);
-    err |= mk_next_vertex.setArg(i++, triangleBuffer);
-    err |= mk_next_vertex.setArg(i++, nodeBuffer);
-    err |= mk_next_vertex.setArg(i++, indexBuffer);
-    err |= mk_next_vertex.setArg(i++, renderParams);
-    err |= mk_next_vertex.setArg(i++, renderStats);
-    err |= mk_next_vertex.setArg(i++, environmentMap);
-	err |= mk_next_vertex.setArg(i++, pdfTable);
-    err |= mk_next_vertex.setArg(i++, NUM_TASKS);
-    verify("Failed to set mk_next_vertex arguments!");
+    window->showMessage("Building kernel", "mk_next_vertex");
+    mk_next_vertex->build("src/mk_next_vertex.cl", "nextVertex", context, device, platform);
 }
 
 void CLContext::setupBsdfSampleKernel()
 {
-    buildKernel(mk_sample_bsdf, "mk_sample_bsdf.cl", "sampleBsdf");
+    if (!mk_sample_bsdf)
+        mk_sample_bsdf = new MKSampleBSDFKernel();
 
-    // Set initial kernel params
-    int i = 0;
-    err = 0;
-    err |= mk_sample_bsdf.setArg(i++, tasksBuffer);
-    err |= mk_sample_bsdf.setArg(i++, denoiserAlbedoBuffer);
-    err |= mk_sample_bsdf.setArg(i++, materialBuffer);
-    err |= mk_sample_bsdf.setArg(i++, texDataBuffer);
-    err |= mk_sample_bsdf.setArg(i++, texDescriptorBuffer);
-    err |= mk_sample_bsdf.setArg(i++, environmentMap);
-    err |= mk_sample_bsdf.setArg(i++, probTable);
-    err |= mk_sample_bsdf.setArg(i++, aliasTable);
-	err |= mk_sample_bsdf.setArg(i++, pdfTable);
-    err |= mk_sample_bsdf.setArg(i++, triangleBuffer);
-    err |= mk_sample_bsdf.setArg(i++, nodeBuffer);
-    err |= mk_sample_bsdf.setArg(i++, indexBuffer);
-    err |= mk_sample_bsdf.setArg(i++, renderParams);
-    err |= mk_sample_bsdf.setArg(i++, renderStats);
-    err |= mk_sample_bsdf.setArg(i++, NUM_TASKS);
-    verify("Failed to set mk_sample_bsdf arguments!");
+    window->showMessage("Building kernel", "mk_sample_bsdf");
+    mk_sample_bsdf->build("src/mk_sample_bsdf.cl", "sampleBsdf", context, device, platform);
 }
 
 void CLContext::setupSplatKernel()
 {
-    buildKernel(mk_splat, "mk_splat.cl", "splat");
+    if (!mk_splat)
+        mk_splat = new MKSplatKernel();
 
-    // Set initial kernel params
-    int i = 0;
-    err = 0;
-    err |= mk_splat.setArg(i++, tasksBuffer);
-	err |= mk_splat.setArg(i++, pixelBuffer);
-    err |= mk_splat.setArg(i++, renderParams);
-    err |= mk_splat.setArg(i++, renderStats);
-    err |= mk_splat.setArg(i++, NUM_TASKS);
-    verify("Failed to set mk_splat arguments!");
+    window->showMessage("Building kernel", "mk_splat");
+    mk_splat->build("src/mk_splat.cl", "splat", context, device, platform);
 }
 
 void CLContext::setupSplatPreviewKernel()
 {
-    buildKernel(mk_splat_preview, "mk_splat_preview.cl", "splatPreview");
+    if (!mk_splat_preview)
+        mk_splat_preview = new MKSplatPreviewKernel();
 
-    // Set initial kernel params
-    int i = 0;
-    err = 0;
-    err |= mk_splat_preview.setArg(i++, tasksBuffer);
-    err |= mk_splat_preview.setArg(i++, pixelBuffer);
-    err |= mk_splat_preview.setArg(i++, renderParams);
-    err |= mk_splat_preview.setArg(i++, NUM_TASKS);
-    verify("Failed to set mk_splat_preview arguments!");
+    window->showMessage("Building kernel", "mk_splat_preview");
+    mk_splat_preview->build("src/mk_splat_preview.cl", "splatPreview", context, device, platform);
 }
 
 void CLContext::setupPostprocessKernel()
 {
-    buildKernel(mk_postprocess, "mk_postprocess.cl", "process");
+    if (!mk_postprocess)
+        mk_postprocess = new MKPostprocessKernel();
 
-    // Set initial kernel params
-    int i = 0;
-    err = 0;
-    err |= mk_postprocess.setArg(i++, pixelBuffer); // raw pixels
-    err |= mk_postprocess.setArg(i++, denoiserAlbedoBuffer);
-    err |= mk_postprocess.setArg(i++, denoiserNormalBuffer);
-    err |= mk_postprocess.setArg(i++, previewBuffer); // tonemapped output
-    err |= mk_postprocess.setArg(i++, denoiserAlbedoBufferGL);
-    err |= mk_postprocess.setArg(i++, denoiserNormalBufferGL);
-    err |= mk_postprocess.setArg(i++, renderParams);
-    err |= mk_postprocess.setArg(i++, NUM_TASKS);
-    verify("Failed to set mk_postprocess arguments!");
+    window->showMessage("Building kernel", "mk_postprocess");
+    mk_postprocess->build("src/mk_postprocess.cl", "process", context, device, platform);
 }
 
 CLContext::~CLContext()
@@ -550,51 +368,51 @@ void CLContext::setupPixelStorage(PTWindow *window)
     GLuint *tex_arr = window->getTexPtr();
     unsigned int numPixels = window->getTexWidth() * window->getTexHeight();
 
-    pixelBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err); // microkernel pixel buffer
-    denoiserAlbedoBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err);
-    denoiserNormalBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err);
-    previewBuffer = cl::BufferGL(context, CL_MEM_READ_WRITE, window->getPBO(), &err); // GL preview buffer
-    denoiserAlbedoBufferGL = cl::BufferGL(context, CL_MEM_READ_WRITE, window->getAlbedoPBO(), &err);
-    denoiserNormalBufferGL = cl::BufferGL(context, CL_MEM_READ_WRITE, window->getNormalPBO(), &err);
-    sharedMemory = { previewBuffer, denoiserAlbedoBufferGL, denoiserNormalBufferGL };
+    deviceBuffers.pixelBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err); // microkernel pixel buffer
+    deviceBuffers.denoiserAlbedoBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err);
+    deviceBuffers.denoiserNormalBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err);
+    deviceBuffers.previewBuffer = cl::BufferGL(context, CL_MEM_READ_WRITE, window->getPBO(), &err); // GL preview buffer
+    deviceBuffers.denoiserAlbedoBufferGL = cl::BufferGL(context, CL_MEM_READ_WRITE, window->getAlbedoPBO(), &err);
+    deviceBuffers.denoiserNormalBufferGL = cl::BufferGL(context, CL_MEM_READ_WRITE, window->getNormalPBO(), &err);
+    sharedMemory = { deviceBuffers.previewBuffer, deviceBuffers.denoiserAlbedoBufferGL, deviceBuffers.denoiserNormalBufferGL };
     verify("CL pixel storage creation failed!");
 
 	// Set new kernel args (pointers might have changed)
 	err = 0;
-	if (mk_splat())
-		err |= mk_splat.setArg(1, pixelBuffer);
-    if (mk_splat_preview())
-        err |= mk_splat_preview.setArg(1, pixelBuffer);
-    if (mk_next_vertex())
-        err |= mk_next_vertex.setArg(4, denoiserNormalBuffer);
-    if (mk_sample_bsdf())
-        err |= mk_sample_bsdf.setArg(1, denoiserAlbedoBuffer);
-    if (mk_reset())
+	if (mk_splat)
+		err |= mk_splat->setArg("pixels", deviceBuffers.pixelBuffer);
+    if (mk_splat_preview)
+        err |= mk_splat_preview->setArg("pixels", deviceBuffers.pixelBuffer);
+    if (mk_next_vertex)
+        err |= mk_next_vertex->setArg("denoiserNormal", deviceBuffers.denoiserNormalBuffer);
+    if (mk_sample_bsdf)
+        err |= mk_sample_bsdf->setArg("denoiserAlbedo", deviceBuffers.denoiserAlbedoBuffer);
+    if (mk_reset)
     {
-        err |= mk_reset.setArg(1, pixelBuffer);
-        err |= mk_reset.setArg(2, denoiserAlbedoBuffer);
-        err |= mk_reset.setArg(3, denoiserNormalBuffer);
+        err |= mk_reset->setArg("pixels", deviceBuffers.pixelBuffer);
+        err |= mk_reset->setArg("denoiserAlbedo", deviceBuffers.denoiserAlbedoBuffer);
+        err |= mk_reset->setArg("denoiserNormal", deviceBuffers.denoiserNormalBuffer);
     }
-    if (wf_logic())
+    if (wf_logic)
     {
-        err |= wf_logic.setArg(1, pixelBuffer);
-        err |= wf_logic.setArg(2, denoiserNormalBuffer);
-        err |= wf_logic.setArg(3, denoiserAlbedoBuffer);
+        err |= wf_logic->setArg("pixels", deviceBuffers.pixelBuffer);
+        err |= wf_logic->setArg("denoiserNormal", deviceBuffers.denoiserNormalBuffer);
+        err |= wf_logic->setArg("denoiserAlbedo", deviceBuffers.denoiserAlbedoBuffer);
     }
-    if (wf_reset())
+    if (wf_reset)
     {
-        err |= wf_reset.setArg(1, pixelBuffer);
-        err |= wf_reset.setArg(2, denoiserAlbedoBuffer);
-        err |= wf_reset.setArg(3, denoiserNormalBuffer);
+        err |= wf_reset->setArg("pixels", deviceBuffers.pixelBuffer);
+        err |= wf_reset->setArg("denoiserAlbedo", deviceBuffers.denoiserAlbedoBuffer);
+        err |= wf_reset->setArg("denoiserNormal", deviceBuffers.denoiserNormalBuffer);
     }
-    if (mk_postprocess())
+    if (mk_postprocess)
     {
-        err |= mk_postprocess.setArg(0, pixelBuffer);
-        err |= mk_postprocess.setArg(1, denoiserAlbedoBuffer);
-        err |= mk_postprocess.setArg(2, denoiserNormalBuffer);
-        err |= mk_postprocess.setArg(3, previewBuffer);
-        err |= mk_postprocess.setArg(4, denoiserAlbedoBufferGL);
-        err |= mk_postprocess.setArg(5, denoiserNormalBufferGL);
+        err |= mk_postprocess->setArg("pixelsRaw", deviceBuffers.pixelBuffer);
+        err |= mk_postprocess->setArg("denoiserAlbedo", deviceBuffers.denoiserAlbedoBuffer);
+        err |= mk_postprocess->setArg("denoiserNormal", deviceBuffers.denoiserNormalBuffer);
+        err |= mk_postprocess->setArg("pixelsPreview", deviceBuffers.previewBuffer);
+        err |= mk_postprocess->setArg("denoiserAlbedoGL", deviceBuffers.denoiserAlbedoBufferGL);
+        err |= mk_postprocess->setArg("denoiserNormalGL", deviceBuffers.denoiserNormalBufferGL);
     }
         
 	verify("Failed to update kernel pixel storage args");
@@ -615,7 +433,7 @@ void CLContext::saveImage(std::string filename, const RenderParams &params)
     err = 0;
     err |= cmdQueue.enqueueAcquireGLObjects(&sharedMemory);
 
-    cl::Buffer &pixels = (hdr) ? pixelBuffer : previewBuffer;
+    cl::Buffer &pixels = (hdr) ? deviceBuffers.pixelBuffer : deviceBuffers.previewBuffer;
     err |= cmdQueue.enqueueReadBuffer(pixels, CL_TRUE, 0, numFloats * sizeof(float), dataFloats.get());
     err |= cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
     err |= cmdQueue.finish();
@@ -704,20 +522,20 @@ void CLContext::createEnvMap(EnvironmentMap *map)
 
 	// Upload rgb colors
     const cl::ImageFormat format(CL_RGBA, CL_FLOAT);
-    environmentMap = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, format, width, height, 0, rgba, &err);
+    deviceBuffers.environmentMap = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, format, width, height, 0, rgba, &err);
     verify("Environment map creation failed!");
 
 	// Upload probability and alias tables for importance sampling
 	size_t pBytes = width * height * sizeof(float);
 	size_t aBytes = width * height * sizeof(int);
-	probTable = cl::Buffer(context, CL_MEM_READ_ONLY, pBytes, NULL, &err);
-	aliasTable = cl::Buffer(context, CL_MEM_READ_ONLY, aBytes, NULL, &err);
-	pdfTable = cl::Buffer(context, CL_MEM_READ_ONLY, pBytes, NULL, &err);
+    deviceBuffers.probTable = cl::Buffer(context, CL_MEM_READ_ONLY, pBytes, NULL, &err);
+    deviceBuffers.aliasTable = cl::Buffer(context, CL_MEM_READ_ONLY, aBytes, NULL, &err);
+    deviceBuffers.pdfTable = cl::Buffer(context, CL_MEM_READ_ONLY, pBytes, NULL, &err);
 	verify("Env map IS table creation failed");
 
-	err |= cmdQueue.enqueueWriteBuffer(probTable, CL_TRUE, 0, pBytes, map->getProbTable());
-	err |= cmdQueue.enqueueWriteBuffer(aliasTable, CL_TRUE, 0, aBytes, map->getAliasTable());
-	err |= cmdQueue.enqueueWriteBuffer(pdfTable, CL_TRUE, 0, pBytes, map->getPdfTable());
+	err |= cmdQueue.enqueueWriteBuffer(deviceBuffers.probTable, CL_TRUE, 0, pBytes, map->getProbTable());
+	err |= cmdQueue.enqueueWriteBuffer(deviceBuffers.aliasTable, CL_TRUE, 0, aBytes, map->getAliasTable());
+	err |= cmdQueue.enqueueWriteBuffer(deviceBuffers.pdfTable, CL_TRUE, 0, pBytes, map->getPdfTable());
 	verify("Env map IS table writing failed");
 
 	// Cleanup
@@ -729,20 +547,10 @@ void CLContext::createEnvMap(EnvironmentMap *map)
 
 void CLContext::setupScene()
 {
-    // Lights
-    size_t l_bytes = sizeof(test_lights);
-    lightBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, l_bytes, NULL, &err);
-    verify("Light buffer creation failed!");
-
-    err = cmdQueue.enqueueWriteBuffer(lightBuffer, CL_TRUE, 0, l_bytes, test_lights);
-    verify("Light buffer writing failed!");
-
 	// Dummy env map
 	float rgba[4] { 0.0f, 0.0f, 0.0f, 0.0f };
-	environmentMap = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, cl::ImageFormat(CL_RGBA, CL_FLOAT), 1, 1, 0, rgba, &err);
+    deviceBuffers.environmentMap = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, cl::ImageFormat(CL_RGBA, CL_FLOAT), 1, 1, 0, rgba, &err);
 	verify("Dummy env map creation failed");
-
-    std::cout << "Scene initialization succeeded!" << std::endl;
 }
 
 // Upload BVH data, geometry and materials to GPU
@@ -759,30 +567,30 @@ void CLContext::uploadSceneData(BVH *bvh, Scene *scene)
     size_t m_bytes = materials->size() * sizeof(Material);
 
     // Allocate memory for buffers
-    triangleBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, t_bytes, NULL, &err);
+    deviceBuffers.triangleBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, t_bytes, NULL, &err);
     verify("Triangle buffer creation failed!");
 
-    indexBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, i_bytes, NULL, &err);
+    deviceBuffers.indexBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, i_bytes, NULL, &err);
     verify("Index buffer creation failed!");
 
-    nodeBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, n_bytes, NULL, &err);
+    deviceBuffers.nodeBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, n_bytes, NULL, &err);
     verify("Node buffer creation failed!");
 
-    if(m_bytes > 0) materialBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, m_bytes, NULL, &err);
+    if(m_bytes > 0) deviceBuffers.materialBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, m_bytes, NULL, &err);
     verify("Material buffer creation failed!");
 
 
     // Write data to buffers
-    err = cmdQueue.enqueueWriteBuffer(triangleBuffer, CL_TRUE, 0, t_bytes, tris->data());
+    err = cmdQueue.enqueueWriteBuffer(deviceBuffers.triangleBuffer, CL_TRUE, 0, t_bytes, tris->data());
     verify("Triangle buffer writing failed!");
 
-    err = cmdQueue.enqueueWriteBuffer(indexBuffer, CL_TRUE, 0, i_bytes, indices->data());
+    err = cmdQueue.enqueueWriteBuffer(deviceBuffers.indexBuffer, CL_TRUE, 0, i_bytes, indices->data());
     verify("Index buffer writing failed!");
 
-    err = cmdQueue.enqueueWriteBuffer(nodeBuffer, CL_TRUE, 0, n_bytes, nodes->data());
+    err = cmdQueue.enqueueWriteBuffer(deviceBuffers.nodeBuffer, CL_TRUE, 0, n_bytes, nodes->data());
     verify("Node buffer writing failed!");
 
-    if(m_bytes > 0) err = cmdQueue.enqueueWriteBuffer(materialBuffer, CL_TRUE, 0, m_bytes, materials->data());
+    if(m_bytes > 0) err = cmdQueue.enqueueWriteBuffer(deviceBuffers.materialBuffer, CL_TRUE, 0, m_bytes, materials->data());
     verify("Material buffer writing failed!");
 
     // Pack texture data into aggregate array
@@ -809,9 +617,9 @@ void CLContext::packTextures(Scene *scene)
 
     // Create buffers for texture data & descriptors
     size_t d_bytes = textures.size() * sizeof(TexDescriptor);
-    texDescriptorBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, d_bytes, NULL, &err);
+    deviceBuffers.texDescriptorBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, d_bytes, NULL, &err);
     verify("Texture descriptor buffer creation failed!");
-    texDataBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, t_bytes, NULL, &err);
+    deviceBuffers.texDataBuffer = cl::Buffer(context, CL_MEM_READ_ONLY, t_bytes, NULL, &err);
     verify("Texture data buffer creation failed!");
     
     // Upload data, create descriptors
@@ -826,14 +634,14 @@ void CLContext::packTextures(Scene *scene)
         descs.push_back(desc);
 
         cl_uint len = tex->getWidth() * tex->getHeight() * 4 * 1; // RGBA
-        err = cmdQueue.enqueueWriteBuffer(texDataBuffer, CL_TRUE, offset, len, tex->getData());
+        err = cmdQueue.enqueueWriteBuffer(deviceBuffers.texDataBuffer, CL_TRUE, offset, len, tex->getData());
         verify("Texture data buffer writing failed!");
 
         offset += len;
     }
 
     // Upload descriptors
-    err = cmdQueue.enqueueWriteBuffer(texDescriptorBuffer, CL_TRUE, 0, d_bytes, descs.data());
+    err = cmdQueue.enqueueWriteBuffer(deviceBuffers.texDescriptorBuffer, CL_TRUE, 0, d_bytes, descs.data());
     verify("Texture descriptor buffer writing failed!");
 }
 
@@ -841,19 +649,19 @@ void CLContext::packTextures(Scene *scene)
 // Allocating memory for the rendering params is more compatible
 void CLContext::setupParams()
 {
-    renderParams = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(RenderParams) * 1, NULL, &err);
+    deviceBuffers.renderParams = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(RenderParams) * 1, NULL, &err);
     verify("Params buffer creation failed!");
 }
 
 void CLContext::setupPickResult()
 {
-    pickResult = cl::Buffer(context, CL_MEM_WRITE_ONLY, sizeof(Hit) * 1, NULL, &err);
+    deviceBuffers.pickResult = cl::Buffer(context, CL_MEM_WRITE_ONLY, sizeof(Hit) * 1, NULL, &err);
     verify("Pick result creation failed!");
 }
 
 void CLContext::setupStats()
 {
-    renderStats = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(RenderStats) * 1, NULL, &err);
+    deviceBuffers.renderStats = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(RenderStats) * 1, NULL, &err);
     verify("RenderStats creation failed!");
     resetStats();
 }
@@ -862,13 +670,13 @@ void CLContext::resetStats()
 {
     RenderStats s = { 0, 0, 0, 0 };
     statsAsync = s;
-    err = cmdQueue.enqueueWriteBuffer(renderStats, CL_TRUE, 0, sizeof(RenderStats), &s);
+    err = cmdQueue.enqueueWriteBuffer(deviceBuffers.renderStats, CL_TRUE, 0, sizeof(RenderStats), &s);
     verify("Stats buffer reset failed!");
 }
 
 void CLContext::fetchStatsAsync()
 {
-    err = cmdQueue.enqueueReadBuffer(renderStats, CL_FALSE, 0, sizeof(RenderStats), &statsAsync);
+    err = cmdQueue.enqueueReadBuffer(deviceBuffers.renderStats, CL_FALSE, 0, sizeof(RenderStats), &statsAsync);
     verify("Failed to enqueue async stat transfer!");
 }
 
@@ -894,7 +702,7 @@ const RenderStats CLContext::getStats()
 
 void CLContext::enqueueGetCounters(QueueCounters *cnt)
 {
-    err = cmdQueue.enqueueReadBuffer(queueCounters, CL_FALSE, 0, 1 * sizeof(QueueCounters), cnt);
+    err = cmdQueue.enqueueReadBuffer(deviceBuffers.queueCounters, CL_FALSE, 0, 1 * sizeof(QueueCounters), cnt);
 }
 
 void CLContext::checkTracingPerf()
@@ -929,28 +737,28 @@ void CLContext::checkTracingPerf()
 
 void CLContext::updateParams(const RenderParams &params)
 {
-    err = cmdQueue.enqueueWriteBuffer(renderParams, CL_FALSE, 0, sizeof(RenderParams), &params);
+    err = cmdQueue.enqueueWriteBuffer(deviceBuffers.renderParams, CL_FALSE, 0, sizeof(RenderParams), &params);
     verify("RenderParam writing failed");
 }
 
 void CLContext::enqueueResetKernel(const RenderParams &params)
 {
 	err = 0;
-	err |= cmdQueue.enqueueNDRangeKernel(mk_reset, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+	err |= cmdQueue.enqueueNDRangeKernel(mk_reset->getKernel(), cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
 	verify("Failed to enqueue reset kernel!");
 }
 
 void CLContext::enqueueRayGenKernel(const RenderParams &params)
 {
     // Enqueue 1D range
-    err = cmdQueue.enqueueNDRangeKernel(mk_raygen, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(mk_raygen->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue ray gen kernel!");
 }
 
 void CLContext::enqueueNextVertexKernel(const RenderParams &params)
 {
     // Enqueue 1D range
-    err = cmdQueue.enqueueNDRangeKernel(mk_next_vertex, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(mk_next_vertex->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue next vertex kernel!");
 }
 
@@ -958,25 +766,25 @@ void CLContext::enqueueBsdfSampleKernel(const RenderParams &params, const cl_uin
 {
     // Enqueue 1D range
     err = 0;
-    err = cmdQueue.enqueueNDRangeKernel(mk_sample_bsdf, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(mk_sample_bsdf->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue bsdf sample kernel!");
 }
 
 void CLContext::enqueueSplatKernel(const RenderParams &params, const cl_uint iteration)
 {
     err = 0;
-    err |= mk_splat.setArg(5, iteration);
+    err |= mk_splat->setArg("iteration", iteration);
     verify("Failed to set mk_splat arguments!");
 
     // TODO: find out why my GTX 780 won't enqueue 1D kernels! (due to image2d_type?)
     // TODO: also, look at having global wg be a multiple of local wg (or a multiple of 32/64)
-    err = cmdQueue.enqueueNDRangeKernel(mk_splat, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(mk_splat->getKernel(), cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     verify("Failed to enqueue splat kernel!");
 }
 
 void CLContext::enqueueSplatPreviewKernel(const RenderParams &params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(mk_splat_preview, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(mk_splat_preview->getKernel(), cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     verify("Failed to enqueue splat preview kernel!");
 }
 
@@ -986,7 +794,7 @@ void CLContext::enqueuePostprocessKernel(const RenderParams & params)
     verify("Failed to enqueue GL object acquisition!");
 
     // 1D range
-    err = cmdQueue.enqueueNDRangeKernel(mk_postprocess, cl::NullRange, cl::NDRange(params.width * params.height), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(mk_postprocess->getKernel(), cl::NullRange, cl::NDRange(params.width * params.height), cl::NullRange);
     verify("Failed to enqueue postprocess kernel!");
 
     err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
@@ -996,32 +804,33 @@ void CLContext::enqueuePostprocessKernel(const RenderParams & params)
 void CLContext::enqueueWfResetKernel(const RenderParams & params)
 {
     cl_uint numElems = std::max(NUM_TASKS, params.width * params.height);
-    err = cmdQueue.enqueueNDRangeKernel(wf_reset, cl::NullRange, cl::NDRange(numElems), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(wf_reset->getKernel(), cl::NullRange, cl::NDRange(numElems), cl::NullRange);
     verify("Failed to enqueue wf_reset");
 }
 
 void CLContext::enqueueWfRaygenKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_raygen, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(wf_raygen->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_raygen");
 }
 
 void CLContext::enqueueWfExtRayKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_extension, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &extRayEvent);
+    err = cmdQueue.enqueueNDRangeKernel(wf_extension->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &extRayEvent);
     verify("Failed to enqueue wf_extension");
 }
 
 void CLContext::enqueueWfShadowRayKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_shadow, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &shdwRayEvent);
+    err = cmdQueue.enqueueNDRangeKernel(wf_shadow->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &shdwRayEvent);
     verify("Failed to enqueue wf_shadow");
 }
 
-void CLContext::enqueueWfLogicKernel(const bool firstIteration)
+void CLContext::enqueueWfLogicKernel(const RenderParams& params, const bool firstIteration)
 {
-    err |= wf_logic.setArg(25, (cl_uint)firstIteration);
-    err |= cmdQueue.enqueueNDRangeKernel(wf_logic, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    cl_uint numElems = (firstIteration) ? std::max(NUM_TASKS, params.width * params.height) : NUM_TASKS;
+    err |= wf_logic->setArg("firstIteration", (cl_uint)firstIteration);
+    err |= cmdQueue.enqueueNDRangeKernel(wf_logic->getKernel(), cl::NullRange, cl::NDRange(numElems), cl::NullRange);
     verify("Failed to enqueue wf_logic");
 }
 
@@ -1036,41 +845,66 @@ void CLContext::enqueueWfMaterialKernels(const RenderParams & params)
 
 void CLContext::enqueueWfDiffuseKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_diffuse, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(wf_diffuse->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_diffuse");
 }
 
 void CLContext::enqueueWfGlossyKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_glossy, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(wf_glossy->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_glossy");
 }
 
 void CLContext::enqueueWfGGXReflKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refl, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refl->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_ggx_refl");
 }
 
 void CLContext::enqueueWfGGXRefrKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refr, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refr->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_ggx_refr");
 }
 
 void CLContext::enqueueWfDeltaKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_delta, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(wf_delta->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_delta");
 }
 
+// Only recompiles kernels that need recompiling
+// Param setArgs defines if kernel arguments are set even if kernel isn't recompiled
+void CLContext::recompileKernels(bool setArgs)
+{
+    kernel_pick->rebuild(setArgs);
+    mk_postprocess->rebuild(setArgs);
+    
+    wf_reset->rebuild(setArgs);
+    wf_extension->rebuild(setArgs);
+    wf_raygen->rebuild(setArgs);
+    wf_logic->rebuild(setArgs);
+    wf_shadow->rebuild(setArgs);
+    wf_diffuse->rebuild(setArgs);
+    wf_glossy->rebuild(setArgs);
+    wf_ggx_refl->rebuild(setArgs);
+    wf_ggx_refr->rebuild(setArgs);
+    wf_delta->rebuild(setArgs);
+
+    mk_reset->rebuild(setArgs);
+    mk_raygen->rebuild(setArgs);
+    mk_next_vertex->rebuild(setArgs);
+    mk_sample_bsdf->rebuild(setArgs);
+    mk_splat->rebuild(setArgs);
+    mk_splat_preview->rebuild(setArgs);
+}
 
 // Clear wavefront queues by setting counters to zero
 void CLContext::enqueueClearWfQueues()
 {
     QueueCounters empty = {};
     hostCounters = empty;
-    err = cmdQueue.enqueueWriteBuffer(queueCounters, CL_FALSE, 0, sizeof(QueueCounters), &hostCounters);
+    err = cmdQueue.enqueueWriteBuffer(deviceBuffers.queueCounters, CL_FALSE, 0, sizeof(QueueCounters), &hostCounters);
     verify("Failed to enqueue wavefront queueCounter read");
 }
 
@@ -1083,26 +917,31 @@ void CLContext::finishQueue()
 void CLContext::updatePixelIndex(cl_uint numPixels, cl_uint numNewPaths)
 {
     pixelIdx = (pixelIdx + numNewPaths) % numPixels;
-    err = cmdQueue.enqueueWriteBuffer(currentPixelIdx, CL_FALSE, 0, sizeof(cl_uint), &pixelIdx); // will be available when raygen runs
+    err = cmdQueue.enqueueWriteBuffer(deviceBuffers.currentPixelIdx, CL_FALSE, 0, sizeof(cl_uint), &pixelIdx); // will be available when raygen runs
 }
 
 void CLContext::resetPixelIndex()
 {
     pixelIdx = 0;
-    err = cmdQueue.enqueueWriteBuffer(currentPixelIdx, CL_FALSE, 0, sizeof(cl_uint), &pixelIdx);
+    err = cmdQueue.enqueueWriteBuffer(deviceBuffers.currentPixelIdx, CL_FALSE, 0, sizeof(cl_uint), &pixelIdx);
+}
+
+cl_uint CLContext::getNumTasks() const
+{
+    return NUM_TASKS;
 }
 
 Hit CLContext::pickSingle(float NDCx, float NDCy)
 {
     err = 0;
-    err |= kernel_pick.setArg(5, NDCx);
-    err |= kernel_pick.setArg(6, NDCy);
+    err |= kernel_pick->setArg("NDCx", NDCx);
+    err |= kernel_pick->setArg("NDCy", NDCy);
     verify("Failed to set pick kernel coordinates");
 
     Hit hit;
 
-    err |= cmdQueue.enqueueNDRangeKernel(kernel_pick, cl::NullRange, cl::NDRange(1), cl::NullRange);
-    err |= cmdQueue.enqueueReadBuffer(pickResult, CL_FALSE, 0, 1 * sizeof(Hit), &hit);
+    err |= cmdQueue.enqueueNDRangeKernel(kernel_pick->getKernel(), cl::NullRange, cl::NDRange(1), cl::NullRange);
+    err |= cmdQueue.enqueueReadBuffer(deviceBuffers.pickResult, CL_FALSE, 0, 1 * sizeof(Hit), &hit);
     cmdQueue.finish();
     verify("Failed to execute pick kernel or get result");
 
@@ -1133,38 +972,6 @@ cl::Device &CLContext::getDeviceByName(std::vector<cl::Device> &devices, std::st
     return devices[0];
 }
 
-// Return info about error
-std::string CLContext::errorString()
-{
-    const int SIZE = 64;
-    std::string errors[SIZE] =
-    {
-        "CL_SUCCESS", "CL_DEVICE_NOT_FOUND", "CL_DEVICE_NOT_AVAILABLE",
-        "CL_COMPILER_NOT_AVAILABLE", "CL_MEM_OBJECT_ALLOCATION_FAILURE",
-        "CL_OUT_OF_RESOURCES", "CL_OUT_OF_HOST_MEMORY",
-        "CL_PROFILING_INFO_NOT_AVAILABLE", "CL_MEM_COPY_OVERLAP",
-        "CL_IMAGE_FORMAT_MISMATCH", "CL_IMAGE_FORMAT_NOT_SUPPORTED",
-        "CL_BUILD_PROGRAM_FAILURE", "CL_MAP_FAILURE",
-        "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
-        "CL_INVALID_VALUE", "CL_INVALID_DEVICE_TYPE", "CL_INVALID_PLATFORM",
-        "CL_INVALID_DEVICE", "CL_INVALID_CONTEXT", "CL_INVALID_QUEUE_PROPERTIES",
-        "CL_INVALID_COMMAND_QUEUE", "CL_INVALID_HOST_PTR", "CL_INVALID_MEM_OBJECT",
-        "CL_INVALID_IMAGE_FORMAT_DESCRIPTOR", "CL_INVALID_IMAGE_SIZE",
-        "CL_INVALID_SAMPLER", "CL_INVALID_BINARY", "CL_INVALID_BUILD_OPTIONS",
-        "CL_INVALID_PROGRAM", "CL_INVALID_PROGRAM_EXECUTABLE",
-        "CL_INVALID_KERNEL_NAME", "CL_INVALID_KERNEL_DEFINITION", "CL_INVALID_KERNEL",
-        "CL_INVALID_ARG_INDEX", "CL_INVALID_ARG_VALUE", "CL_INVALID_ARG_SIZE",
-        "CL_INVALID_KERNEL_ARGS", "CL_INVALID_WORK_DIMENSION",
-        "CL_INVALID_WORK_GROUP_SIZE", "CL_INVALID_WORK_ITEM_SIZE",
-        "CL_INVALID_GLOBAL_OFFSET", "CL_INVALID_EVENT_WAIT_LIST", "CL_INVALID_EVENT",
-        "CL_INVALID_OPERATION", "CL_INVALID_GL_OBJECT", "CL_INVALID_BUFFER_SIZE",
-        "CL_INVALID_MIP_LEVEL", "CL_INVALID_GLOBAL_WORK_SIZE"
-    };
-
-    const int ind = -err;
-    return (ind >= 0 && ind < SIZE) ? errors[ind] : "unknown!";
-}
-
 // Check error, second optional parameter acts as boolean predicate
 void CLContext::verify(std::string msg, int pred)
 {
@@ -1173,7 +980,7 @@ void CLContext::verify(std::string msg, int pred)
 
     if(code != CL_SUCCESS)
     {
-        std::string message = msg + " (" + errorString() + ")";
+        std::string message = msg + " (" + getCLErrorString(code) + ")";
         std::cout << message << std::endl;
         waitExit();
     }

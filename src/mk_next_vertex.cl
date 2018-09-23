@@ -48,7 +48,6 @@ kernel void nextVertex(
     *len += 1;
 
     // Accumulate first hit normal (in camera space) for denoiser
-#define USE_OPTIX_DENOISER
 #ifdef USE_OPTIX_DENOISER
     if (*len == 1)
     {

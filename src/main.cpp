@@ -1,14 +1,8 @@
-#define CL_HPP_MINIMUM_OPENCL_VERSION 120
-#define CL_HPP_TARGET_OPENCL_VERSION 120
-
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-#include "cl2.hpp"
-#include "window.hpp"
 #include "tracer.hpp"
-#include "math/float3.hpp"
 #include "IL/il.h"
 #include "IL/ilu.h"
+#include "settings.hpp"
+#include "utils.h"
 
 int main(int argc, char* argv[])
 {

@@ -285,8 +285,6 @@ inline void normal_add_float4(__global float* ptr, float4 value)
     vstore4(sum, 0, ptr);
 }
 
-#define FLT_FLOAT_ATOMICS
-
 inline void add_float3(__global float* ptr, float3 value)
 {
 #ifdef FLT_FLOAT_ATOMICS

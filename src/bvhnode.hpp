@@ -1,8 +1,5 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-#include <cassert>
 #include "rtutil.hpp"
 #include "math/float3.hpp"
 

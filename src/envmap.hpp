@@ -4,14 +4,7 @@
 	A class that reads an RGBe file and creates an OpenCL image2d_t environment map.
 */
 
-#include <iostream>
-#include <cmath>
-#include <memory>
-#include <vector>
-#include <stack>
-#include "rgbe/rgbe.hpp"
-#include "geom.h"
-#include "utils.h"
+#include <string>
 
 class EnvironmentMap
 {

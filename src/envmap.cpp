@@ -1,4 +1,9 @@
 #include "envmap.hpp"
+#include "rgbe/rgbe.hpp"
+#include "utils.h"
+#include "geom.h"
+#include <iostream>
+#include <stack>
 
 EnvironmentMap::EnvironmentMap(const std::string &filename) : scale(1.0f)
 {

@@ -1,6 +1,7 @@
 #ifndef INT3_H
 #define INT3_H
 
+#include "math/float3.hpp"
 #include <cmath>
 #include <algorithm>
 

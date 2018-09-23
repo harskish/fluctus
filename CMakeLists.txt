@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.3)
 project(Fluctus)
 
+# OCL 1.2+ needed for clGetKernelArgInfo
+add_definitions(-DCL_HPP_MINIMUM_OPENCL_VERSION=120)
+add_definitions(-DCL_HPP_TARGET_OPENCL_VERSION=120)
+add_definitions(-DNOMINMAX)
+
 add_subdirectory(ext ext_build)
 
 set(INCLUDE_DIRS
@@ -49,12 +54,15 @@ set(SOURCE_FILES
     src/scene.hpp
     src/tinyfiledialogs.c
     src/tinyfiledialogs.h
+    src/Kernel.hpp
+    src/Kernel.cpp
+    src/kernel_impl.hpp
     src/envmap.hpp
     src/envmap.cpp
     src/rgbe/rgbe.hpp
     src/rgbe/rgbe.cpp
-	src/xxhash/xxhash.h
-	src/xxhash/xxhash.c
+    src/xxhash/xxhash.h
+    src/xxhash/xxhash.c
     src/settings.cpp
     src/settings.hpp
     src/texture.cpp
@@ -62,7 +70,7 @@ set(SOURCE_FILES
     src/GLProgram.cpp
     src/GLProgram.hpp
     src/utils.h
-	src/utils.cpp)
+    src/utils.cpp)
 
 # OptiX for AI denoiser, optional
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
@@ -89,14 +97,10 @@ else()
 endif()
 
 include_directories(${INCLUDE_DIRS})
-
 file(GLOB PROJECT_KERNELS src/*.cl)
 source_group("Kernels" FILES ${PROJECT_KERNELS})
 
-
-
 add_executable(Fluctus ${SOURCE_FILES} ${PROJECT_KERNELS})
-
 target_link_libraries(Fluctus ${LIBRARIES})
 
 set_target_properties(Fluctus PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")

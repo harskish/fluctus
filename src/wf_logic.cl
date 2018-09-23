@@ -15,7 +15,7 @@ kernel void logic(
     global float *denoiserNormal, // for Optix denoiser
     global float *denoiserAlbedo, // for Optix denoiser
     global QueueCounters *queueLens,
-    global uint *extQueue,
+    global uint *extensionQueue,
     global uint *shadowQueue,
     global uint *raygenQueue,
     global uint *diffuseQueue,
@@ -35,11 +35,11 @@ kernel void logic(
     global TexDescriptor *textures,
     global RenderParams *params,
     uint numTasks,
-    uint firstItaration
+    uint firstIteration
 )
 {
     uint gid = get_global_id(0);
-    uint maxId = firstItaration ? min(params->width * params->height, numTasks) : numTasks;
+    uint maxId = firstIteration ? min(params->width * params->height, numTasks) : numTasks;
 
     if (gid >= maxId)
         return;
@@ -65,13 +65,14 @@ kernel void logic(
     // Implicit environment map sample
     if (hit.i < 0 && len > 0) // not before first raycast
     {
+        float weight = 1.0f;
+        bool lastSpecular = ReadU32(lastSpecular, tasks);
         float3 bg = (float3)(0.0f, 0.0f, 0.0f);
+#ifdef USE_ENV_MAP
         if (params->useEnvMap && (len == 1 || params->sampleImpl))
             bg = evalEnvMapDir(envMap, r.dir) * params->envMapStrength;
 
         // MIS
-        float weight = 1.0f;
-        bool lastSpecular = ReadU32(lastSpecular, tasks);
         if (params->sampleImpl && params->sampleExpl && params->useEnvMap && len > 1 && !lastSpecular)
         {
             const float lightPickProb = ReadF32(lastLightPickProb, tasks);
@@ -79,16 +80,20 @@ kernel void logic(
             float directPdfW = envMapPdf(dims.x, dims.y, pdfTable, rayDir);
             float actualPdfW = ReadF32(lastPdfW, tasks);
             weight = (actualPdfW * lightPickProb) / (actualPdfW * lightPickProb + directPdfW);
-        }   
+        }
+#endif
 
         float3 T = ReadFloat3(T, tasks);
 		float3 newEi = ReadFloat3(Ei, tasks) + weight * T * bg;
 		WriteFloat3(Ei, tasks, newEi);
 		emitterHit = true;
     }
+
+#ifdef USE_AREA_LIGHT
     // Implicit area light sample
     else if (hit.areaLightHit)
     {
+
 		float misWeight = 1.0f;
 		bool lastSpecular = ReadU32(lastSpecular, tasks);
 		if (params->sampleExpl && len > 1 && !lastSpecular) // not very direct + MIS needed
@@ -108,6 +113,7 @@ kernel void logic(
 		// No reflective lights
         emitterHit = true;
     }
+#endif
 
     // Explicit light sample (NEE), if non-occluded
     bool blocked = ReadU32(shadowRayBlocked, tasks);
@@ -181,7 +187,6 @@ kernel void logic(
     if (backface) hit.N *= -1.0f;
     float3 orig = hit.P - 1e-3f * r.dir;
 
-#define USE_OPTIX_DENOISER
 #ifdef USE_OPTIX_DENOISER
     // Accumulate first hit normal (in camera space) for denoiser
     if (len == 1)
@@ -211,6 +216,7 @@ kernel void logic(
     writeHitSoA(hit, tasks, gid, numTasks);
     WriteU32(backfaceHit, tasks, backface);
     
+#ifdef SAMPLE_EXPLICIT
     // Perform next event estimation: generate light sample + shadow ray
     if (params->sampleExpl && !BXDF_IS_SINGULAR(mat.type))
     {
@@ -219,6 +225,7 @@ kernel void logic(
         bool useEnvMap = rand(&seed) < envMapProb;
         bool useAreaLight = !useEnvMap && params->useAreaLight;
 
+#ifdef USE_ENV_MAP
         // Importance sample env map (using alias method)
         if (useEnvMap)
         {
@@ -251,7 +258,9 @@ kernel void logic(
             uint idx = atomic_inc(&queueLens->shadowQueue);
             shadowQueue[idx] = gid;
         }
+#endif
 
+#ifdef USE_AREA_LIGHT
         // Sample area light source
         if (useAreaLight)
         {
@@ -292,7 +301,9 @@ kernel void logic(
                 WriteU32(shadowRayBlocked, tasks, 1);
             }
         }
+#endif
     }
+#endif
 
     WriteU32(seed, tasks, seed);
 

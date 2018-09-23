@@ -1,4 +1,8 @@
 #include "kernelreader.hpp"
+#include "utils.h"
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
 void kernelFromSource(const std::string filename, cl::Context &context, cl::Program &program, int &err)
 {
@@ -61,12 +65,12 @@ void verify(const char* msg, int err)
 }
 
 // Checks kernel cache for match, otherwise loads from source
-cl::Program kernelFromFile(const std::string filename, const std::string buildOpts, cl::Platform & platform, cl::Context & context, cl::Device & device, int & err)
+cl::Program kernelFromFile(const std::string path, const std::string buildOpts, cl::Platform & platform, cl::Context & context, cl::Device & device, int & err)
 {
-    std::string sourcePath = "src/" + filename;
+    std::string filename = getFileName(path);
 
     // Compute hash of kernel source + build configuration
-    std::string kernelSource = readKernel(sourcePath);
+    std::string kernelSource = readKernel(path);
 
     // Separate binaries by (build options X platform name X device name)
     kernelSource += buildOpts;
@@ -107,7 +111,7 @@ cl::Program kernelFromFile(const std::string filename, const std::string buildOp
     {
         std::cout << "Building kernel " << filename << std::endl;
 
-        kernelFromSourceExpanded(sourcePath, context, program, err);
+        kernelFromSourceExpanded(path, context, program, err);
         cl::vector<cl::Device> devices = { device };
         err = program.build(devices, buildOpts.c_str());
 

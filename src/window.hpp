@@ -3,13 +3,12 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <nanogui/nanogui.h>
-#include <iostream>
 #include <string>
-#include "GLProgram.hpp"
 #include "math/float2.hpp"
 
 class ProgressView;
 class CLContext;
+
 class PTWindow
 {
 public:

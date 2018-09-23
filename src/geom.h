@@ -7,8 +7,6 @@ typedef unsigned int cl_uint;
 typedef char cl_uchar;
 typedef bool cl_bool;
 #else
-#define CL_HPP_MINIMUM_OPENCL_VERSION 120
-#define CL_HPP_TARGET_OPENCL_VERSION 120
 #include "cl2.hpp"
 #include "math/float2.hpp"
 #include "math/float3.hpp"
@@ -168,7 +166,6 @@ typedef struct
     cl_uint width;         // window width
     cl_uint height;        // window height
     cl_uint n_tris;
-    cl_uint n_lights;      // number of lights in scene
     cl_uint useEnvMap;
     cl_uint useAreaLight;
     cl_float envMapStrength;

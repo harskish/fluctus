@@ -46,8 +46,10 @@ kernel void process(
     vstore4(color, gid, pixelsPreview);
 
     // Output optional denoiser features
+#ifdef USE_OPTIX_DENOISER
     float4 normal = vload4(gid, denoiserNormal);
     vstore4((normal.w > 1.0f) ? normal / normal.w : normal, gid, denoiserNormalGL);
     float4 albedo = vload4(gid, denoiserAlbedo);
     vstore4((albedo.w > 1.0f) ? albedo / albedo.w : albedo, gid, denoiserAlbedoGL);
+#endif
 }

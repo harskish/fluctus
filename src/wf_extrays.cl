@@ -5,7 +5,7 @@
 kernel void traceExtension(
     global GPUTaskState* tasks,
     global QueueCounters* queueLens,
-    global uint* extQueue,
+    global uint* extensionQueue,
     global Triangle* tris,
     global GPUNode* nodes,
     global uint* indices,
@@ -17,7 +17,7 @@ kernel void traceExtension(
     if (gid_direct >= queueLens->extensionQueue)
         return;
 
-    const uint gid = extQueue[gid_direct];
+    const uint gid = extensionQueue[gid_direct];
 
     const float3 rayOrig = ReadFloat3(orig, tasks);
     const float3 rayDir = ReadFloat3(dir, tasks);

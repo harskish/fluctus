@@ -1,26 +1,26 @@
 #pragma once
 
 #include <glad/glad.h>
-#include <GLFW/glfw3.h>
 #include <nanogui/nanogui.h>
-#include "clcontext.hpp"
 #include <string>
 #include <map>
-#include <cmath>
-#include "geom.h"
-#include "window.hpp"
+#include "sbvh.hpp"
+#include "scene.hpp"
 #include "math/float2.hpp"
 #include "math/float3.hpp"
 #include "math/matrix.hpp"
-#include "bvh.hpp"
-#include "sbvh.hpp"
-#include "scene.hpp"
+#include "geom.h"
 
 #ifdef WITH_OPTIX
 #include "OptixDenoiser.hpp"
 #endif
 
 using namespace FireRays;
+
+class CLContext;
+class PTWindow;
+class BVH;
+class Scene;
 
 class Tracer
 {
@@ -38,6 +38,11 @@ public:
     void handleKeypress(int key, int scancode, int action, int mods); // function keys
     void handleChar(unsigned int codepoint);
     void handleFileDrop(int count, const char **filenames);
+
+    CLContext* getClContext() { return clctx; };
+    const RenderParams& getParams() { return params; }
+
+    bool useDenoiser = false;
 
     // GUI - implemented in tracer_ui.cpp
 private:
@@ -92,9 +97,6 @@ private:
 #ifdef WITH_OPTIX
     OptixDenoiser denoiser;
     optix::Buffer denoisedResult;
-    bool useDenoiser = true;
-#else
-    bool useDenoiser = false;
 #endif
 
     PTWindow *window;

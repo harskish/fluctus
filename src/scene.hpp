@@ -1,29 +1,17 @@
 #pragma once
 
 // Suppress sscanf warning on MSVCCompiler
-#ifdef _MSC_VER
+#if defined (_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #include <string>
 #include <vector>
-#include <map>
 #include <array>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <ctime>
-#include <chrono>
-
-#include "tiny_obj_loader.h"
-#include "geom.h"
-#include "triangle.hpp"
-#include "envmap.hpp"
-#include "rtutil.hpp"
-#include "math/float3.hpp"
 #include "texture.hpp"
-#include "settings.hpp"
-#include "bxdf_types.h"
+#include "envmap.hpp"
+#include "triangle.hpp"
+#include "geom.h"
 
 using FireRays::float3;
 class ProgressView;

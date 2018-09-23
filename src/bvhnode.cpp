@@ -1,4 +1,5 @@
 #include "bvhnode.hpp"
+#include <cassert>
 
 void BuildNode::computeBB(std::vector<TriRef> &refs) {
 	assert(iStart <= iEnd); // range must be non-empty

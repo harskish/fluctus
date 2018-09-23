@@ -1,6 +1,10 @@
 #include "window.hpp"
 #include "tracer.hpp"
 #include "progressview.hpp"
+#include "clcontext.hpp"
+#include "settings.hpp"
+#include "GLProgram.hpp"
+#include "utils.h"
 
 // For keys that need to be registered only once per press
 void keyPressCallback(GLFWwindow *window, int key, int scancode, int action, int mods)

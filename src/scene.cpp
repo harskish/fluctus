@@ -1,7 +1,10 @@
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+#include "tiny_obj_loader.h"
 
 #include "scene.hpp"
 #include "progressview.hpp"
+#include "utils.h"
+#include "bxdf_types.h"
 
 Scene::Scene()
 {

@@ -1,4 +1,7 @@
 #include "texture.hpp"
+#include "IL/il.h"
+#include "IL/ilu.h"
+#include <iostream>
 
 inline void checkILErrors()
 {

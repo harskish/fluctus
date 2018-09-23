@@ -1,12 +1,8 @@
 #pragma once
 
 #include <vector>
-#include <algorithm>
 #include <numeric>
-#include <iterator>
 #include <fstream>
-#include <cassert>
-
 #include "triangle.hpp"
 #include "bvhnode.hpp"
 #include "rtutil.hpp"

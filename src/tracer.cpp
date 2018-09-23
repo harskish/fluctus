@@ -1,9 +1,17 @@
 #include "tracer.hpp"
-#include "geom.h"
+#include "window.hpp"
 #include "progressview.hpp"
+#include "clcontext.hpp"
+#include "Kernel.hpp"
+#include "settings.hpp"
+#include "utils.h"
+#include "geom.h"
 
 Tracer::Tracer(int width, int height) : useWavefront(true)
 {
+    // For getting build options from program state
+    flt::Kernel::setUserPointer((void*)this);
+
     // Before UI
     initCamera();
     initPostProcessing();
@@ -35,7 +43,6 @@ void Tracer::init(int width, int height, std::string sceneFile)
 
     params.width = static_cast<unsigned int>(width * renderScale);
     params.height = static_cast<unsigned int>(height * renderScale);
-    params.n_lights = sizeof(test_lights) / sizeof(PointLight);
     params.useEnvMap = (cl_uint)false;
     params.useAreaLight = (cl_uint)true;
     params.envMapStrength = 1.0f;
@@ -102,6 +109,9 @@ void Tracer::update()
     // Update RenderParams in GPU memory if needed
     if(paramsUpdatePending)
     {
+        // Recompile kernels (conservatively!)
+        clctx->recompileKernels(false); // no need to set arguments
+
         // Update render dimensions
         const float renderScale = Settings::getInstance().getRenderScale();
         window->getFBSize(params.width, params.height);
@@ -132,7 +142,7 @@ void Tracer::update()
             // Create and trace primary rays
             clctx->resetPixelIndex();
             clctx->enqueueWfResetKernel(params);
-            clctx->enqueueWfLogicKernel(iteration == 0);
+            clctx->enqueueWfLogicKernel(params, iteration == 0);
             clctx->enqueueWfRaygenKernel(params);
             clctx->enqueueWfExtRayKernel(params);
             clctx->enqueueClearWfQueues();
@@ -142,7 +152,7 @@ void Tracer::update()
         for (int i = 0; i < N; i++)
         {
             // Fill queues
-            clctx->enqueueWfLogicKernel(iteration == 0);
+            clctx->enqueueWfLogicKernel(params, iteration == 0);
 
             // Operate on queues
             clctx->enqueueWfRaygenKernel(params);
@@ -327,7 +337,7 @@ void Tracer::runBenchmark()
 
             if (useWavefront)
             {
-                clctx->enqueueWfLogicKernel(false);
+                clctx->enqueueWfLogicKernel(params, false);
                 clctx->enqueueWfRaygenKernel(params);
                 clctx->enqueueWfMaterialKernels(params);
                 clctx->enqueueGetCounters(&cnt);

@@ -1,4 +1,5 @@
 #include "GLProgram.hpp"
+#include "utils.h"
 
 std::map<string, GLProgram*> GLProgram::s_programs; // static
 

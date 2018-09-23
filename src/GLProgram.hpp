@@ -1,15 +1,12 @@
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
-#include <algorithm>
-#include <cstdlib>
 #include <glad/glad.h>
 #include "math/float2.hpp"
 #include "math/float3.hpp"
 #include "math/matrix.hpp"
-#include "utils.h"
 
 #define GL_SHADER_SOURCE(CODE) #CODE
 

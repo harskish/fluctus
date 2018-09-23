@@ -53,7 +53,6 @@ kernel void sampleBsdf(
     if (backface) hit.N *= -1.0f;
     float3 orig = hit.P - 1e-3f * r.dir;  // avoid self-shadowing
 
-#define USE_OPTIX_DENOISER
 #ifdef USE_OPTIX_DENOISER
     // Accumulate albedo for denoiser
     global uint* diffuseHit = &ReadU32(firstDiffuseHit, tasks);

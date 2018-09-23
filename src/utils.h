@@ -1,8 +1,10 @@
 #pragma once
+
 #include <string>
 #include <stdlib.h>
 #include <glad/glad.h>
 #include <vector>
+#include "cl2.hpp"
 
 // Determine target
 #if _WIN32 || _WIN64
@@ -50,6 +52,16 @@ inline void GLcheckErrors()
         waitExit();
     }
 }
+
+inline bool platformIsNvidia(cl::Platform& platform)
+{
+    std::string name = platform.getInfo<CL_PLATFORM_NAME>();
+    return name.find("NVIDIA") != std::string::npos;
+}
+
+std::string getCLErrorString(int code);
+std::string getAbsolutePath(std::string filename);
+std::string getFileName(const std::string path);
 
 bool endsWith(const std::string s, const std::string end);
 std::string unixifyPath(std::string path);

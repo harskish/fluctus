@@ -1,5 +1,9 @@
 #include "tracer.hpp"
+#include "clcontext.hpp"
+#include "settings.hpp"
+#include "window.hpp"
 #include "geom.h"
+#include "utils.h"
 
 using namespace nanogui;
 
