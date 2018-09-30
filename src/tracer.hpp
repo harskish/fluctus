@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <nanogui/nanogui.h>
 #include <string>
 #include <map>
@@ -21,6 +22,8 @@ class CLContext;
 class PTWindow;
 class BVH;
 class Scene;
+
+struct FloatWidget;
 
 class Tracer
 {
@@ -46,10 +49,13 @@ public:
 
     // GUI - implemented in tracer_ui.cpp
 private:
+    FloatWidget* addFloatWidget(nanogui::Popup* parent, std::string title,
+        std::string key, float vMin, float vMax, std::function<void(float)> updateFunc);
     void setupToolbar();
     void addRendererSettings(nanogui::Widget *parent);
     void addCameraSettings(nanogui::Widget *parent);
     void addTonemapSettings(nanogui::Widget *parent);
+    void addDenoiserSettings(nanogui::Widget *parent);
     void addEnvMapSettings(nanogui::Widget *parent);
     void addAreaLightSettings(nanogui::Widget *parent);
     void addStateSettings(nanogui::Widget *parent);
@@ -91,12 +97,14 @@ private:
     void toggleSamplingMode();
     void toggleLightSourceMode();
     void toggleRenderer();
+    void toggleDenoiserVisibility();
     void initEnvMap();
     void init(int width, int height, std::string sceneFile = "");
 
 #ifdef WITH_OPTIX
     OptixDenoiser denoiser;
     optix::Buffer denoisedResult;
+    float denoiserStrength = 1.0f;
 #endif
 
     PTWindow *window;

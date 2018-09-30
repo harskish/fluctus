@@ -14,6 +14,8 @@ public:
     void resizeBuffers(PTWindow *window);
     void denoise(void);
 
+    void setBlend(float val);
+
 private:
     void setupCommandList(unsigned int width, unsigned int height);
 

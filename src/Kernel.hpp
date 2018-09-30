@@ -8,6 +8,7 @@
 #define CL_HPP_TARGET_OPENCL_VERSION 120
 #include "cl2.hpp"
 #include <string>
+#include <iostream>
 #include <map>
 
 FLT_NAMESPACE_BEGIN

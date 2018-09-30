@@ -3,6 +3,7 @@
 #include "OptixDenoiser.hpp"
 #include "window.hpp"
 #include "utils.h"
+#include <algorithm>
 
 using namespace optix;
 
@@ -75,6 +76,13 @@ void OptixDenoiser::denoise(void)
         std::cout << "OptixDenoiser error: " << e.what() << std::endl;
         waitExit();
     }
+}
+
+void OptixDenoiser::setBlend(float val)
+{
+    denoiseBlend = std::max(0.0f, std::min(val, 1.0f));
+    if (denoiserStage)
+        denoiserStage->queryVariable("blend")->setFloat(denoiseBlend);
 }
 
 void OptixDenoiser::setupCommandList(unsigned int width, unsigned int height)

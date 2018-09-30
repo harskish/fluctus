@@ -218,7 +218,7 @@ void Tracer::update()
     // Denoise and draw preview
 #ifdef WITH_OPTIX
     const int threshold = 10;
-    if (!useDenoiser || iteration < threshold)
+    if (!useDenoiser || iteration < threshold || denoiserStrength == 0.0f)
     {
         // Don't run denoiser (yet)
         window->draw();
@@ -786,6 +786,22 @@ void Tracer::toggleRenderer()
     window->setRenderMethod((useWavefront) ? PTWindow::RenderMethod::WAVEFRONT : PTWindow::RenderMethod::MICROKERNEL);
 }
 
+void Tracer::toggleDenoiserVisibility()
+{
+#ifdef WITH_OPTIX
+    if (!useDenoiser)
+    {
+        useDenoiser = true;
+        clctx->recompileKernels(false);
+        denoiserStrength = 0.0f;
+    }
+
+    denoiserStrength = (denoiserStrength > 0.5f) ? 0.0f : 1.0f;
+    denoiser.setBlend(1.0f - denoiserStrength);
+    updateGUI();
+#endif
+}
+
 void Tracer::handleChar(unsigned int codepoint)
 {
     window->getScreen()->charCallbackEvent(codepoint);
@@ -850,7 +866,7 @@ void Tracer::handleKeypress(int key, int scancode, int action, int mods)
         // Don't force init
         matchKeep(GLFW_KEY_F2,          saveState());
         matchKeep(GLFW_KEY_F5,          saveImage());
-        matchKeep(GLFW_KEY_F6,          useDenoiser = !useDenoiser; updateGUI());
+        matchKeep(GLFW_KEY_F6,          toggleDenoiserVisibility(););
         matchKeep(GLFW_KEY_U,           toggleGUI());
     }
 }

@@ -4,6 +4,7 @@
 #include "window.hpp"
 #include "geom.h"
 #include "utils.h"
+#include <functional>
 
 using namespace nanogui;
 
@@ -33,6 +34,9 @@ void Tracer::setupToolbar()
 
     // Tonemapping
     addTonemapSettings(tools);
+
+    // Optix denoiser
+    addDenoiserSettings(tools);
 
     // Environment map
     addEnvMapSettings(tools);
@@ -70,6 +74,47 @@ void Tracer::setupToolbar()
     screen->performLayout();
 }
 
+
+struct FloatWidget
+{
+    Widget* root;
+    Label* label;
+    Slider* slider;
+    FloatBox<cl_float>* box;
+};
+
+FloatWidget* Tracer::addFloatWidget(Popup* parent, std::string title, std::string key, float vMin, float vMax, std::function<void(float)> updateFunc)
+{
+    FloatWidget* w = new FloatWidget();
+    w->root = new Widget(parent);
+    w->root->setLayout(new BoxLayout(Orientation::Horizontal));
+    w->label = new Label(w->root, title);
+    w->label->setFixedWidth(60);
+    w->slider = new Slider(w->root);
+    uiMapping[key + "_SLIDER"] = w->slider;
+    w->slider->setRange(std::make_pair(vMin, vMax));
+    w->slider->setFixedWidth(100);
+    w->box = new FloatBox<cl_float>(w->root);
+    uiMapping[key + "_BOX"] = w->box;
+    inputBoxes.push_back(w->box);
+    w->box->setEditable(true);
+    w->box->setMinMaxValues(vMin, vMax);
+    w->box->setFormat("[0-9]*\\.?[0-9]+");
+    w->box->setFixedWidth(80);
+    w->box->setValue(params.ppParams.exposure);
+
+    w->slider->setCallback([w, updateFunc, this](cl_float val) {
+        w->box->setValue(val);
+        updateFunc(val);
+    });
+
+    w->box->setCallback([w, updateFunc, this](cl_float val) {
+        w->slider->setValue(val);
+        updateFunc(val);
+    });
+
+    return w;
+}
 
 void Tracer::addRendererSettings(nanogui::Widget *parent)
 {
@@ -143,14 +188,6 @@ void Tracer::addRendererSettings(nanogui::Widget *parent)
         params.useRoulette = value;
         paramsUpdatePending = true;
     });
-#ifdef WITH_OPTIX
-    auto denoiserBox = new CheckBox(rendererPopup, "Denoise");
-    uiMapping["DENOISE_TOGGLE"] = denoiserBox;
-    denoiserBox->setChecked(useDenoiser);
-    denoiserBox->setCallback([&](bool value) {
-        useDenoiser = value;
-    });
-#endif
 
     Widget *depthPanel = new Widget(rendererPopup);
     depthPanel->setLayout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
@@ -223,86 +260,20 @@ void Tracer::addCameraSettings(Widget *parent)
     camPopup->setLayout(new GroupLayout());
 
     // FOV
-    Widget *fovWidget = new Widget(camPopup);
-    fovWidget->setLayout(new BoxLayout(Orientation::Horizontal));
-    Label *fovlabel = new Label(fovWidget, "FOV");
-    fovlabel->setFixedWidth(50);
-    auto fovSlider = new Slider(fovWidget);
-    uiMapping["FOV_SLIDER"] = fovSlider;
-    fovSlider->setRange(std::make_pair(0.01f, 179.0f));
-    fovSlider->setValue(params.camera.fov);
-    fovSlider->setFixedWidth(80);
-    auto fovBox = new FloatBox<cl_float>(fovWidget);
-    uiMapping["FOV_BOX"] = fovBox;
-    inputBoxes.push_back(fovBox);
-    fovBox->setEditable(true);
-    fovBox->setMinMaxValues(0.01f, 179.0f);
-    fovBox->setFormat("[0-9]*\\.?[0-9]+");
-    fovBox->setCallback([fovSlider, this](cl_float val) {
-        params.camera.fov = val;
-        fovSlider->setValue(val);
-        paramsUpdatePending = true;
-    });
-    fovBox->setFixedWidth(80);
-    fovBox->setValue(params.camera.fov);
-    fovSlider->setCallback([fovBox, this](cl_float val) {
-        params.camera.fov = val;
-        fovBox->setValue(val);
+    FloatWidget* fovWidget = addFloatWidget(camPopup, "FOV", "FOV", 0.01f, 120.0f, [this](float val) {
+        params.camera.fov = (cl_float)val;
         paramsUpdatePending = true;
     });
 
     // Speed
-    Widget *speedWidget = new Widget(camPopup);
-    speedWidget->setLayout(new BoxLayout(Orientation::Horizontal));
-    Label *speedLabel = new Label(speedWidget, "Speed");
-    speedLabel->setFixedWidth(50);
-    auto speedSlider = new Slider(speedWidget);
-    uiMapping["CAM_SPEED_SLIDER"] = speedSlider;
-    speedSlider->setRange(std::make_pair(0.1f, 100.0f));
-    speedSlider->setValue(cameraSpeed);
-    speedSlider->setFixedWidth(80);
-    auto speedBox = new FloatBox<float>(speedWidget);
-    uiMapping["CAM_SPEED_BOX"] = speedBox;
-    speedBox->setFixedWidth(80);
-    speedBox->setValue(cameraSpeed);
-    speedBox->setEditable(true);
-    inputBoxes.push_back(speedBox);
-    speedBox->setFormat("[0-9]*\\.?[0-9]+");
-    speedBox->setCallback([speedSlider, this](float val) {
+    FloatWidget* speedWidget = addFloatWidget(camPopup, "Speed", "CAM_SPEED", 0.1f, 100.0f, [this](float val) {
         cameraSpeed = val;
-        if (val <= 100.0f)
-            speedSlider->setValue(val);
-    });
-    speedSlider->setCallback([speedBox, this](float val) {
-        cameraSpeed = val;
-        speedBox->setValue(val);
+        paramsUpdatePending = true;
     });
 
     // Aperture size
-    Widget *apertureWidget = new Widget(camPopup);
-    apertureWidget->setLayout(new BoxLayout(Orientation::Horizontal));
-    Label *apertureLabel = new Label(apertureWidget, "Aperture");
-    apertureLabel->setFixedWidth(50);
-    auto apertureSlider = new Slider(apertureWidget);
-    uiMapping["CAM_APERTURE_SLIDER"] = apertureSlider;
-    apertureSlider->setRange(std::make_pair(0.0f, 0.003f));
-    apertureSlider->setValue(params.camera.apertureSize);
-    apertureSlider->setFixedWidth(80);
-    auto apertureBox = new FloatBox<float>(apertureWidget);
-    uiMapping["CAM_APERTURE_BOX"] = apertureBox;
-    apertureBox->setFixedWidth(80);
-    apertureBox->setValue(params.camera.apertureSize);
-    apertureBox->setEditable(true);
-    inputBoxes.push_back(apertureBox);
-    apertureBox->setFormat("[0-9]*\\.?[0-9]+");
-    apertureBox->setCallback([apertureSlider, this](float val) {
-        params.camera.apertureSize = val;
-        apertureSlider->setValue(std::max(0.0f, std::min(val, 0.003f)));
-        paramsUpdatePending = true;
-    });
-    apertureSlider->setCallback([apertureBox, this](float val) {
-        params.camera.apertureSize = val;
-        apertureBox->setValue(val);
+    FloatWidget* apertureWidget = addFloatWidget(camPopup, "Aperture", "CAM_APERTURE", 0.0f, 0.003f, [this](float val) {
+        params.camera.apertureSize = (cl_float)val;
         paramsUpdatePending = true;
     });
 
@@ -311,14 +282,14 @@ void Tracer::addCameraSettings(Widget *parent)
 
     // Reset
     Button *resetButton = new Button(camPopup, "Reset");
-    resetButton->setCallback([fovSlider, fovBox, speedSlider, speedBox, apertureSlider, apertureBox, this]() {
+    resetButton->setCallback([fovWidget, speedWidget, apertureWidget, this]() {
         initCamera();
-        fovSlider->setValue(params.camera.fov);
-        fovBox->setValue(params.camera.fov);
-        speedSlider->setValue(cameraSpeed);
-        speedBox->setValue(cameraSpeed);
-        apertureSlider->setValue(params.camera.apertureSize);
-        apertureBox->setValue(params.camera.apertureSize);
+        fovWidget->slider->setValue(params.camera.fov);
+        fovWidget->box->setValue(params.camera.fov);
+        speedWidget->slider->setValue(cameraSpeed);
+        speedWidget->box->setValue(cameraSpeed);
+        apertureWidget->slider->setValue(params.camera.apertureSize);
+        apertureWidget->box->setValue(params.camera.apertureSize);
     });
 }
 
@@ -330,31 +301,8 @@ void Tracer::addTonemapSettings(Widget *parent)
     tmPopup->setLayout(new GroupLayout());
 
     // Exposure
-    Widget *expWidget = new Widget(tmPopup);
-    expWidget->setLayout(new BoxLayout(Orientation::Horizontal));
-    Label *explabel = new Label(expWidget, "Exposure");
-    auto expSlider = new Slider(expWidget);
-    uiMapping["EXPOSURE_SLIDER"] = expSlider;
-    expSlider->setRange(std::make_pair(0.1f, 4.0f));
-    //expSlider->setValue(params.ppParams.exposure);
-    expSlider->setFixedWidth(100);
-    auto expBox = new FloatBox<cl_float>(expWidget);
-    uiMapping["EXPOSURE_BOX"] = expBox;
-    inputBoxes.push_back(expBox);
-    expBox->setEditable(true);
-    expBox->setMinMaxValues(0.1f, 5.0f);
-    //expBox->setValue(params.ppParams.exposure);
-    expBox->setFormat("[0-9]*\\.?[0-9]+");
-    expBox->setCallback([expSlider, this](cl_float val) {
+    FloatWidget* expWidget = addFloatWidget(tmPopup, "Exposure", "EXPOSURE", 0.1f, 5.0f, [this](float val) {
         params.ppParams.exposure = val;
-        expSlider->setValue(val);
-        clctx->updateParams(params); // setting paramsUpdatePending causes accumulation reset
-    });
-    expBox->setFixedWidth(80);
-    expBox->setValue(params.ppParams.exposure);
-    expSlider->setCallback([expBox, this](cl_float val) {
-        params.ppParams.exposure = val;
-        expBox->setValue(val);
         clctx->updateParams(params);
     });
 
@@ -375,12 +323,36 @@ void Tracer::addTonemapSettings(Widget *parent)
 
     // Reset
     Button *resetButton = new Button(tmPopup, "Reset");
-    resetButton->setCallback([expSlider, expBox, opBox, this]() {
+    resetButton->setCallback([expWidget, opBox, this]() {
         initPostProcessing();
-        expSlider->setValue(params.ppParams.exposure);
-        expBox->setValue(params.ppParams.exposure);
+        expWidget->slider->setValue(params.ppParams.exposure);
+        expWidget->box->setValue(params.ppParams.exposure);
         opBox->setSelectedIndex(2);
     });
+}
+
+
+void Tracer::addDenoiserSettings(Widget *parent)
+{
+    (void)parent;
+#ifdef WITH_OPTIX
+    PopupButton *denoiserButton = new PopupButton(parent, "Denoiser");
+    Popup *denoiserPopup = denoiserButton->popup();
+    denoiserPopup->setLayout(new GroupLayout());
+
+    auto denoiserBox = new CheckBox(denoiserPopup, "Enable");
+    uiMapping["DENOISE_TOGGLE"] = denoiserBox;
+    denoiserBox->setChecked(useDenoiser);
+    denoiserBox->setCallback([&](bool value) {
+        useDenoiser = value;
+        paramsUpdatePending = true; // rebuild kernels
+    });
+
+    FloatWidget* mixWidget = addFloatWidget(denoiserPopup, "Strength", "DENOISER_BLEND", 0.0f, 1.0f, [this](float val) {
+        denoiser.setBlend(1.0f - val);
+        denoiserStrength = val;
+    });
+#endif
 }
 
 
@@ -414,33 +386,8 @@ void Tracer::addEnvMapSettings(Widget *parent)
     });
 
     // Strength
-    Widget *envEmission = new Widget(envPopup);
-    envEmission->setLayout(new BoxLayout(Orientation::Horizontal));
-    new Label(envEmission, "Strength");
-    Slider *esl = new Slider(envEmission);
-    uiMapping["ENV_MAP_SLIDER"] = esl;
-    esl->setRange(std::make_pair(0.1f, 20.0f));
-    esl->setValue(1.0f);
-    esl->setFixedWidth(80);
-
-    FloatBox<cl_float> *emVal = new FloatBox<cl_float>(envEmission);
-    uiMapping["ENV_MAP_BOX"] = emVal;
-    emVal->setValue(1.0f);
-    emVal->setEditable(true);
-    inputBoxes.push_back(emVal);
-    emVal->setFormat("[0-9]*\\.?[0-9]+");
-    emVal->setFixedSize(Eigen::Vector2i(65, 25));
-    emVal->setFontSize(20);
-    emVal->setAlignment(nanogui::TextBox::Alignment::Right);
-
-    emVal->setCallback([&](float value) {
-        params.envMapStrength = value;
-        paramsUpdatePending = true;
-    });
-
-    esl->setCallback([emVal, this](float value) {
-        emVal->setValue(value);
-        params.envMapStrength = value;
+    FloatWidget* envEmissionWidget = addFloatWidget(envPopup, "Strength", "ENV_MAP", 0.1f, 10.0f, [this](float val) {
+        params.envMapStrength = (cl_float)val;
         paramsUpdatePending = true;
     });
 }
@@ -453,75 +400,18 @@ void Tracer::addAreaLightSettings(Widget *parent)
     alPopup->setLayout(new GroupLayout());
 
     // Size
-    Widget *alSize = new Widget(alPopup);
-    alSize->setLayout(new BoxLayout(Orientation::Horizontal));
-    auto sl = new Label(alSize, "Size");
-    sl->setFixedWidth(50);
-    Slider *ssl = new Slider(alSize);
-    uiMapping["AL_SIZE_SLIDER"] = ssl;
-    ssl->setRange(std::make_pair(0.1f, 30.0f));
-    ssl->setValue(params.areaLight.size.x);
-    ssl->setFixedWidth(90);
-
-    FloatBox<cl_float> *sVal = new FloatBox<cl_float>(alSize);
-    uiMapping["AL_SIZE_BOX"] = sVal;
-    sVal->setValue(params.areaLight.size.x);
-    sVal->setEditable(true);
-    inputBoxes.push_back(sVal);
-    sVal->setFormat("[0-9]*\\.?[0-9]+");
-    sVal->setFixedSize(Eigen::Vector2i(65, 25));
-    sVal->setFontSize(20);
-    sVal->setAlignment(nanogui::TextBox::Alignment::Right);
-
-    sVal->setCallback([&](cl_float value) {
-        params.areaLight.size.x = value;
-        params.areaLight.size.y = value;
+    FloatWidget* sizeWidget = addFloatWidget(alPopup, "Size", "AL_SIZE", 0.1f, 30.0f, [this](float val) {
+        params.areaLight.size.x = (cl_float)val;
+        params.areaLight.size.y = (cl_float)val;
         paramsUpdatePending = true;
     });
-
-    ssl->setCallback([sVal, this](cl_float value) {
-        sVal->setValue(value);
-        params.areaLight.size.x = value;
-        params.areaLight.size.y = value;
-        paramsUpdatePending = true;
-    });
-
 
     // Intensity
-    Widget *alInt = new Widget(alPopup);
-    alInt->setLayout(new BoxLayout(Orientation::Horizontal));
-    auto il = new Label(alInt, "Intensity");
-    il->setFixedWidth(50);
-    Slider *isl = new Slider(alInt);
-    uiMapping["AL_INT_SLIDER"] = isl;
-    isl->setRange(std::make_pair(0.1f, 100.0f));
-    isl->setValue(std::sqrt(params.areaLight.E.sqnorm()));
-    isl->setFixedWidth(90);
-
-    FloatBox<cl_float> *iVal = new FloatBox<cl_float>(alInt);
-    uiMapping["AL_INT_BOX"] = iVal;
-    iVal->setValue(std::sqrt(params.areaLight.E.sqnorm()));
-    iVal->setEditable(true);
-    inputBoxes.push_back(iVal);
-    iVal->setFormat("[0-9]*\\.?[0-9]+");
-    iVal->setFixedSize(Eigen::Vector2i(65, 25));
-    iVal->setFontSize(20);
-    iVal->setAlignment(nanogui::TextBox::Alignment::Right);
-
-    iVal->setCallback([&](cl_float value) {
+    FloatWidget* intensityWidget = addFloatWidget(alPopup, "Intensity", "AL_INT", 0.1f, 100.0f, [this](float val) {
         float sqnorm = params.areaLight.E.sqnorm();
         if (sqnorm == 0.0f) return;
         params.areaLight.E /= std::sqrt(sqnorm);
-        params.areaLight.E *= value;
-        paramsUpdatePending = true;
-    });
-
-    isl->setCallback([iVal, this](cl_float value) {
-        iVal->setValue(value);
-        float sqnorm = params.areaLight.E.sqnorm();
-        if (sqnorm == 0.0f) return;
-        params.areaLight.E /= std::sqrt(sqnorm);
-        params.areaLight.E *= value;
+        params.areaLight.E *= val;
         paramsUpdatePending = true;
     });
 
@@ -601,6 +491,11 @@ void Tracer::updateGUI()
 #ifdef WITH_OPTIX    
     auto denoiseToggle = static_cast<CheckBox*>(uiMapping["DENOISE_TOGGLE"]);
     denoiseToggle->setChecked(useDenoiser);
+
+    auto strengthSlider = static_cast<Slider*>(uiMapping["DENOISER_BLEND_SLIDER"]);
+    auto strengthBox = static_cast<FloatBox<float>*>(uiMapping["DENOISER_BLEND_BOX"]);
+    strengthSlider->setValue(denoiserStrength);
+    strengthBox->setValue(denoiserStrength);
 #endif
     
     auto maxBouncesBox = static_cast<IntBox<int>*>(uiMapping["MAX_BOUNCES_BOX"]);
