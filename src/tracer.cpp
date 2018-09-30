@@ -638,6 +638,10 @@ void Tracer::saveImage()
 {
     std::time_t epoch = std::time(nullptr);
     std::string fileName = "output_" + std::to_string(epoch) + ".png";
+#ifdef WITH_OPTIX
+    if (useDenoiser)
+        denoiser.denoise();
+#endif
     clctx->saveImage(fileName, params);
 }
 

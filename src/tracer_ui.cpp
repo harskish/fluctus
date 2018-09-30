@@ -55,6 +55,10 @@ void Tracer::setupToolbar()
         auto name = saveFileDialog("Save image as", "", { "*.png", "*.hdr", "*.bmp" });
         if (name == "") return;        
         if (name.find('.') == std::string::npos) name += ".png";
+#ifdef WITH_OPTIX
+        if (useDenoiser)
+            denoiser.denoise();
+#endif
         clctx->saveImage(name, params);
     });
 
