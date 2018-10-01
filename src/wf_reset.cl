@@ -57,4 +57,10 @@ kernel void reset(
 
 	// Reset RNG seed
     WriteU32(seed, tasks, gid);
+
+    // Put all paths into raygen queue
+    raygenQueue[gid] = gid;
+    
+    if (gid == 0)
+        queueLens->raygenQueue = numTasks;
 }

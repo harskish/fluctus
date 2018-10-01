@@ -16,13 +16,10 @@ kernel void splat(global GPUTaskState *tasks, global float *pixels, global Rende
         return;
 
 	// Accumulate radiance
-	//global int *samples = (global int*)&ReadI32(samples, tasks);
     float4 color = (float4)(ReadFloat3(Ei, tasks), 1.0f);
 	float4 prev = vload4(gid, pixels);
-	//if (prev.w > 0.0f) color += prev;
-    color += prev;
+	if (prev.w > 0.0f) color += prev;
 	vstore4(color, gid, pixels);
-	//*samples += 1;
     atomic_inc(&stats->samples);
 
 	// Reset path state

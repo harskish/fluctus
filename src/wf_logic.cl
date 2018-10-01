@@ -44,8 +44,6 @@ kernel void logic(
     if (gid >= maxId)
         return;
 
-    bool emitterHit = false;
-
     uint seed = ReadU32(seed, tasks);
     uint len = ReadU32(pathLen, tasks);
     
@@ -53,6 +51,23 @@ kernel void logic(
     const float3 rayOrig = ReadFloat3(orig, tasks);
     const float3 rayDir = ReadFloat3(dir, tasks);
     Ray r = { rayOrig, rayDir };
+
+    float3 T = ReadFloat3(T, tasks);
+
+    // Russian roulette
+    float contProb = 1.0f;
+    bool terminate = (len >= params->maxBounces + 1); // bounces = path_length - 1
+    if (terminate && params->useRoulette)
+    {
+        contProb = clamp(luminance(T), 0.01f, 0.5f);
+        terminate = (rand(&seed) > contProb);
+        T /= contProb;
+        WriteFloat3(T, tasks, T);
+    }
+
+    // Terminate if throughput is zero
+    if (isZero(T) || ReadF32(lastPdfW, tasks) == 0.0f)
+        terminate = true;
 
     /*
     TODO: implicit hit checking could be a separate kernel
@@ -63,7 +78,7 @@ kernel void logic(
     // If light sources are non-uniformly sampled, the probability has to be queried per source, not per path
 
     // Implicit environment map sample
-    if (hit.i < 0 && len > 0) // not before first raycast
+    if (hit.i < 0 && !terminate)
     {
         float weight = 1.0f;
         bool lastSpecular = ReadU32(lastSpecular, tasks);
@@ -83,15 +98,14 @@ kernel void logic(
         }
 #endif
 
-        float3 T = ReadFloat3(T, tasks);
 		float3 newEi = ReadFloat3(Ei, tasks) + weight * T * bg;
 		WriteFloat3(Ei, tasks, newEi);
-		emitterHit = true;
+		terminate = true;
     }
 
 #ifdef USE_AREA_LIGHT
     // Implicit area light sample
-    else if (hit.areaLightHit)
+    else if (hit.areaLightHit && !terminate)
     {
 
 		float misWeight = 1.0f;
@@ -106,12 +120,11 @@ kernel void logic(
 		}
 
 		// Pdf (i.e. extension ray pdf = lastPdfW) included in prob
-		float3 T = ReadFloat3(T, tasks);
 		float3 newEi = ReadFloat3(Ei, tasks) + T * misWeight * params->areaLight.E;
 		WriteFloat3(Ei, tasks, newEi);
         
 		// No reflective lights
-        emitterHit = true;
+        terminate = true;
     }
 #endif
 
@@ -139,31 +152,8 @@ kernel void logic(
         WriteFloat3(Ei, tasks, newEi);
     }
 
-    float3 T = ReadFloat3(T, tasks);
-
-    // Russian roulette
-    float contProb = 1.0f;
-	bool terminate = (len >= params->maxBounces + 1); // bounces = path_length - 1
-    if (terminate && params->useRoulette)
-    {
-		contProb = clamp(luminance(T), 0.01f, 0.5f);
-		terminate = (rand(&seed) > contProb);
-    }
-
-    // Compensate for RR
-	T /= contProb;
-    WriteFloat3(T, tasks, T);
-
-    // Terminate if throughput is zero
-	if (isZero(T) || ReadF32(lastPdfW, tasks) == 0.0f)
-		terminate = true;
-
-    // First iteration
-    if (len == 0)
-        terminate = true;
-
     // Image accumulation
-	if (emitterHit || terminate)
+    if (terminate)
     {
         if (len > 0)
         {
@@ -277,22 +267,23 @@ kernel void logic(
             L = normalize(L);
 
             float cosLight = max(dot(params->areaLight.N, -L), 0.0f);
-            float directPdfW = pdfAtoW(directPdfA, lenL, cosLight);
-            float cosTh = max(0.0f, dot(L, hit.N));
-            float3 emission = params->areaLight.E;
             
-            // Update path state
-            WriteFloat3(shadowOrig, tasks, orig); // TODO: duplicate
-            WriteFloat3(shadowDir, tasks, L);
-            WriteF32(shadowRayLen, tasks, lenL);
-            WriteF32(lastPdfDirect, tasks, directPdfW);
-            WriteF32(lastCosTh, tasks, cosTh); // TODO: move to bsdf eval kernel?
-            WriteF32(lastLightPickProb, tasks, lightPickProb);
-            WriteFloat3(lastEmission, tasks, emission);
-
             // Only use samples that hit emissive side
             if (cosLight > 0.0f)
             {
+                float directPdfW = pdfAtoW(directPdfA, lenL, cosLight);
+                float cosTh = max(0.0f, dot(L, hit.N));
+                float3 emission = params->areaLight.E;
+
+                // Update path state
+                WriteFloat3(shadowOrig, tasks, orig); // TODO: duplicate
+                WriteFloat3(shadowDir, tasks, L);
+                WriteF32(shadowRayLen, tasks, lenL);
+                WriteF32(lastPdfDirect, tasks, directPdfW);
+                WriteF32(lastCosTh, tasks, cosTh); // TODO: move to bsdf eval kernel?
+                WriteF32(lastLightPickProb, tasks, lightPickProb);
+                WriteFloat3(lastEmission, tasks, emission);
+
                 uint idx = atomic_inc(&queueLens->shadowQueue);
                 shadowQueue[idx] = gid;
             }

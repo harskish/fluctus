@@ -141,8 +141,7 @@ void Tracer::update()
 
             // Create and trace primary rays
             clctx->resetPixelIndex();
-            clctx->enqueueWfResetKernel(params);
-            clctx->enqueueWfLogicKernel(params, iteration == 0);
+            clctx->enqueueWfResetKernel(params); // puts all in raygen queue
             clctx->enqueueWfRaygenKernel(params);
             clctx->enqueueWfExtRayKernel(params);
             clctx->enqueueClearWfQueues();
@@ -284,6 +283,7 @@ void Tracer::runBenchmark()
         clctx->updateParams(params);
         clctx->enqueueResetKernel(params);
         clctx->enqueueWfResetKernel(params);
+        clctx->enqueueClearWfQueues();
         clctx->finishQueue();
         clctx->resetStats();
     };
