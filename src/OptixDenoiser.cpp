@@ -43,24 +43,10 @@ void OptixDenoiser::resizeBuffers(PTWindow * window)
     unsigned int width = window->getTexWidth();
     unsigned int height = window->getTexHeight();
 
-    auto resize = [width, height](optix::Buffer& buffer, GLuint pboId)
-    {
-        buffer->setSize(width, height);
+    primal->setSize(width, height);
+    normals->setSize(width, height);
+    albedos->setSize(width, height);
 
-        // Check if we have a GL interop display buffer
-        if (pboId)
-        {
-            buffer->unregisterGLBuffer();
-            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboId);
-            glBufferData(GL_PIXEL_UNPACK_BUFFER, buffer->getElementSize() * width * height, 0, GL_STREAM_DRAW);
-            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-            buffer->registerGLBuffer();
-        }
-    };
-
-    resize(primal, window->getPBO());
-    resize(normals, window->getNormalPBO());
-    resize(albedos, window->getAlbedoPBO());
     setupCommandList(width, height);
 }
 

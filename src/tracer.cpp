@@ -514,7 +514,7 @@ void Tracer::resizeBuffers(int width, int height)
     ProgressView *pv = window->getProgressView();
     if (pv) pv->center();
 
-    window->createTextures();
+    //window->createTextures();
     window->createPBOs();
     clctx->setupPixelStorage(window);
 #ifdef WITH_OPTIX

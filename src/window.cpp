@@ -376,14 +376,6 @@ void PTWindow::createTextures()
 // Create pixel buffer object used by microkernels
 void PTWindow::createPBOs()
 {
-	if (gl_PBO) {
-		glDeleteBuffers(1, &gl_PBO);
-        glDeleteBuffers(1, &gl_normalPBO);
-        glDeleteBuffers(1, &gl_albedoPBO);
-		glDeleteTextures(1, &gl_PBO_texture);
-		glDeleteTextures(1, &gl_denoised_texture);
-	}
-
 	// Size of texture depends on render resolution scale
 	unsigned int width, height;
 	getFBSize(width, height);
@@ -393,18 +385,16 @@ void PTWindow::createPBOs()
 
     auto generate = [&](GLuint *pboPtr)
     {
-        // STREAM_DRAW because of frequent updates
         glGenBuffers(1, pboPtr);
+    };
+
+    auto setSize = [&](GLuint *pboPtr)
+    {
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, *pboPtr);
         glBufferData(GL_PIXEL_UNPACK_BUFFER, this->textureWidth * this->textureHeight * sizeof(GLfloat) * 4, 0, GL_STREAM_DRAW);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     };
 
-    generate(&gl_PBO);
-    generate(&gl_normalPBO);
-    generate(&gl_albedoPBO);
-
-	// Create GL-only texture for PBO displaying
     auto createTexture = [](GLuint* handle)
     {
         glGenTextures(1, handle);
@@ -415,7 +405,26 @@ void PTWindow::createPBOs()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glBindTexture(GL_TEXTURE_2D, 0);
     };
-    
+
+    if (gl_PBO) {
+        // Recreated instead of resized
+        glDeleteTextures(1, &gl_PBO_texture);
+        glDeleteTextures(1, &gl_denoised_texture);
+    }
+    else
+    {
+        // Create from scratch
+        generate(&gl_PBO);
+        generate(&gl_normalPBO);
+        generate(&gl_albedoPBO);
+    }
+
+    // (Re)set size of all
+    setSize(&gl_PBO);
+    setSize(&gl_normalPBO);
+    setSize(&gl_albedoPBO);
+
+    // Create GL-only texture for PBO displaying
     createTexture(&gl_PBO_texture);
     createTexture(&gl_denoised_texture);
 }
