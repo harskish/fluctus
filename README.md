@@ -14,14 +14,19 @@ OpenCL wavefront path tracer
 - [Wavefront path tracing][wavefront] at interactive framerates
     - Optimized structure of arrays data layout
     - Efficient BVH with [spatial splits][sbvh]
+- OptiX AI denoiser (on supported NVIDIA hardware)
 - Supports a wide variety of systems
     - Cross-platform (Windows, MacOS, Linux)
     - NVIDIA, AMD and Intel GPUs and CPUs
     - CPU debugging with [Intel's OpenCL SDK][intel_ocl]
 - Nanogui-based [user interface](gallery/user_interface.png)
-	- Uses only modern OpenGL (3.3+)
-	- Drag and drop scene files and environment maps
-- Kernel binary caching for much faster startup
+    - Uses only modern OpenGL (3.3+)
+    - Drag and drop scene files and environment maps
+- Custom kernel class with several convenience features
+    - Kernel arguments set by name (not by idx)
+    - Supports conservative recompilation when preprocessor definitions change
+    - Kernel binaries cached for massive speedup
+	
 
 
 ## Usage
