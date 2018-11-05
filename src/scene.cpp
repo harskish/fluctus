@@ -16,8 +16,9 @@ Scene::Scene()
     def.map_Kd = -1;
     def.map_Ks = -1;
     def.map_N = -1;
-    def.type = BXDF_GLOSSY;
+    def.type = BXDF_DIFFUSE;
     materials.push_back(def);
+    materialTypes |= def.type;
 }
 
 Scene::~Scene()
@@ -265,6 +266,7 @@ void Scene::loadObjWithMaterials(const std::string filePath, ProgressView *progr
         m.type = parseShaderType(t_mat.unknown_parameter["shader"]);
 
         materials.push_back(m);
+        materialTypes |= m.type;
     }
 }
 

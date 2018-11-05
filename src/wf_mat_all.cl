@@ -1,10 +1,10 @@
 #include "utils.cl"
-#include "bxdf.cl"
+#include "bxdf_partial.cl"
 
 kernel void wavefrontAllMaterials(
     global GPUTaskState *tasks,
     global QueueCounters *queueLens,
-    global uint *diffuseQueue,
+    global uint *materialQueue,
     global uint *extensionQueue,
     global Material *materials,
     global uchar *texData,
@@ -14,10 +14,10 @@ kernel void wavefrontAllMaterials(
 )
 {
     const uint gid_direct = get_global_id(0);
-    if (gid_direct >= queueLens->diffuseQueueLen)
+    if (gid_direct >= queueLens->diffuseQueue) // technically stored in diffuse queue
         return;
 
-    uint gid = diffuseQueue[gid_direct];
+    uint gid = materialQueue[gid_direct];
     uint seed = ReadU32(seed, tasks);
 
     Hit hit = readHitSoA(tasks, gid, numTasks);

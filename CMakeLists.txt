@@ -37,6 +37,7 @@ set(SOURCE_FILES
     src/progressview.cpp
     src/progressview.hpp
     src/geom.h
+	src/bxdf_types.h
     src/kernelreader.cpp
     src/kernelreader.hpp
     src/tracer.cpp

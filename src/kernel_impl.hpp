@@ -222,6 +222,32 @@ private:
     }
 };
 
+class WFAllMaterialsKernel : public flt::Kernel
+{
+private:
+    void setArgs() override {
+        CLContext *ctx = getCtxPtr(userPtr);
+        int err = 0;
+        err |= setArg("tasks", ctx->deviceBuffers.tasksBuffer);
+        err |= setArg("queueLens", ctx->deviceBuffers.queueCounters);
+        err |= setArg("materialQueue", ctx->deviceBuffers.diffuseMatQueue);
+        err |= setArg("extensionQueue", ctx->deviceBuffers.extensionQueue);
+        err |= setArg("materials", ctx->deviceBuffers.materialBuffer);
+        err |= setArg("texData", ctx->deviceBuffers.texDataBuffer);
+        err |= setArg("textures", ctx->deviceBuffers.texDescriptorBuffer);
+        err |= setArg("params", ctx->deviceBuffers.renderParams);
+        err |= setArg("numTasks", ctx->getNumTasks());
+        verify(err, "Failed to set wf_all_mats arguments!");
+    }
+
+    std::string getAdditionalBuildOptions() override {
+        // Only handle material types that exist in scene
+        Tracer* tracer = static_cast<Tracer*>(userPtr);
+        unsigned int typeBits = tracer->getScene()->getMaterialTypes();
+        return getBxdfDefines(typeBits);
+    }
+};
+
 class WFResetKernel : public flt::Kernel
 {
 private:
@@ -329,6 +355,11 @@ private:
         const RenderParams& params = tracer->getParams();
         std::string opts;
         if (tracer->useDenoiser) opts.append(" -DUSE_OPTIX_DENOISER");
+
+        // Only check for material types that exist
+        unsigned int typeBits = tracer->getScene()->getMaterialTypes();
+        opts.append(getBxdfDefines(typeBits));
+
         return opts;
     }
 };

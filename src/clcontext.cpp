@@ -105,7 +105,9 @@ void CLContext::setup(PTWindow *window)
 
     // Build kernels, set their params
     initMCBuffers();
-    setupKernels();
+    
+    // Kernels are setup after loading a scene
+    // This is so that only the relevant material code is included
 }
 
 void CLContext::setupKernels()
@@ -129,6 +131,7 @@ void CLContext::setupKernels()
     setupWfGGXReflKernel();
     setupWfGGXRefrKernel();
     setupWfDeltaKernel();
+    setupWfAllMaterialsKernel();
 
     // Other
     setupPickKernel();
@@ -281,6 +284,15 @@ void CLContext::setupWfDeltaKernel()
     wf_delta->build("src/wf_mat_delta.cl", "wavefrontDelta", context, device, platform);
 }
 
+void CLContext::setupWfAllMaterialsKernel()
+{
+    if (!wf_mat_all)
+        wf_mat_all = new WFAllMaterialsKernel();
+
+    window->showMessage("Building kernel", "wf_mat_all");
+    wf_mat_all->build("src/wf_mat_all.cl", "wavefrontAllMaterials", context, device, platform);
+}
+
 void CLContext::setupWfResetKernel()
 {
     if (!wf_reset)
@@ -351,11 +363,6 @@ void CLContext::setupPostprocessKernel()
 
     window->showMessage("Building kernel", "mk_postprocess");
     mk_postprocess->build("src/mk_postprocess.cl", "process", context, device, platform);
-}
-
-CLContext::~CLContext()
-{
-    std::cout << "Calling CLContext destructor!" << std::endl;
 }
 
 void CLContext::setupPixelStorage(PTWindow *window)
@@ -762,7 +769,7 @@ void CLContext::enqueueNextVertexKernel(const RenderParams &params)
     verify("Failed to enqueue next vertex kernel!");
 }
 
-void CLContext::enqueueBsdfSampleKernel(const RenderParams &params, const cl_uint iteration)
+void CLContext::enqueueBsdfSampleKernel(const RenderParams &params)
 {
     // Enqueue 1D range
     err = 0;
@@ -770,12 +777,8 @@ void CLContext::enqueueBsdfSampleKernel(const RenderParams &params, const cl_uin
     verify("Failed to enqueue bsdf sample kernel!");
 }
 
-void CLContext::enqueueSplatKernel(const RenderParams &params, const cl_uint iteration)
+void CLContext::enqueueSplatKernel(const RenderParams &params)
 {
-    err = 0;
-    err |= mk_splat->setArg("iteration", iteration);
-    verify("Failed to set mk_splat arguments!");
-
     // TODO: find out why my GTX 780 won't enqueue 1D kernels! (due to image2d_type?)
     // TODO: also, look at having global wg be a multiple of local wg (or a multiple of 32/64)
     err = cmdQueue.enqueueNDRangeKernel(mk_splat->getKernel(), cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
@@ -836,11 +839,18 @@ void CLContext::enqueueWfLogicKernel(const RenderParams& params, const bool firs
 
 void CLContext::enqueueWfMaterialKernels(const RenderParams & params)
 {
-    enqueueWfDiffuseKernel(params);
-    enqueueWfGlossyKernel(params);
-    enqueueWfGGXReflKernel(params);
-    enqueueWfGGXRefrKernel(params);
-    enqueueWfDeltaKernel(params);
+    if (params.wfSeparateQueues)
+    {
+        enqueueWfDiffuseKernel(params);
+        enqueueWfGlossyKernel(params);
+        enqueueWfGGXReflKernel(params);
+        enqueueWfGGXRefrKernel(params);
+        enqueueWfDeltaKernel(params);
+    }
+    else
+    {
+        enqueueWfAllMaterialsKernel(params);
+    }
 }
 
 void CLContext::enqueueWfDiffuseKernel(const RenderParams & params)
@@ -871,6 +881,12 @@ void CLContext::enqueueWfDeltaKernel(const RenderParams & params)
 {
     err = cmdQueue.enqueueNDRangeKernel(wf_delta->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_delta");
+}
+
+void CLContext::enqueueWfAllMaterialsKernel(const RenderParams & params)
+{
+    err = cmdQueue.enqueueNDRangeKernel(wf_mat_all->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    verify("Failed to enqueue wf_mat_all");
 }
 
 // Only recompiles kernels that need recompiling

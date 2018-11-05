@@ -8,9 +8,18 @@ int main(int argc, char* argv[])
 {
     Settings &s = Settings::getInstance();
 
+    bool interactiveMode = true;
+
     // Initial size of windowg
     int width = (argc > 1) ? atoi(argv[1]) : s.getWindowWidth();
     int height = (argc > 2) ? atoi(argv[2]) : s.getWindowHeight();
+    int spp = 0;
+
+    if (argc > 3)
+    {
+        spp = atoi(argv[3]);
+        interactiveMode = false;
+    }
 
     ilInit();
     iluInit();
@@ -26,13 +35,12 @@ int main(int argc, char* argv[])
 
     Tracer tracer(width, height);
 
-    // Main loop
-    while(tracer.running())
-    {
-        tracer.update();
-    }
+    if (interactiveMode)
+        tracer.renderInteractive();
+    else
+        tracer.renderSingle(spp);
 
-    glfwTerminate(); // in tracer destructor?
+    glfwTerminate();
 
     return 0;
 }

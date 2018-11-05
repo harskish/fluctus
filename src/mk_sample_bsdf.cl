@@ -3,7 +3,7 @@
 #include "utils.cl"
 #include "intersect.cl"
 #include "env_map.cl"
-#include "bxdf.cl"
+#include "bxdf_partial.cl"
 
 // Microkernel for BSDF sampling and NEE
 // State changes:

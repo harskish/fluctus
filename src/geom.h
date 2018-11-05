@@ -174,6 +174,7 @@ typedef struct
     cl_uint sampleImpl;    // use implicit light source sampling
     cl_uint sampleExpl;    // use next event estimation
     cl_uint useRoulette;   // Luminance-based russian roulette
+    cl_uint wfSeparateQueues; // put wf materials in separate or same queue?
     cl_float worldRadius;
 } RenderParams;
 

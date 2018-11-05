@@ -90,6 +90,28 @@ size_t fileHash(const std::string filename)
     return computeHash((const void*)data.data(), (size_t)pos);
 }
 
+std::string getBxdfDefines(unsigned int typeBits)
+{
+    std::string defines = "";
+    
+    if (typeBits & BXDF_DIFFUSE)
+        defines += " -DBXDF_USE_DIFFUSE";
+    if (typeBits & BXDF_GLOSSY)
+        defines += " -DBXDF_USE_GLOSSY";
+    if (typeBits & BXDF_GGX_ROUGH_REFLECTION)
+        defines += " -DBXDF_USE_GGX_ROUGH_REFLECTION";
+    if (typeBits & BXDF_IDEAL_REFLECTION)
+        defines += " -DBXDF_USE_IDEAL_REFLECTION";
+    if (typeBits & BXDF_GGX_ROUGH_DIELECTRIC)
+        defines += " -DBXDF_USE_GGX_ROUGH_DIELECTRIC";
+    if (typeBits & BXDF_IDEAL_DIELECTRIC)
+        defines += " -DBXDF_USE_IDEAL_DIELECTRIC";
+    if (typeBits & BXDF_EMISSIVE)
+        defines += " -DBXDF_USE_EMISSIVE";
+
+    return defines;
+}
+
 std::string getCLErrorString(int code)
 {
     const int SIZE = 64;

@@ -31,6 +31,7 @@ public:
     std::shared_ptr<EnvironmentMap> getEnvMap() { return envmap; }
 
     std::string hashString();
+    unsigned int getMaterialTypes() { return materialTypes; }
 
 private:
     void loadObjModel(const std::string filename);
@@ -51,4 +52,5 @@ private:
   std::vector<Material> materials;
   std::vector<Texture*> textures;
   size_t hash;
+  unsigned int materialTypes = 0; // bits represent material types present in scene
 };

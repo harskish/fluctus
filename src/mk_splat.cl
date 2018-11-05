@@ -1,7 +1,7 @@
 #include "geom.h"
 
 // x and y include offsets when supersampling
-kernel void splat(global GPUTaskState *tasks, global float *pixels, global RenderParams *params, global RenderStats *stats, uint numTasks, uint iteration)
+kernel void splat(global GPUTaskState *tasks, global float *pixels, global RenderParams *params, global RenderStats *stats, uint numTasks)
 {
     //const size_t gid = get_global_id(0);
     const size_t gid = get_global_id(0) + get_global_id(1) * params->width;

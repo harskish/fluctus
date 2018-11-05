@@ -31,9 +31,6 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
 
     // done whenever a new scene is selected
     init(width, height);
-    
-    // Show toolbar
-    toggleGUI();
 }
 
 // Run whenever a scene is loaded
@@ -51,6 +48,7 @@ void Tracer::init(int width, int height, std::string sceneFile)
     params.sampleImpl = (cl_uint)true;
     params.sampleExpl = (cl_uint)true;
     params.useRoulette = (cl_uint)false;
+    params.wfSeparateQueues = (cl_uint)false;
 
     window->showMessage("Loading scene");
     selectScene(sceneFile);
@@ -73,6 +71,95 @@ void Tracer::init(int width, int height, std::string sceneFile)
 
     // Hide status message
     window->hideMessage();
+}
+
+// Render interactive preview
+void Tracer::renderInteractive()
+{
+    // Show toolbar
+    toggleGUI();
+
+    while (running())
+    {
+        update();
+    }
+}
+
+// Final frame render with predefined spp
+void Tracer::renderSingle(int spp, bool denoise)
+{
+    const bool drawProgress = true;
+
+    // Currently only MK can guarantee given spp for every pixel
+    if (useWavefront)
+        toggleRenderer();
+
+    // Setup
+    if (params.useRoulette)
+    {
+        std::cout << "Turning off russian roulette" << std::endl;
+        params.useRoulette = false;
+    }
+
+    if (denoise)
+    {
+        useDenoiser = true;
+        clctx->recompileKernels(false);
+    }
+
+    clctx->updateParams(params);
+    clctx->enqueueResetKernel(params);
+
+    std::cout << "Rendering " << spp << " spp at " << params.maxBounces << " bounces" << std::endl;
+
+    // Render loop
+    int sample = 0;
+    while(sample < spp && running())
+    {
+        if (drawProgress)
+        {
+            window->draw();
+            glFinish();
+        }
+        
+        clctx->enqueueRayGenKernel(params);
+
+        for (int bounce = 0; bounce < params.maxBounces + 1; bounce++)
+        {
+            clctx->enqueueNextVertexKernel(params);
+            clctx->enqueueBsdfSampleKernel(params);
+        }
+
+        // Splat results
+        clctx->enqueueSplatKernel(params); // transitions all to raygen
+
+        // Postprocess
+        clctx->enqueuePostprocessKernel(params);
+
+        // Finish command queue
+        clctx->finishQueue();
+
+        // Check for exit etc.
+        glfwPollEvents();
+
+        if (sample % 10 == 0)
+            std::cout << "\rRendered: " << sample << "/" << spp << std::flush;
+
+        sample++;
+    }
+
+    // Export result
+    clctx->saveImage("output_" + std::to_string(sample) + ".png", params);
+#ifdef WITH_OPTIX
+    if (denoise)
+    {
+        std::cout << "Initializing denoiser..." << std::endl;
+        denoiser.denoise();
+        clctx->saveImage("output_" + std::to_string(sample) + "_denoised.png", params);
+    }
+#else
+    (void)denoise;
+#endif
 }
 
 inline void printStats(CLContext *ctx)
@@ -182,9 +269,9 @@ void Tracer::update()
 
             // Two segments
             clctx->enqueueNextVertexKernel(params);
-            clctx->enqueueBsdfSampleKernel(params, iteration);
+            clctx->enqueueBsdfSampleKernel(params);
             clctx->enqueueNextVertexKernel(params);
-            clctx->enqueueBsdfSampleKernel(params, iteration + 1);
+            clctx->enqueueBsdfSampleKernel(params);
 
             // Preview => also splat incomplete paths
             clctx->enqueueSplatPreviewKernel(params);
@@ -198,10 +285,10 @@ void Tracer::update()
             clctx->enqueueNextVertexKernel(params);
 
             // Direct lighting + environment map IS
-            clctx->enqueueBsdfSampleKernel(params, iteration);
+            clctx->enqueueBsdfSampleKernel(params);
 
             // Splat results
-            clctx->enqueueSplatKernel(params, iteration);
+            clctx->enqueueSplatKernel(params);
         }
     }
 
@@ -349,8 +436,8 @@ void Tracer::runBenchmark()
             {
                 clctx->enqueueRayGenKernel(params);
                 clctx->enqueueNextVertexKernel(params);
-                clctx->enqueueBsdfSampleKernel(params, iteration);
-                clctx->enqueueSplatKernel(params, frontBuffer);
+                clctx->enqueueBsdfSampleKernel(params);
+                clctx->enqueueSplatKernel(params);
             }
 
             clctx->enqueuePostprocessKernel(params);
@@ -862,6 +949,7 @@ void Tracer::handleKeypress(int key, int scancode, int action, int mods)
         matchInit(GLFW_KEY_I,           params.maxBounces += 1);
         matchInit(GLFW_KEY_K,           params.maxBounces = std::max(1u, params.maxBounces) - 1);
         matchInit(GLFW_KEY_M,           toggleSamplingMode());
+        matchInit(GLFW_KEY_C,           params.wfSeparateQueues = 1 - params.wfSeparateQueues);
 
         // Don't force init
         matchKeep(GLFW_KEY_F2,          saveState());

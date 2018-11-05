@@ -30,13 +30,13 @@ friend class Tracer;
 
 public:
     CLContext();
-    ~CLContext();
+    ~CLContext() = default;
 
 	void enqueueResetKernel(const RenderParams &params);
 	void enqueueRayGenKernel(const RenderParams &params);
     void enqueueNextVertexKernel(const RenderParams &params);
-    void enqueueBsdfSampleKernel(const RenderParams &params, const cl_uint iteration);
-    void enqueueSplatKernel(const RenderParams &params, const cl_uint iteration);
+    void enqueueBsdfSampleKernel(const RenderParams &params);
+    void enqueueSplatKernel(const RenderParams &params);
     void enqueueSplatPreviewKernel(const RenderParams &params);
     void enqueuePostprocessKernel(const RenderParams &params);
     
@@ -87,6 +87,7 @@ private:
     void enqueueWfGGXReflKernel(const RenderParams &params);
     void enqueueWfGGXRefrKernel(const RenderParams &params);
     void enqueueWfDeltaKernel(const RenderParams &params);
+    void enqueueWfAllMaterialsKernel(const RenderParams &params);
     
     void setupKernels();
 	void setupResetKernel();
@@ -107,6 +108,7 @@ private:
     void setupWfGGXReflKernel();
     void setupWfGGXRefrKernel();
     void setupWfDeltaKernel();
+    void setupWfAllMaterialsKernel();
     void initMCBuffers();
 
     void setKernelBuildSettings();
@@ -149,6 +151,7 @@ private:
     flt::Kernel* wf_ggx_refl = nullptr;
     flt::Kernel* wf_ggx_refr = nullptr;
     flt::Kernel* wf_delta = nullptr;
+    flt::Kernel* wf_mat_all = nullptr;
 
     
     // Device memory shared with GL

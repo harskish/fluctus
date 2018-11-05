@@ -31,6 +31,10 @@ public:
     Tracer(int width, int height);
     ~Tracer();
 
+    // Two modes of operation
+    void renderInteractive();
+    void renderSingle(int spp, bool denoise = false);
+
     bool running();
     void update();
     void runBenchmark();
@@ -44,6 +48,7 @@ public:
 
     CLContext* getClContext() { return clctx; };
     const RenderParams& getParams() { return params; }
+    std::shared_ptr<Scene> getScene() { return scene; }
 
     bool useDenoiser = false;
 
@@ -117,7 +122,7 @@ private:
     bool mouseButtonState[3] = { false, false, false };
     bool paramsUpdatePending = true; // force initial param update
 
-    std::unique_ptr<Scene> scene;
+    std::shared_ptr<Scene> scene;
     std::shared_ptr<EnvironmentMap> envMap;
     BVH *bvh = nullptr;
     std::vector<RTTriangle>* m_triangles;

@@ -5,6 +5,7 @@
 #include <glad/glad.h>
 #include <vector>
 #include "cl2.hpp"
+#include "bxdf_types.h"
 
 // Determine target
 #if _WIN32 || _WIN64
@@ -71,3 +72,6 @@ std::string saveFileDialog(const std::string message, const std::string defaultP
 
 size_t computeHash(const void* buffer, size_t length);
 size_t fileHash(const std::string filename);
+
+// Get define string used to compile only relevant material eval logic
+std::string getBxdfDefines(unsigned int typeBits);
