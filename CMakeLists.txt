@@ -73,6 +73,11 @@ set(SOURCE_FILES
     src/utils.h
     src/utils.cpp)
 
+# Add configuration file if available
+if (EXISTS "${CMAKE_SOURCE_DIR}/settings.json")
+	file(GLOB PROJECT_CONFIGS settings.json)
+endif()
+
 # OptiX for AI denoiser, optional
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 set(OptiX_INSTALL_DIR "$ENV{OptiX_INSTALL_DIR}" CACHE PATH "Path to OptiX installed location.")
@@ -101,7 +106,7 @@ include_directories(${INCLUDE_DIRS})
 file(GLOB PROJECT_KERNELS src/*.cl)
 source_group("Kernels" FILES ${PROJECT_KERNELS})
 
-add_executable(Fluctus ${SOURCE_FILES} ${PROJECT_KERNELS})
+add_executable(Fluctus ${SOURCE_FILES} ${PROJECT_KERNELS} ${PROJECT_CONFIGS})
 target_link_libraries(Fluctus ${LIBRARIES})
 
 set_target_properties(Fluctus PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
