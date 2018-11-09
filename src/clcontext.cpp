@@ -40,6 +40,14 @@ CLContext::CLContext()
 		platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
 	#endif
 
+    if (clDevices.size() == 0)
+    {
+        std::cout << "No device found that matches the given criteria. Check settings.json." << std::endl;
+        waitExit();
+    }
+        
+
+
     // Init shared context
     #ifdef __APPLE__
         CGLContextObj kCGLContext = CGLGetCurrentContext();
