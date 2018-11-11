@@ -239,7 +239,14 @@ inline float luminance(float3 v)
 }
 
 // OpenCL has no native atomic floats
+// https://devtalk.nvidia.com/default/topic/458062/atomicadd-float-float-atomicmul-float-float-/
 inline void atomic_add_float(volatile __global float* addr, float value)
+{
+    float old = value;
+    while ((old = atomic_xchg(addr, atomic_xchg(addr, 0.0f) + old)) != 0.0f);
+}
+
+inline void atomic_add_float_v2(volatile __global float* addr, float value)
 {
     union {
         unsigned int u32;

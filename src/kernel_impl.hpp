@@ -55,6 +55,7 @@ private:
         if (params.useEnvMap) opts.append(" -DUSE_ENV_MAP");
         if (params.sampleExpl) opts.append(" -DSAMPLE_EXPLICIT");
         if (params.sampleImpl) opts.append(" -DSAMPLE_IMPLICIT");
+        if (!params.wfSeparateQueues) opts.append(" -DWF_SINGLE_MAT_QUEUE");
         return opts;
     }
 };

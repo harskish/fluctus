@@ -31,6 +31,9 @@ public:
     Tracer(int width, int height);
     ~Tracer();
 
+    // Load given scene (or open selector)
+    void init(int width, int height, std::string sceneFile = "");
+
     // Two modes of operation
     void renderInteractive();
     void renderSingle(int spp, bool denoise = false);
@@ -57,6 +60,7 @@ private:
     FloatWidget* addFloatWidget(nanogui::Popup* parent, std::string title,
         std::string key, float vMin, float vMax, std::function<void(float)> updateFunc);
     void setupToolbar();
+    void resetParams(int width, int height);
     void addRendererSettings(nanogui::Widget *parent);
     void addCameraSettings(nanogui::Widget *parent);
     void addTonemapSettings(nanogui::Widget *parent);
@@ -104,7 +108,6 @@ private:
     void toggleRenderer();
     void toggleDenoiserVisibility();
     void initEnvMap();
-    void init(int width, int height, std::string sceneFile = "");
 
 #ifdef WITH_OPTIX
     OptixDenoiser denoiser;

@@ -9,6 +9,8 @@
 
 Tracer::Tracer(int width, int height) : useWavefront(true)
 {
+    resetParams(width, height);
+
     // For getting build options from program state
     flt::Kernel::setUserPointer((void*)this);
 
@@ -16,6 +18,8 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     initCamera();
     initPostProcessing();
     initAreaLight();
+
+    scene.reset(new Scene());
 
     // done only once (VS debugging stops working if context is recreated)
     window = new PTWindow(width, height, this); // this = glfw user pointer
@@ -28,13 +32,9 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     window->setupGUI();
     clctx->setup(window);
     setupToolbar();
-
-    // done whenever a new scene is selected
-    init(width, height);
 }
 
-// Run whenever a scene is loaded
-void Tracer::init(int width, int height, std::string sceneFile)
+void Tracer::resetParams(int width, int height)
 {
     float renderScale = Settings::getInstance().getRenderScale();
 
@@ -49,6 +49,12 @@ void Tracer::init(int width, int height, std::string sceneFile)
     params.sampleExpl = (cl_uint)true;
     params.useRoulette = (cl_uint)false;
     params.wfSeparateQueues = (cl_uint)false;
+}
+
+// Run whenever a scene is loaded
+void Tracer::init(int width, int height, std::string sceneFile)
+{
+    resetParams(width, height);
 
     window->showMessage("Loading scene");
     selectScene(sceneFile);

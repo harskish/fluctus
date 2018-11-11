@@ -63,7 +63,7 @@ void Kernel::build(std::string path, std::string entryPoint, cl::Context& contex
     // Check build log
     std::string buildLog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
     if (buildLog.length() > 2)
-        std::cout << "\n[" << path << " build log]:" << filename << std::endl;
+        std::cout << "\n[" << path << " build log]:" << buildLog << std::endl;
 
     verify(err, "Kernel compilation failed");
 #else

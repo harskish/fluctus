@@ -113,9 +113,7 @@ void CLContext::setup(PTWindow *window)
 
     // Build kernels, set their params
     initMCBuffers();
-    
-    // Kernels are setup after loading a scene
-    // This is so that only the relevant material code is included
+    setupKernels();
 }
 
 void CLContext::setupKernels()

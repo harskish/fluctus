@@ -4,9 +4,9 @@
 #include "env_map.cl"
 
 void addToMaterialQueueLocalAtomics(const uint, const Material, global QueueCounters*,
-    global uint*, global uint*, global uint*, global uint*, global uint*, bool);
+    global uint*, global uint*, global uint*, global uint*, global uint*);
 void addToMaterialQueueNaive(const uint, const Material, global QueueCounters*,
-    global uint*, global uint*, global uint*, global uint*, global uint*, bool);
+    global uint*, global uint*, global uint*, global uint*, global uint*);
 
 // Logic kernel
 kernel void logic(
@@ -298,8 +298,8 @@ kernel void logic(
 
     WriteU32(seed, tasks, seed);
 
-    //addToMaterialQueueLocalAtomics(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue, (bool)params->wfSeparateQueues);
-    addToMaterialQueueNaive(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue, (bool)params->wfSeparateQueues);
+    //addToMaterialQueueLocalAtomics(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue);
+    addToMaterialQueueNaive(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue);
 }
 
 
@@ -316,16 +316,19 @@ inline void addToMaterialQueueNaive(
     global uint* glossyQueue,
     global uint* ggxReflQueue,
     global uint* ggxRefrQueue,
-    global uint* deltaQueue,
-    bool useSeparateQueues
+    global uint* deltaQueue
 )
 {
     global uint *queue;
     global uint *queueLen;
-    if (useSeparateQueues)
+
+#ifdef WF_SINGLE_MAT_QUEUE
+    // Store all in 'diffuse' queue
+    queue = diffuseQueue;
+    queueLen = &queueLens->diffuseQueue;
+#else
+    switch (mat.type)
     {
-        switch (mat.type)
-        {
         case BXDF_DIFFUSE:
             queue = diffuseQueue;
             queueLen = &queueLens->diffuseQueue;
@@ -350,14 +353,8 @@ inline void addToMaterialQueueNaive(
         default:
             printf("WF_LOGIC: INCORRECT MATERIAL TYPE!\n");
             return;
-        }
     }
-    else
-    {
-        // Store all in 'diffuse' queue
-        queue = diffuseQueue;
-        queueLen = &queueLens->diffuseQueue;
-    }
+#endif
     
     uint idx = atomic_inc(queueLen);
     queue[idx] = gid;
@@ -365,7 +362,7 @@ inline void addToMaterialQueueNaive(
 
 // Minimize global atomics
 // No real performance gain on GTX 1060 3GB
-inline void addToMaterialQueueLocalAtomics(
+kernel void addToMaterialQueueLocalAtomics(
     const uint gid,
     const Material mat,
     global QueueCounters *queueLens,
@@ -373,8 +370,7 @@ inline void addToMaterialQueueLocalAtomics(
     global uint* glossyQueue,
     global uint* ggxReflQueue,
     global uint* ggxRefrQueue,
-    global uint* deltaQueue,
-    bool useSeparateQueues
+    global uint* deltaQueue
 )
 {
     local uint nDiffuse, nGlossy, nGGXRefl, nGGXRefr, nDelta;
@@ -386,10 +382,13 @@ inline void addToMaterialQueueLocalAtomics(
     global uint* queueLenGlobal;
     local uint* queueLenLocal;
 
-    if (useSeparateQueues)
+#ifdef WF_SINGLE_MAT_QUEUE
+    queue = diffuseQueue;
+    queueLenGlobal = &queueLens->diffuseQueue;
+    queueLenLocal = &nDiffuse;
+#else
+    switch (mat.type)
     {
-        switch (mat.type)
-        {
         case BXDF_DIFFUSE:
             queue = diffuseQueue;
             queueLenGlobal = &queueLens->diffuseQueue;
@@ -419,14 +418,8 @@ inline void addToMaterialQueueLocalAtomics(
         default:
             printf("WF_LOGIC: INCORRECT MATERIAL TYPE: %d (gid %u)!\n", mat.type, gid);
             return;
-        }
     }
-    else
-    {
-        queue = diffuseQueue;
-        queueLenGlobal = &queueLens->diffuseQueue;
-        queueLenLocal = &nDiffuse;
-    }
+#endif
 
     
     // Count material types locally
