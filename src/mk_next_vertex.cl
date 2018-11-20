@@ -44,7 +44,16 @@ kernel void nextVertex(
 
     // Update render statistics
     global uint *len = &ReadU32(pathLen, tasks);
+#ifdef NVIDIA
+    const uint isPrimary = ballot_sync(*len == 0, activemask());
+    if (laneid() == 0)
+    {
+        atomic_add(&stats->primaryRays, popcnt(isPrimary));
+        atomic_add(&stats->extensionRays, popcnt(~isPrimary));
+    }
+#else
     atomic_inc((*len == 0) ? &stats->primaryRays : &stats->extensionRays);
+#endif
     *len += 1;
 
     // Accumulate first hit normal (in camera space) for denoiser

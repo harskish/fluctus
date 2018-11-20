@@ -66,7 +66,7 @@ kernel void genRays(
     WriteFloat3(dir, tasks, rayDirection);
 
     // Add paths to extension queue
-    uint extIdx = atomic_inc(&queueLens->extensionQueue);
+    uint extIdx = atomicIncAll(&queueLens->extensionQueue);
     extensionQueue[extIdx] = gid;
 
     // TODO: pixel pointer has to be updated on HOST

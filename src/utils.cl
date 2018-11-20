@@ -3,6 +3,7 @@
 
 #include "geom.h"
 #include "random.cl"
+#include "ptx_asm.cl"
 
 #define printVec3(title, v) printf("%s: { %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z)
 #define printVec4(title, v) printf("%s: { %.4f, %.4f, %.4f, %.4f }\n", title, (v).x, (v).y, (v).z, (v).w)
@@ -318,6 +319,42 @@ inline float3 mulMat3x3(const float3 r1, const float3 r2, const float3 r3, const
 inline float4 mulMat4x4(const float4 r1, const float4 r2, const float4 r3, const float4 r4, const float4 v)
 {
     return (float4)(dot(r1, v), dot(r2, v), dot(r3, v), dot(r4, v));
+}
+
+
+// Don't use within an if clause - activemask catches threads which have
+// exited (returned), not those that aren't participating in the current branch.
+// If within a branch, evaluate the mask with ballot and use atomicAggInc directly.
+inline uint atomicIncAll(global uint* ctr)
+{
+#ifdef NVIDIA
+    return atomicAggInc(ctr, activemask());
+#else
+    return atomic_inc(ctr);
+#endif
+}
+
+// Place inside an if clause, and also provide a matching mask
+inline uint atomicIncMasked(global uint* ctr, const uint mask)
+{
+#ifdef NVIDIA
+    return atomicAggInc(ctr, mask);
+#else
+    (void)mask;
+    return atomic_inc(ctr);
+#endif
+}
+
+// More efficient implementation when no return value is needed
+inline void atomicIncCounter(global uint* ctr)
+{
+#ifdef NVIDIA
+    const uint increment = popcnt(activemask());
+    if (laneid() == 0)
+        atomic_inc(ctr, increment);
+#else
+    atomic_inc(ctr);
+#endif
 }
 
 #endif

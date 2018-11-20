@@ -1,4 +1,5 @@
 #include "geom.h"
+#include "utils.cl"
 
 // x and y include offsets when supersampling
 kernel void splat(global GPUTaskState *tasks, global float *pixels, global RenderParams *params, global RenderStats *stats, uint numTasks)
@@ -20,7 +21,7 @@ kernel void splat(global GPUTaskState *tasks, global float *pixels, global Rende
 	float4 prev = vload4(gid, pixels);
 	if (prev.w > 0.0f) color += prev;
 	vstore4(color, gid, pixels);
-    atomic_inc(&stats->samples);
+    atomicIncCounter(&stats->samples);
 
 	// Reset path state
 	const float3 zero = (float3)(0.0f);

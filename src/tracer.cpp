@@ -514,7 +514,7 @@ void Tracer::runBenchmark()
     std::string outpath = saveFileDialog("Save results", "", { "*.txt", "*.csv" });
     if (outpath != "")
     {
-        if (!endsWith(outpath, ".csv") && !endsWith(outpath, ".txt")) outpath += ".txt";
+        if (!endsWith(outpath, ".csv") && !endsWith(outpath, ".txt")) outpath += ".csv";
         std::ofstream outfile(outpath);
 
         if (!outfile.good()) {
@@ -955,7 +955,7 @@ void Tracer::handleKeypress(int key, int scancode, int action, int mods)
         matchInit(GLFW_KEY_I,           params.maxBounces += 1);
         matchInit(GLFW_KEY_K,           params.maxBounces = std::max(1u, params.maxBounces) - 1);
         matchInit(GLFW_KEY_M,           toggleSamplingMode());
-        matchInit(GLFW_KEY_C,           params.wfSeparateQueues = 1 - params.wfSeparateQueues);
+        matchInit(GLFW_KEY_C,           params.wfSeparateQueues = 1 - params.wfSeparateQueues; printf("\nSeparate queues: %u\n", params.wfSeparateQueues));
 
         // Don't force init
         matchKeep(GLFW_KEY_F2,          saveState());

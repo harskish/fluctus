@@ -20,12 +20,13 @@ public:
     ~Kernel(void) = default;
 
     explicit operator bool() const { return m_kernel() != nullptr; }
+    operator cl::Kernel&() { return m_kernel; }
 
     // Build, but only if needed!
     void build(std::string path, std::string entryPoint, cl::Context& context, cl::Device& device, cl::Platform& platform, bool setArgs = true);
     void rebuild(bool setArgs);
 
-    cl::Kernel& getKernel() { return m_kernel; }
+    //cl::Kernel& getKernel() { return m_kernel; }
 
     template <typename T>
     cl_int setArg(const std::string name, const T& value) {

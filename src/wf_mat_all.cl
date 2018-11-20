@@ -1,5 +1,6 @@
 #include "utils.cl"
 #include "bxdf_partial.cl"
+#include "ptx_asm.cl"
 
 kernel void wavefrontAllMaterials(
     global GPUTaskState *tasks,
@@ -59,6 +60,6 @@ kernel void wavefrontAllMaterials(
 	WriteU32(lastSpecular, tasks, BXDF_IS_SINGULAR(mat.type));
 
     // Add to extension queue
-    uint idx = atomic_inc(&queueLens->extensionQueue);
+    uint idx = atomicIncAll(&queueLens->extensionQueue);
     extensionQueue[idx] = gid;
 }

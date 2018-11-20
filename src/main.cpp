@@ -83,7 +83,7 @@ int main(int argc, char* argv[])
         if (scenes.size() > 0)
             tracer.init(width, height, scenes[0]);
         else
-            tracer.init(width, height);
+            tracer.init(width, height, "assets/egyptcat/egyptcat.obj");
         
         std::cout << "Starting in interactive mode" << std::endl;
         tracer.renderInteractive();

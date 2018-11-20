@@ -194,7 +194,7 @@ void CLContext::setKernelBuildSettings()
     Settings &s = Settings::getInstance();
     if (s.getUseBitstack()) buildOpts += " -DUSE_BITSTACK";
     if (s.getUseSoA()) buildOpts += " -DUSE_SOA";
-    if (platformIsNvidia(platform)) buildOpts += " -cl-nv-verbose";
+    if (platformIsNvidia(platform)) buildOpts += " -DNVIDIA -cl-nv-verbose";
 
     // Static, shared by all kernels
     flt::Kernel::setBuildOptions(buildOpts);
@@ -757,21 +757,21 @@ void CLContext::updateParams(const RenderParams &params)
 void CLContext::enqueueResetKernel(const RenderParams &params)
 {
 	err = 0;
-	err |= cmdQueue.enqueueNDRangeKernel(mk_reset->getKernel(), cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+	err |= cmdQueue.enqueueNDRangeKernel(*mk_reset, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
 	verify("Failed to enqueue reset kernel!");
 }
 
 void CLContext::enqueueRayGenKernel(const RenderParams &params)
 {
     // Enqueue 1D range
-    err = cmdQueue.enqueueNDRangeKernel(mk_raygen->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*mk_raygen, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue ray gen kernel!");
 }
 
 void CLContext::enqueueNextVertexKernel(const RenderParams &params)
 {
     // Enqueue 1D range
-    err = cmdQueue.enqueueNDRangeKernel(mk_next_vertex->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*mk_next_vertex, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue next vertex kernel!");
 }
 
@@ -779,7 +779,7 @@ void CLContext::enqueueBsdfSampleKernel(const RenderParams &params)
 {
     // Enqueue 1D range
     err = 0;
-    err = cmdQueue.enqueueNDRangeKernel(mk_sample_bsdf->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*mk_sample_bsdf, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue bsdf sample kernel!");
 }
 
@@ -787,13 +787,13 @@ void CLContext::enqueueSplatKernel(const RenderParams &params)
 {
     // TODO: find out why my GTX 780 won't enqueue 1D kernels! (due to image2d_type?)
     // TODO: also, look at having global wg be a multiple of local wg (or a multiple of 32/64)
-    err = cmdQueue.enqueueNDRangeKernel(mk_splat->getKernel(), cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*mk_splat, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     verify("Failed to enqueue splat kernel!");
 }
 
 void CLContext::enqueueSplatPreviewKernel(const RenderParams &params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(mk_splat_preview->getKernel(), cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*mk_splat_preview, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
     verify("Failed to enqueue splat preview kernel!");
 }
 
@@ -803,7 +803,7 @@ void CLContext::enqueuePostprocessKernel(const RenderParams & params)
     verify("Failed to enqueue GL object acquisition!");
 
     // 1D range
-    err = cmdQueue.enqueueNDRangeKernel(mk_postprocess->getKernel(), cl::NullRange, cl::NDRange(params.width * params.height), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*mk_postprocess, cl::NullRange, cl::NDRange(params.width * params.height), cl::NullRange);
     verify("Failed to enqueue postprocess kernel!");
 
     err = cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
@@ -813,33 +813,33 @@ void CLContext::enqueuePostprocessKernel(const RenderParams & params)
 void CLContext::enqueueWfResetKernel(const RenderParams & params)
 {
     cl_uint numElems = std::max(NUM_TASKS, params.width * params.height);
-    err = cmdQueue.enqueueNDRangeKernel(wf_reset->getKernel(), cl::NullRange, cl::NDRange(numElems), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_reset, cl::NullRange, cl::NDRange(numElems), cl::NullRange);
     verify("Failed to enqueue wf_reset");
 }
 
 void CLContext::enqueueWfRaygenKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_raygen->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_raygen, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_raygen");
 }
 
 void CLContext::enqueueWfExtRayKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_extension->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &extRayEvent);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_extension, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &extRayEvent);
     verify("Failed to enqueue wf_extension");
 }
 
 void CLContext::enqueueWfShadowRayKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_shadow->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &shdwRayEvent);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_shadow, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange, 0, &shdwRayEvent);
     verify("Failed to enqueue wf_shadow");
 }
 
 void CLContext::enqueueWfLogicKernel(const RenderParams& params, const bool firstIteration)
 {
-    cl_uint numElems = (firstIteration) ? std::max(NUM_TASKS, params.width * params.height) : NUM_TASKS;
+    cl_uint numElems = ((NUM_TASKS - 1) / 32 + 1) * 32;
     err |= wf_logic->setArg("firstIteration", (cl_uint)firstIteration);
-    err |= cmdQueue.enqueueNDRangeKernel(wf_logic->getKernel(), cl::NullRange, cl::NDRange(numElems), cl::NullRange);
+    err |= cmdQueue.enqueueNDRangeKernel(*wf_logic, cl::NullRange, cl::NDRange(numElems), cl::NullRange);
     verify("Failed to enqueue wf_logic");
 }
 
@@ -861,37 +861,37 @@ void CLContext::enqueueWfMaterialKernels(const RenderParams & params)
 
 void CLContext::enqueueWfDiffuseKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_diffuse->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_diffuse, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_diffuse");
 }
 
 void CLContext::enqueueWfGlossyKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_glossy->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_glossy, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_glossy");
 }
 
 void CLContext::enqueueWfGGXReflKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refl->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_ggx_refl, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_ggx_refl");
 }
 
 void CLContext::enqueueWfGGXRefrKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_ggx_refr->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_ggx_refr, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_ggx_refr");
 }
 
 void CLContext::enqueueWfDeltaKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_delta->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_delta, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_delta");
 }
 
 void CLContext::enqueueWfAllMaterialsKernel(const RenderParams & params)
 {
-    err = cmdQueue.enqueueNDRangeKernel(wf_mat_all->getKernel(), cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
+    err = cmdQueue.enqueueNDRangeKernel(*wf_mat_all, cl::NullRange, cl::NDRange(NUM_TASKS), cl::NullRange);
     verify("Failed to enqueue wf_mat_all");
 }
 
@@ -962,7 +962,7 @@ Hit CLContext::pickSingle(float NDCx, float NDCy)
 
     Hit hit;
 
-    err |= cmdQueue.enqueueNDRangeKernel(kernel_pick->getKernel(), cl::NullRange, cl::NDRange(1), cl::NullRange);
+    err |= cmdQueue.enqueueNDRangeKernel(*kernel_pick, cl::NullRange, cl::NDRange(1), cl::NullRange);
     err |= cmdQueue.enqueueReadBuffer(deviceBuffers.pickResult, CL_FALSE, 0, 1 * sizeof(Hit), &hit);
     cmdQueue.finish();
     verify("Failed to execute pick kernel or get result");

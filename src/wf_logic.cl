@@ -7,6 +7,8 @@ void addToMaterialQueueLocalAtomics(const uint, const Material, global QueueCoun
     global uint*, global uint*, global uint*, global uint*, global uint*);
 void addToMaterialQueueNaive(const uint, const Material, global QueueCounters*,
     global uint*, global uint*, global uint*, global uint*, global uint*);
+void addToMaterialQueueWarpNVIDIA(const uint, const Material, global QueueCounters*,
+    global uint*, global uint*, global uint*, global uint*, global uint*);
 
 // Logic kernel
 kernel void logic(
@@ -39,10 +41,11 @@ kernel void logic(
 )
 {
     uint gid = get_global_id(0);
+	uint lid = get_local_id(0);
     uint maxId = firstIteration ? min(params->width * params->height, numTasks) : numTasks;
 
-    if (gid >= maxId)
-        return;
+	if (gid >= maxId)
+		return;
 
     uint seed = ReadU32(seed, tasks);
     uint len = ReadU32(pathLen, tasks);
@@ -153,6 +156,10 @@ kernel void logic(
     }
 
     // Image accumulation
+    uint terminateMask = 0;
+#ifdef NVIDIA
+    terminateMask = ballot_sync(terminate, activemask());
+#endif
     if (terminate)
     {
         if (len > 0)
@@ -162,8 +169,7 @@ kernel void logic(
             add_float4(pixels + pixIdx * 4, color);
         }
 
-        // Put into raygen queue
-        uint idx = atomic_inc(&queueLens->raygenQueue);
+        uint idx = atomicIncMasked(&queueLens->raygenQueue, terminateMask);
         raygenQueue[idx] = gid;
 
         WriteU32(seed, tasks, seed);
@@ -298,8 +304,13 @@ kernel void logic(
 
     WriteU32(seed, tasks, seed);
 
-    //addToMaterialQueueLocalAtomics(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue);
+#ifdef NVIDIA
+    addToMaterialQueueLocalAtomics(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue);
+    //addToMaterialQueueWarpNVIDIA(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue);
+#else
     addToMaterialQueueNaive(gid, mat, queueLens, diffuseQueue, glossyQueue, ggxReflQueue, ggxRefrQueue, deltaQueue);
+#endif
+    
 }
 
 
@@ -437,3 +448,72 @@ kernel void addToMaterialQueueLocalAtomics(
     uint idx = *queueLenLocal + posLocal;
     queue[idx] = gid;
 }
+
+
+#ifdef NVIDIA
+// NVIDIA-only solution that uses warp-level voting
+#include "ptx_asm.cl"
+
+inline void addToMaterialQueueWarpNVIDIA(
+    const uint gid,
+    const Material mat,
+    global QueueCounters *queueLens,
+    global uint* diffuseQueue,
+    global uint* glossyQueue,
+    global uint* ggxReflQueue,
+    global uint* ggxRefrQueue,
+    global uint* deltaQueue
+)
+{
+    const uint mask_active = activemask();
+
+#ifdef WF_SINGLE_MAT_QUEUE
+    // Store all in 'diffuse' queue
+    uint idx = atomicAggInc(&queueLens->diffuseQueue, mask_active);
+    diffuseQueue[idx] = gid;
+#else
+    uint idx;
+    uint matMask;
+
+    const uint laneid = get_local_id(0) % 32;
+    const uint thmask = 1 << laneid;
+
+    matMask = ballot_sync(mat.type & BXDF_DIFFUSE, mask_active);
+    if (matMask & thmask)
+    {
+        idx = atomicAggInc(&queueLens->diffuseQueue, matMask);
+        diffuseQueue[idx] = gid;
+    }
+
+    matMask = ballot_sync(mat.type & BXDF_GLOSSY, mask_active);
+    if (matMask & thmask)
+    {
+        idx = atomicAggInc(&queueLens->glossyQueue, matMask);
+        glossyQueue[idx] = gid;
+    }
+
+    matMask = ballot_sync(mat.type & BXDF_GGX_ROUGH_REFLECTION, mask_active);
+    if (matMask & thmask)
+    {
+        idx = atomicAggInc(&queueLens->ggxReflQueue, matMask);
+        ggxReflQueue[idx] = gid;
+    }
+
+    matMask = ballot_sync(mat.type & BXDF_GGX_ROUGH_DIELECTRIC, mask_active);
+    if (matMask & thmask)
+    {
+        idx = atomicAggInc(&queueLens->ggxRefrQueue, matMask);
+        ggxRefrQueue[idx] = gid;
+    }
+
+    matMask = ballot_sync(mat.type & (BXDF_IDEAL_REFLECTION | BXDF_IDEAL_DIELECTRIC), mask_active);
+    if (matMask & thmask)
+    {
+        idx = atomicAggInc(&queueLens->deltaQueue, matMask);
+        deltaQueue[idx] = gid;
+    }
+
+#endif
+}
+
+#endif

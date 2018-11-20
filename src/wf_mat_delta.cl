@@ -63,6 +63,6 @@ kernel void wavefrontDelta(
 	WriteU32(lastSpecular, tasks, BXDF_IS_SINGULAR(mat.type));
 
     // Add to extension queue
-    uint idx = atomic_inc(&queueLens->extensionQueue);
+    uint idx = atomicIncAll(&queueLens->extensionQueue);
     extensionQueue[idx] = gid;
 }
