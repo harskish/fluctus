@@ -351,7 +351,7 @@ inline void atomicIncCounter(global uint* ctr)
 #ifdef NVIDIA
     const uint increment = popcnt(activemask());
     if (laneid() == 0)
-        atomic_inc(ctr, increment);
+        atomic_add(ctr, increment);
 #else
     atomic_inc(ctr);
 #endif
