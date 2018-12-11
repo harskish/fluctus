@@ -1,5 +1,6 @@
 *.png
 *.csv
+*.spv
 assets/
 hierarchies/
 data/states/
