@@ -103,6 +103,7 @@ endif()
 find_package(OpenCL 1.2 REQUIRED) # 1.2+ for getArgInfo, not strictly vital
 find_package(OpenGL REQUIRED)
 find_package(DevIL REQUIRED)
+find_package(Vulkan REQUIRED)
 
 # Fix broken DevIL include
 if(IL_INCLUDE_DIR MATCHES ".*\/IL$")

@@ -5,25 +5,37 @@ project(Fluctus)
 add_definitions(-DCL_HPP_MINIMUM_OPENCL_VERSION=120)
 add_definitions(-DCL_HPP_TARGET_OPENCL_VERSION=120)
 add_definitions(-DNOMINMAX)
+add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
 
 add_subdirectory(ext ext_build)
 
+option(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
+option(ASSIMP_BUILD_SAMPLES OFF)
+option(ASSIMP_BUILD_TESTS OFF)
+add_subdirectory(ext/assimp)
+
 set(INCLUDE_DIRS
 	ext/nanogui/include
+	ext/assimp/include
+	ext/glm/include
+	ext/gli/include
     ${GLEW_INCLUDE_DIR}
     ${NANOGUI_EXTRA_INCS}
     ${IL_INCLUDE_DIR}
     ${GLFW_INCLUDE_DIRS}
     ${OpenCL_INCLUDE_DIR}
     ${OPENGL_INCLUDE_DIR}
+	${Vulkan_INCLUDE_DIR}
     include
 )
 
 set(LIBRARIES
 	nanogui
+	assimp
     ${NANOGUI_EXTRA_LIBS}
     ${OPENGL_LIBRARIES}
     ${OpenCL_LIBRARY}
+	${Vulkan_LIBRARY}
     ${IL_LIBRARIES}
     ${ILU_LIBRARIES}
 )
@@ -71,7 +83,16 @@ set(SOURCE_FILES
     src/GLProgram.cpp
     src/GLProgram.hpp
     src/utils.h
-    src/utils.cpp)
+    src/utils.cpp
+    src/VulkanFW/glfw/glfw.cpp
+	src/VulkanFW/vks/storage.cpp
+	src/VulkanFW/vks/shaders.cpp
+	src/VulkanFW/vks/model.cpp
+	src/VulkanFW/vks/debug.cpp
+	src/VulkanFW/vks/context.cpp
+    src/VulkanFW/vks/filesystem.cpp
+	src/HWAccelerator.hpp
+	src/HWAccelerator.cpp)
 
 # Add configuration file if available
 if (EXISTS "${CMAKE_SOURCE_DIR}/settings.json")
