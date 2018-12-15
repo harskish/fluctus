@@ -8,24 +8,33 @@ HWAccelerator::HWAccelerator(void)
         std::cout << "Could not init GLFW" << std::endl;
         exit(1);
     }
-    setupWindow();
+    
+    if (RT_TEST_WINDOW)
+        setupWindow();
+    else
+        std::cout << "RT test: no window!" << std::endl;
+
     initVulkan();
     setupSwapchain();
     prepare();
 
-    // TEST render loop
-    while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
+    if (RT_TEST_WINDOW) {
+        // TEST render loop
+        while (!glfwWindowShouldClose(window)) {
+            glfwPollEvents();
 
-        // Render frame
-        if (prepared) {
-            draw();
-            traceRays();
-            updateUniformBuffers();
+            // Render frame
+            if (prepared) {
+                draw();
+                traceRays();
+                updateUniformBuffers();
+            }
         }
-    }
 
-    exit(1);
+        exit(1);
+    }
+    
+    std::cout << "HWAccelerator init done" << std::endl;
 }
 
 void HWAccelerator::draw() {
@@ -267,7 +276,7 @@ void HWAccelerator::createRaytracingCommandBuffer()
     raytracingCmdBuffer = device.allocateCommandBuffers({ cmdPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
 }
 
-void HWAccelerator::preparePipelines() {
+void HWAccelerator::prepareRasterizationPipeline() {
     vks::model::VertexLayout vertexLayoutQuad{ {
         vks::model::VERTEX_COMPONENT_POSITION,
         vks::model::VERTEX_COMPONENT_COLOR,
@@ -593,7 +602,8 @@ void HWAccelerator::setupWindow() {
 
 void HWAccelerator::setupSwapchain() {
     swapChain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
-    swapChain.setSurface(surface);
+    if (RT_TEST_WINDOW)
+        swapChain.setSurface(surface);
 }
 
 void HWAccelerator::prepareUniformBuffers() {
@@ -678,14 +688,15 @@ void HWAccelerator::loadAssets() {
 void HWAccelerator::prepare() {
     cmdPool = context.getCommandPool();
 
-    swapChain.create(size, enableVsync);
-    setupDepthStencil();
-    setupRenderPass();
-    setupRenderPassBeginInfo();
-    setupFrameBuffer();
-    //setupUi();
+    if (RT_TEST_WINDOW) {
+        swapChain.create(size, enableVsync);
+        setupDepthStencil();
+        setupRenderPass();
+        setupRenderPassBeginInfo();
+        setupFrameBuffer();
+    }
+    
     loadAssets();
-
     getRTDeviceInfo();
     loaderNV = vk::DispatchLoaderDynamic(context.instance, device);  // get NV function pointers at runtime
     getRaytracingQueue();
@@ -694,12 +705,18 @@ void HWAccelerator::prepare() {
     prepareUniformBuffers();
     prepareTextureTarget(textureRaytracingTarget, this->width, this->height, vk::Format::eR8G8B8A8Unorm);
     setupDescriptorSetLayout();
-    preparePipelines();
+    
+    if (RT_TEST_WINDOW)
+        prepareRasterizationPipeline();
+    
     setupDescriptorPool();
     setupDescriptorSet();
     prepareRaytracing();
     setupShaderBindingTable();
-    buildCommandBuffers();
+    
+    if (RT_TEST_WINDOW)
+        buildCommandBuffers();
+    
     updateRaytracingCommandBuffer();
     prepared = true;
 }
@@ -871,26 +888,35 @@ void HWAccelerator::initVulkan()
         // getEnabledFeatures(); => returns nothing
     });
 
-    // Window extensions not needed (not drawing UI w/ Vulkan)
-    context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
-
-    context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
+    if (RT_TEST_WINDOW) {
+        // Window extensions not needed (not drawing UI w/ Vulkan)
+        context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
+        context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
+    }
+    
     context.createInstance(version);
 
-    surface = glfw::Window::createWindowSurface(window, context.instance);
+    if (RT_TEST_WINDOW) {
+        surface = glfw::Window::createWindowSurface(window, context.instance);
+        context.createDevice(surface);
 
-    context.createDevice(surface);
+        // Find a suitable depth format
+        depthFormat = context.getSupportedDepthFormat();
+        // A semaphore used to synchronize image presentation
+        // Ensures that the image is displayed before we start submitting new commands to the queu
+        semaphores.acquireComplete = device.createSemaphore({});
+        // A semaphore used to synchronize command submission
+        // Ensures that the image is not presented until all commands have been sumbitted and executed
+        semaphores.renderComplete = device.createSemaphore({});
 
-    // Find a suitable depth format
-    depthFormat = context.getSupportedDepthFormat();
-    // A semaphore used to synchronize image presentation
-    // Ensures that the image is displayed before we start submitting new commands to the queu
-    semaphores.acquireComplete = device.createSemaphore({});
-    // A semaphore used to synchronize command submission
-    // Ensures that the image is not presented until all commands have been sumbitted and executed
-    semaphores.renderComplete = device.createSemaphore({});
+        renderWaitSemaphores.push_back(semaphores.acquireComplete);
+        renderWaitStages.push_back(vk::PipelineStageFlagBits::eBottomOfPipe);
+        renderSignalSemaphores.push_back(semaphores.renderComplete);
+    }
+    else {
+        context.createDevice();
+    }
+    
 
-    renderWaitSemaphores.push_back(semaphores.acquireComplete);
-    renderWaitStages.push_back(vk::PipelineStageFlagBits::eBottomOfPipe);
-    renderSignalSemaphores.push_back(semaphores.renderComplete);
+    
 }

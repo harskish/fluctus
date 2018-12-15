@@ -87,6 +87,7 @@ void Tracer::renderInteractive()
 
     while (running())
     {
+        accelerator.traceRays();
         update();
     }
 }

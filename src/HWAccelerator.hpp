@@ -11,6 +11,10 @@
 #include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
 
+// TEST: create window?
+constexpr bool RT_TEST_WINDOW = false;
+
+
 constexpr int RT_STAGE_COUNT = 6;
 constexpr int RT_GROUP_COUNT = 5;
 
@@ -21,12 +25,13 @@ struct VertexModel {
 };
 
 
-
 class HWAccelerator
 {
 public:
     HWAccelerator(void);
     ~HWAccelerator(void) = default;
+
+    void traceRays();
 
 private:
     void getRTDeviceInfo();
@@ -47,12 +52,6 @@ private:
     void prepareFrame();
     void submitFrame();
     void drawCurrentCommandBuffer();
-    //void windowResize(const glm::uvec2& newSize);
-    void traceRays();
-
-    //void windowResized();
-    //void mouseScrolled();
-    //void viewChanged();
 
 private:
     struct InstanceNV {
@@ -122,7 +121,7 @@ private:
     void setupDescriptorSet();
     void setupDescriptorSetLayout();
     void updateDescriptorSets();
-    void preparePipelines();
+    void prepareRasterizationPipeline();
     void setupQueryPool();
 
     /* 
