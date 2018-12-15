@@ -7,13 +7,8 @@
 #include <vector>
 #include <tclap/CmdLine.h>
 
-#include "HWAccelerator.hpp"
-
 int main(int argc, char* argv[])
 {
-    auto acc = new HWAccelerator();
-    exit(1);
-
     Settings &s = Settings::getInstance();
 
     int width;

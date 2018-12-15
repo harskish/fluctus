@@ -22,9 +22,10 @@ HWAccelerator::HWAccelerator(void)
             draw();
             traceRays();
             updateUniformBuffers();
-            //update(tDiffSeconds);
         }
     }
+
+    exit(1);
 }
 
 void HWAccelerator::draw() {
@@ -40,40 +41,15 @@ void HWAccelerator::prepareFrame() {
     // Acquire the next image from the swap chaing
     auto resultValue = swapChain.acquireNextImage(semaphores.acquireComplete);
     if (resultValue.result == vk::Result::eSuboptimalKHR) {
-#if !defined(__ANDROID__)
         glm::ivec2 newSize;
         glfwGetWindowSize(window, &newSize.x, &newSize.y);
-        windowResize(newSize);
         resultValue = swapChain.acquireNextImage(semaphores.acquireComplete);
-#endif
     }
     currentBuffer = resultValue.value;
 }
 
 void HWAccelerator::submitFrame() {
-    bool submitOverlay = false; // settings.overlay && ui.visible;
-    
-    /*
-    if (submitOverlay) {
-        vk::SubmitInfo submitInfo;
-        // Wait for color attachment output to finish before rendering the text overlay
-        vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eBottomOfPipe;
-        submitInfo.pWaitDstStageMask = &stageFlags;
-        // Wait for render complete semaphore
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &semaphores.renderComplete;
-        // Signal ready with UI overlay complete semaphpre
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &semaphores.overlayComplete;
-
-        // Submit current UI overlay command buffer
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &ui.cmdBuffers[currentBuffer];
-        queue.submit({ submitInfo }, {});
-    }
-    */
-
-    swapChain.queuePresent(submitOverlay ? semaphores.overlayComplete : semaphores.renderComplete);
+    swapChain.queuePresent(semaphores.renderComplete);
 }
 
 void HWAccelerator::drawCurrentCommandBuffer() {
@@ -100,44 +76,6 @@ void HWAccelerator::drawCurrentCommandBuffer() {
     }
 
     context.recycle();
-}
-
-void HWAccelerator::windowResize(const glm::uvec2& newSize) {
-    if (!prepared) {
-        return;
-    }
-    prepared = false;
-
-    queue.waitIdle();
-    device.waitIdle();
-
-    // Recreate swap chain
-    size.width = newSize.x;
-    size.height = newSize.y;
-    swapChain.create(size, enableVsync);
-
-    setupDepthStencil();
-    setupFrameBuffer();
-    setupRenderPassBeginInfo();
-
-    /*
-    if (settings.overlay) {
-        ui.resize(size, framebuffers);
-    }
-    */
-
-    // Notify derived class
-    windowResized();
-
-    // Command buffers need to be recreated as they may store
-    // references to the recreated frame buffer
-    clearCommandBuffers();
-    allocateCommandBuffers();
-    buildCommandBuffers();
-
-    //viewChanged();
-
-    prepared = true;
 }
 
 void HWAccelerator::getRTDeviceInfo()
@@ -211,9 +149,6 @@ void HWAccelerator::prepareTextureTarget(vks::Image & tex, uint32_t width, uint3
 
 void HWAccelerator::updateDrawCommandBuffer(const vk::CommandBuffer & cmdBuffer)
 {
-    // vk::Image memory barrier to make sure that raytracing
-        // shader writes are finished before sampling
-        // from the texture
     vk::ImageMemoryBarrier imageMemoryBarrier;
     imageMemoryBarrier.oldLayout = vk::ImageLayout::eGeneral;
     imageMemoryBarrier.newLayout = vk::ImageLayout::eGeneral;
@@ -346,6 +281,11 @@ void HWAccelerator::preparePipelines() {
     pipelines.display = pipelineCreator.create(context.pipelineCache);
 }
 
+void HWAccelerator::setupQueryPool()
+{
+    (void)rtPerfQueryPool;
+}
+
 void HWAccelerator::buildAccelerationStructure()
 {
     auto buildFlags = vk::BuildAccelerationStructureFlagBitsNV::ePreferFastTrace;
@@ -362,7 +302,6 @@ void HWAccelerator::buildAccelerationStructure()
     bottomHandle = device.createAccelerationStructureNV(vk::AccelerationStructureCreateInfoNV(compactedSize, bottomInfo), nullptr, loaderNV);
 
     // Get required sizes
-    //auto topLevelReq = vk::AccelerationStructureMemoryRequirementsInfoNV(topHandle);
     auto topLevelReq = vk::AccelerationStructureMemoryRequirementsInfoNV(vk::AccelerationStructureMemoryRequirementsTypeNV::eObject, topHandle);
     auto scratchReqTop = vk::AccelerationStructureMemoryRequirementsInfoNV(vk::AccelerationStructureMemoryRequirementsTypeNV::eBuildScratch, topHandle);
     auto storageReqTop2 = device.getAccelerationStructureMemoryRequirementsNV(topLevelReq, loaderNV);
@@ -380,14 +319,9 @@ void HWAccelerator::buildAccelerationStructure()
     vk::MemoryRequirements scratchReqs = scratchReqBot2.memoryRequirements;
     scratchReqs.size = std::max(scratchReqTop2.memoryRequirements.size, scratchReqBot2.memoryRequirements.size);
 
-    // TODO: set alignments and type bits as well!
     scratchMem = context.createBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, scratchReqs.size);
-    //scratchMem = context.createBufferAligned(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, scratchReqs);
-
     topLevelAccBuff = context.createBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, storageReqTop2.memoryRequirements.size);
-    //topLevelAccBuff = context.createBufferAligned(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, storageReqTop2.memoryRequirements);
     bottomLevelAccBuff = context.createBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, storageReqBot2.memoryRequirements.size);
-    //bottomLevelAccBuff = context.createBufferAligned(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, storageReqBot2.memoryRequirements);
 
     // Attach memory to acceleratio structures
     auto topMemoryInfo = vk::BindAccelerationStructureMemoryInfoNV(topHandle, topLevelAccBuff.memory, 0, 0, nullptr);
@@ -572,11 +506,11 @@ void HWAccelerator::setupShaderBindingTable()
 
 void HWAccelerator::updateUniformBuffers()
 {
-    uboRT.lightPos.x = 0.2f; // +sin(glm::radians(timer * 360.0f)) * 1.0f;
+    uboRT.lightPos.x = 0.2f + sin(glm::radians(0.1f * glfwGetTime() * 360.0f)) * 1.0f;
     uboRT.lightPos.y = -0.8f;
     uboRT.lightPos.z = 0.0f;
 
-    uboRT.camPos = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    //uboRT.camPos = camera.position;
     glm::mat3 invR = glm::inverse(glm::mat3(/*camera.matrices.view*/));
     uboRT.invR = glm::mat4(invR);
     uboRT.aspectRatio = (float)size.width / (float)size.height;
@@ -605,32 +539,37 @@ void HWAccelerator::getRaytracingQueue()
 
 void HWAccelerator::traceRays()
 {
+    //raytracingCmdBuffer.writeTimestamp(vk::PipelineStageFlagBits::eAllGraphics, rtPerfQueryPool, 1234, loaderNV);
+    static double lastPrinted = 0;
+
+    double t1 = glfwGetTime();
+
     vk::SubmitInfo raytracingSubmitInfo;
     raytracingSubmitInfo.commandBufferCount = 1;
     raytracingSubmitInfo.pCommandBuffers = &raytracingCmdBuffer;
     raytracingQueue.submit(raytracingSubmitInfo, nullptr);
     raytracingQueue.waitIdle();
-}
 
-void HWAccelerator::windowResized()
-{
-    textureRaytracingTarget.destroy();
-    prepareTextureTarget(textureRaytracingTarget, this->width, this->height, vk::Format::eR8G8B8A8Unorm);
-    updateRaytracingCommandBuffer();
-    updateDescriptorSets();
-    updateRTDescriptorSets();
-    uboRT.aspectRatio = (float)size.width / (float)size.height;
+    double t2 = glfwGetTime();
+
+    // Print every 2 seconds
+    if (t2 - lastPrinted > 2.0) {
+        double delta = t2 - t1;
+        std::cout << "RT wallclock time: " << delta * 1000.0 << "ms" << std::endl;
+        lastPrinted = t2;
+    }
+    
 }
 
 void HWAccelerator::setupWindow() {
     bool fullscreen = false;
-
+    
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto monitor = glfwGetPrimaryMonitor();
     auto mode = glfwGetVideoMode(monitor);
     size.width = mode->width;
     size.height = mode->height;
-
+    
     if (fullscreen) {
         window = glfwCreateWindow(size.width, size.height, "My Title", monitor, nullptr);
     }
@@ -639,7 +578,7 @@ void HWAccelerator::setupWindow() {
         size.height /= 2;
         window = glfwCreateWindow(size.width, size.height, "Window Title", nullptr, nullptr);
     }
-
+    
     glfwSetWindowUserPointer(window, this);
     /*glfwSetKeyCallback(window, KeyboardHandler);
     glfwSetMouseButtonCallback(window, MouseHandler);
@@ -679,8 +618,23 @@ void HWAccelerator::loadAssets() {
     modelCreateInfo.scale = glm::vec3(0.1f, -0.1f, 0.1f);
     modelCreateInfo.uvscale = glm::vec2(1.0f);
     modelCreateInfo.center = glm::vec3(0.0f, 0.0f, 0.0f);
-    meshes.rtMesh.loadFromFile(context, "assets/sibenik/sibenik.dae", vertexLayoutModel, modelCreateInfo);
-    //meshes.rtMesh.loadFromFile(context, "assets/lowpoly/deer.dae", vertexLayoutModel, modelCreateInfo);
+
+#ifdef _DEBUG 
+    constexpr bool useDeer = true;
+#else
+    constexpr bool useDeer = false;
+#endif
+
+    if (useDeer) {
+        modelCreateInfo.scale = glm::vec3(0.1f, -0.1f, -0.1f); // z: turn to face camera
+        meshes.rtMesh.loadFromFile(context, "assets/lowpoly/deer.dae", vertexLayoutModel, modelCreateInfo);
+        uboRT.camPos = glm::vec4(0.0f, 0.0f, -1.2f, 1.0f);
+    }
+    else {
+        meshes.rtMesh.loadFromFile(context, "assets/sibenik/sibenik.dae", vertexLayoutModel, modelCreateInfo);
+        uboRT.camPos = glm::vec4(0.5f, 0.0f, -0.5f, 1.0f);
+    }
+    
     const vk::IndexType meshIndexType = vk::IndexType::eUint32; // loadFromFile uses U32
 
     // Identity transformation for all meshes
@@ -897,6 +851,7 @@ void HWAccelerator::setupFrameBuffer()
 
 void HWAccelerator::initVulkan()
 {
+    context.enableValidation = true;
     context.requireExtensions({ VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME });
     context.requireDeviceExtensions({ VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME });
 
@@ -934,8 +889,6 @@ void HWAccelerator::initVulkan()
     // A semaphore used to synchronize command submission
     // Ensures that the image is not presented until all commands have been sumbitted and executed
     semaphores.renderComplete = device.createSemaphore({});
-
-    semaphores.overlayComplete = device.createSemaphore({});
 
     renderWaitSemaphores.push_back(semaphores.acquireComplete);
     renderWaitStages.push_back(vk::PipelineStageFlagBits::eBottomOfPipe);

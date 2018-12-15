@@ -124,10 +124,14 @@ else()
 endif()
 
 include_directories(${INCLUDE_DIRS})
+
 file(GLOB PROJECT_KERNELS src/*.cl)
 source_group("Kernels" FILES ${PROJECT_KERNELS})
 
-add_executable(Fluctus ${SOURCE_FILES} ${PROJECT_KERNELS} ${PROJECT_CONFIGS})
+file(GLOB PROJECT_VK_SHADERS shaders/*.frag shaders/*.chit shaders/*.ahit)
+source_group("Shaders" FILES ${PROJECT_VK_SHADERS})
+
+add_executable(Fluctus ${SOURCE_FILES} ${PROJECT_KERNELS} ${PROJECT_VK_SHADERS} ${PROJECT_CONFIGS})
 target_link_libraries(Fluctus ${LIBRARIES})
 
 set_target_properties(Fluctus PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")

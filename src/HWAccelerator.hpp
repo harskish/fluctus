@@ -47,10 +47,10 @@ private:
     void prepareFrame();
     void submitFrame();
     void drawCurrentCommandBuffer();
-    void windowResize(const glm::uvec2& newSize);
+    //void windowResize(const glm::uvec2& newSize);
     void traceRays();
 
-    void windowResized();
+    //void windowResized();
     //void mouseScrolled();
     //void viewChanged();
 
@@ -67,7 +67,7 @@ private:
     // Order by size to avoid alignment mismatches between host and device
     struct UboCompute {
         glm::mat4 invR;
-        glm::vec4 camPos = glm::vec4(0.5f, 0.0f, 0.0f, 0.0f);
+        glm::vec4 camPos = glm::vec4(0.5f, 0.0f, 0.0f, 1.0f);
         glm::vec4 lightPos;
         float aspectRatio;
         float fov = 90.0f;
@@ -108,6 +108,7 @@ private:
     vk::DescriptorSet raytracingDescriptorSet;
     vk::DescriptorSetLayout raytracingDescriptorSetLayout;
 
+    vk::QueryPool rtPerfQueryPool;
 
     void setupWindow();
     void setupSwapchain();
@@ -122,8 +123,7 @@ private:
     void setupDescriptorSetLayout();
     void updateDescriptorSets();
     void preparePipelines();
-    //void setupUi();
-    //void loadAssets();
+    void setupQueryPool();
 
     /* 
       ExampleBase
@@ -132,7 +132,6 @@ private:
     void allocateCommandBuffers();
     void buildCommandBuffers();
     void clearCommandBuffers();
-    
 
     GLFWwindow* window{ nullptr };
     std::vector<vk::CommandBuffer> commandBuffers;
@@ -170,16 +169,12 @@ private:
     vk::SurfaceKHR surface;
     // Wraps the swap chain to present images (framebuffers) to the windowing system
     vks::SwapChain swapChain;
-    // Synchronization semaphores
     struct {
-        // Swap chain image presentation
-        vk::Semaphore acquireComplete;
-        // Command buffer submission and execution
+        vk::Semaphore acquireComplete; // swap chain image aquisition
         vk::Semaphore renderComplete;
-        // UI buffer submission and execution
-        vk::Semaphore overlayComplete;
     } semaphores;
     // Command buffer pool
+    
     vk::CommandPool cmdPool;
     bool prepared = false;
     uint32_t version = VK_MAKE_VERSION(1, 1, 0);

@@ -12,6 +12,8 @@
 #include "math/matrix.hpp"
 #include "geom.h"
 
+#include "HWAccelerator.hpp"
+
 #ifdef WITH_OPTIX
 #include "OptixDenoiser.hpp"
 #endif
@@ -135,4 +137,6 @@ private:
     bool hasEnvMap = false;
 
     bool useWavefront;
+
+    HWAccelerator accelerator;
 };
