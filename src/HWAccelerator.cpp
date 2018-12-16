@@ -3,6 +3,7 @@
 #include "geom.h"
 #include <iostream>
 
+
 HWAccelerator::HWAccelerator(void)
 {
     if (!glfwInit()) {
@@ -102,6 +103,29 @@ void HWAccelerator::debugPrintHit0()
         << "    t     " << hit0->t << std::endl
         << "    uv    " << hit0->uvTex << std::endl
         << "    matID " << hit0->matId << std::endl;
+}
+
+void HWAccelerator::createGLObjects()
+{
+    glCreateBuffers(1, &glHandles.hitBuffer);
+
+    // Import semaphores
+    glGenSemaphoresEXT(1, &glHandles.semGlReady);
+    glGenSemaphoresEXT(1, &glHandles.semGlComplete);
+
+    // Platform specific import.  On non-Win32 systems use glImportSemaphoreFdEXT instead
+    glImportSemaphoreWin32HandleEXT(glHandles.semGlReady, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glReady);
+    glImportSemaphoreWin32HandleEXT(glHandles.semGlComplete, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glComplete);
+
+    glCreateMemoryObjectsEXT(1, &glHandles.memShared);
+    glImportMemoryWin32HandleEXT(glHandles.memShared, hitBuffer.allocSize, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.memory);
+
+    // Use the imported memory as backing for the OpenGL texture.  The internalFormat, dimensions
+    // and mip count should match the ones used by Vulkan to create the image and determine it's memory
+    // allocation.
+
+    glBufferStorageMemEXT(glHandles.hitBuffer, hitBuffer.allocSize, glHandles.memShared, 0);
+    //glTextureStorageMem2DEXT(color, 1, GL_RGBA8, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, mem, 0);
 }
 
 void HWAccelerator::getRTDeviceInfo()
@@ -316,7 +340,27 @@ void HWAccelerator::setupSharedBuffers()
 {
     assert(uboRT.numTasks > 0);
     vk::DeviceSize hitBufferSize(uboRT.numTasks * sizeof(Hit));
-    hitBuffer = context.createBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eHostVisible, hitBufferSize);
+    //hitBuffer = context.createGLShareableBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, hitBufferSize);
+    hitBuffer = context.createBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, hitBufferSize);
+
+    return;
+
+    auto memoryHandleType = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32;
+    auto semaphoreHandleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;
+
+    handles.memory = device.getMemoryWin32HandleKHR({ hitBuffer.memory, memoryHandleType }, loaderNV);
+
+    {
+        vk::SemaphoreCreateInfo sci;
+        vk::ExportSemaphoreCreateInfo esci;
+        sci.pNext = &esci;
+        esci.handleTypes = semaphoreHandleType;
+        semaphores.glReady = device.createSemaphore(sci);
+        semaphores.glComplete = device.createSemaphore(sci);
+    }
+
+    handles.glReady = device.getSemaphoreWin32HandleKHR({ semaphores.glReady, semaphoreHandleType }, loaderNV);
+    handles.glComplete = device.getSemaphoreWin32HandleKHR({ semaphores.glComplete, semaphoreHandleType }, loaderNV);
 }
 
 void HWAccelerator::buildAccelerationStructure()
@@ -719,6 +763,7 @@ void HWAccelerator::loadAssets() {
 }
 
 void HWAccelerator::prepare() {
+    loaderNV = vk::DispatchLoaderDynamic(context.instance, device);  // get NV function pointers at runtime
     cmdPool = context.getCommandPool();
     setupSharedBuffers();
 
@@ -732,7 +777,6 @@ void HWAccelerator::prepare() {
     
     loadAssets();
     getRTDeviceInfo();
-    loaderNV = vk::DispatchLoaderDynamic(context.instance, device);  // get NV function pointers at runtime
     getRaytracingQueue();
     buildAccelerationStructure();
     createRaytracingCommandBuffer();
@@ -903,8 +947,28 @@ void HWAccelerator::setupFrameBuffer()
 void HWAccelerator::initVulkan()
 {
     context.enableValidation = true;
-    context.requireExtensions({ VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME });
-    context.requireDeviceExtensions({ VK_NV_RAY_TRACING_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME });
+    context.requireExtensions({
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME
+    });
+    context.requireDeviceExtensions({
+        VK_NV_RAY_TRACING_EXTENSION_NAME,
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
+#if defined(WIN32)
+        VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
+#else
+        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+#endif
+        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+    });
+
+    context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
 
     context.setDeviceFeaturesPicker([this](const vk::PhysicalDevice& device, vk::PhysicalDeviceFeatures2& features) {
         if (deviceFeatures.textureCompressionBC) {

@@ -683,6 +683,38 @@ public:
         return result;
     }
 
+    Buffer createGLShareableBuffer(const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size) const {
+        Buffer result;
+        result.device = device;
+        result.size = size;
+        result.descriptor.range = VK_WHOLE_SIZE;
+        result.descriptor.offset = 0;
+
+        vk::BufferCreateInfo bufferCreateInfo;
+        bufferCreateInfo.usage = usageFlags;
+        bufferCreateInfo.size = size;
+
+        result.descriptor.buffer = result.buffer = device.createBuffer(bufferCreateInfo);
+
+        vk::MemoryRequirements memReqs = device.getBufferMemoryRequirements(result.buffer);
+        vk::MemoryAllocateInfo memAlloc;
+        vk::ExportMemoryAllocateInfo exportAllocInfo{
+            vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32
+        };
+
+        memAlloc.pNext = &exportAllocInfo;
+        result.allocSize = memAlloc.allocationSize = memReqs.size;
+        memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, memoryPropertyFlags);
+        result.memory = device.allocateMemory(memAlloc);
+        device.bindBufferMemory(result.buffer, result.memory, 0);
+
+        //HANDLE sharedMemoryHandle = device.getMemoryWin32HandleKHR({
+        //    result.memory, vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32
+        //});
+
+        return result;
+    }
+
     Buffer createBuffer(const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size) const {
         Buffer result;
         result.device = device;

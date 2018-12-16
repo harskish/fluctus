@@ -32,6 +32,8 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     window->setupGUI();
     clctx->setup(window);
     setupToolbar();
+
+    accelerator.createGLObjects();
 }
 
 void Tracer::resetParams(int width, int height)

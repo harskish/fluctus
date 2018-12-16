@@ -8,8 +8,17 @@
 #include "VulkanFW/vks/pipelines.hpp"
 #include "VulkanFW/vks/texture.hpp"
 
+#ifdef WIN32
+//#include <handleapi.h>
+#else
+Linux / MacOS support still not implemented
+#endif
+
 #include <vulkan/vulkan.hpp>
+
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
+
 
 // TEST: create window?
 constexpr bool RT_TEST_WINDOW = true;
@@ -34,6 +43,7 @@ public:
     void enqueueTraceRays();
     void finish();
     void debugPrintHit0();
+    void createGLObjects();
 
 private:
     void getRTDeviceInfo();
@@ -84,6 +94,20 @@ private:
         vk::Pipeline display;
         vk::Pipeline raytracing;
     } pipelines;
+
+    struct ShareHandles {
+        HANDLE memory = INVALID_HANDLE_VALUE;
+        HANDLE glReady = INVALID_HANDLE_VALUE;
+        HANDLE glComplete = INVALID_HANDLE_VALUE;
+    } handles;
+
+    struct GLHandles {
+        GLuint semGlReady{ 0 };
+        GLuint semGlComplete{ 0 };
+        GLuint memShared{ 0 };
+        GLuint hitBuffer{ 0 };
+    } glHandles;
+    
 
     vk::DispatchLoaderDynamic loaderNV;
     vks::Image textureRaytracingTarget;
@@ -178,6 +202,8 @@ private:
     struct {
         vk::Semaphore acquireComplete; // swap chain image aquisition
         vk::Semaphore renderComplete;
+        vk::Semaphore glReady;
+        vk::Semaphore glComplete;
     } semaphores;
     // Command buffer pool
     

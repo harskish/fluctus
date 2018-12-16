@@ -6,6 +6,7 @@ add_definitions(-DCL_HPP_MINIMUM_OPENCL_VERSION=120)
 add_definitions(-DCL_HPP_TARGET_OPENCL_VERSION=120)
 add_definitions(-DNOMINMAX)
 add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
+add_definitions(-DVK_USE_PLATFORM_WIN32_KHR)
 
 add_subdirectory(ext ext_build)
 
@@ -19,6 +20,7 @@ set(INCLUDE_DIRS
 	ext/assimp/include
 	ext/glm/include
 	ext/gli/include
+	ext/glad/include # overrides glad included by nanogui
     ${GLEW_INCLUDE_DIR}
     ${NANOGUI_EXTRA_INCS}
     ${IL_INCLUDE_DIR}
@@ -91,6 +93,7 @@ set(SOURCE_FILES
 	src/VulkanFW/vks/debug.cpp
 	src/VulkanFW/vks/context.cpp
     src/VulkanFW/vks/filesystem.cpp
+    ext/glad/src/glad.c
 	src/HWAccelerator.hpp
 	src/HWAccelerator.cpp)
 
