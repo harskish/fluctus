@@ -1,5 +1,6 @@
 #include "HWAccelerator.hpp"
 #include "VulkanFW/glfw/glfw.hpp"
+#include "geom.h"
 #include <iostream>
 
 HWAccelerator::HWAccelerator(void)
@@ -26,7 +27,8 @@ HWAccelerator::HWAccelerator(void)
             // Render frame
             if (prepared) {
                 draw();
-                traceRays();
+                enqueueTraceRays();
+                finish();
                 updateUniformBuffers();
             }
         }
@@ -85,6 +87,21 @@ void HWAccelerator::drawCurrentCommandBuffer() {
     }
 
     context.recycle();
+}
+
+void HWAccelerator::debugPrintHit0()
+{
+    if (!hitBuffer.mapped)
+        hitBuffer.map<Hit>(0, 1 * sizeof(Hit));
+    
+    Hit* hit0 = (Hit*)hitBuffer.mapped;
+    std::cout << "Hit 0:\n"
+        << "    i     " << hit0->i << std::endl
+        << "    N     " << hit0->N << std::endl
+        << "    P     " << hit0->P << std::endl
+        << "    t     " << hit0->t << std::endl
+        << "    uv    " << hit0->uvTex << std::endl
+        << "    matID " << hit0->matId << std::endl;
 }
 
 void HWAccelerator::getRTDeviceInfo()
@@ -295,6 +312,13 @@ void HWAccelerator::setupQueryPool()
     (void)rtPerfQueryPool;
 }
 
+void HWAccelerator::setupSharedBuffers()
+{
+    assert(uboRT.numTasks > 0);
+    vk::DeviceSize hitBufferSize(uboRT.numTasks * sizeof(Hit));
+    hitBuffer = context.createBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eHostVisible, hitBufferSize);
+}
+
 void HWAccelerator::buildAccelerationStructure()
 {
     auto buildFlags = vk::BuildAccelerationStructureFlagBitsNV::ePreferFastTrace;
@@ -407,7 +431,7 @@ void HWAccelerator::setupDescriptorPool()
             // Raytracing pipeline:
             { vk::DescriptorType::eStorageImage, 1 },
             { vk::DescriptorType::eAccelerationStructureNV, 2 },
-            { vk::DescriptorType::eStorageBuffer, 2 }, // hit shader: vertices, indices
+            { vk::DescriptorType::eStorageBuffer, 3 }, // hit shader: vertices, indices; rgen: hit buffer
     };
 
     descriptorPool = device.createDescriptorPool({ {}, /*maxSets*/3, (uint32_t)poolSizes.size(), poolSizes.data() });
@@ -421,6 +445,7 @@ void HWAccelerator::prepareRaytracing()
         { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eRaygenNV },
         { 1, vk::DescriptorType::eAccelerationStructureNV, 1, vk::ShaderStageFlagBits::eRaygenNV },
         { 2, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eRaygenNV }, // RT uniform buffer(camera params etc.)
+        { 7, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eRaygenNV }, // raygen hit buffer
         // Intersection stages
         { 3, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eClosestHitNV }, // indices
         { 4, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eClosestHitNV }, // vertices
@@ -491,7 +516,7 @@ void HWAccelerator::updateRTDescriptorSets()
         { nullptr, textureRaytracingTarget.view, vk::ImageLayout::eGeneral },
     };
 
-    std::array<vk::WriteDescriptorSet, 7> rtWriteDescSets;
+    std::array<vk::WriteDescriptorSet, 8> rtWriteDescSets;
     rtWriteDescSets.at(0) = { raytracingDescriptorSet, 0, 0, 1, vk::DescriptorType::eStorageImage, &rtTexDescriptors[0] };
     rtWriteDescSets.at(1) = { raytracingDescriptorSet, 1, 0, 1, vk::DescriptorType::eAccelerationStructureNV }; rtWriteDescSets.at(1).pNext = &accelInfo;
     rtWriteDescSets.at(2) = { raytracingDescriptorSet, 2, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataRaytracing.descriptor };
@@ -499,6 +524,7 @@ void HWAccelerator::updateRTDescriptorSets()
     rtWriteDescSets.at(4) = { raytracingDescriptorSet, 4, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &meshes.rtMesh.vertices.descriptor };
     rtWriteDescSets.at(5) = { raytracingDescriptorSet, 5, 0, 1, vk::DescriptorType::eAccelerationStructureNV }; rtWriteDescSets.at(5).pNext = &accelInfo;
     rtWriteDescSets.at(6) = { raytracingDescriptorSet, 6, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataRaytracing.descriptor };
+    rtWriteDescSets.at(7) = { raytracingDescriptorSet, 7, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &hitBuffer.descriptor };
 
     device.updateDescriptorSets(rtWriteDescSets, nullptr);
 }
@@ -546,28 +572,33 @@ void HWAccelerator::getRaytracingQueue()
     raytracingQueue = device.getQueue(queueIndex, 0);
 }
 
-void HWAccelerator::traceRays()
+void HWAccelerator::enqueueTraceRays()
 {
     //raytracingCmdBuffer.writeTimestamp(vk::PipelineStageFlagBits::eAllGraphics, rtPerfQueryPool, 1234, loaderNV);
-    static double lastPrinted = 0;
+    //static double lastPrinted = 0;
 
-    double t1 = glfwGetTime();
+    //double t1 = glfwGetTime();
 
     vk::SubmitInfo raytracingSubmitInfo;
     raytracingSubmitInfo.commandBufferCount = 1;
     raytracingSubmitInfo.pCommandBuffers = &raytracingCmdBuffer;
     raytracingQueue.submit(raytracingSubmitInfo, nullptr);
-    raytracingQueue.waitIdle();
+    //raytracingQueue.waitIdle();
 
-    double t2 = glfwGetTime();
+    //double t2 = glfwGetTime();
 
     // Print every 2 seconds
-    if (t2 - lastPrinted > 2.0) {
-        double delta = t2 - t1;
-        std::cout << "RT wallclock time: " << delta * 1000.0 << "ms" << std::endl;
-        lastPrinted = t2;
-    }
+    //if (t2 - lastPrinted > 2.0) {
+    //    double delta = t2 - t1;
+    //    std::cout << "RT wallclock time: " << delta * 1000.0 << "ms" << std::endl;
+    //    lastPrinted = t2;
+    //}
     
+}
+
+void HWAccelerator::finish()
+{
+    raytracingQueue.waitIdle();
 }
 
 void HWAccelerator::setupWindow() {
@@ -580,13 +611,15 @@ void HWAccelerator::setupWindow() {
     size.height = mode->height;
     
     if (fullscreen) {
-        window = glfwCreateWindow(size.width, size.height, "My Title", monitor, nullptr);
+        window = glfwCreateWindow(size.width, size.height, "NVRay test window", monitor, nullptr);
     }
     else {
         size.width /= 2;
         size.height /= 2;
-        window = glfwCreateWindow(size.width, size.height, "Window Title", nullptr, nullptr);
+        window = glfwCreateWindow(size.width, size.height, "NVRay test window", nullptr, nullptr);
     }
+
+    uboRT.numTasks = static_cast<unsigned int>(size.width * size.height);
     
     glfwSetWindowUserPointer(window, this);
     /*glfwSetKeyCallback(window, KeyboardHandler);
@@ -687,6 +720,7 @@ void HWAccelerator::loadAssets() {
 
 void HWAccelerator::prepare() {
     cmdPool = context.getCommandPool();
+    setupSharedBuffers();
 
     if (RT_TEST_WINDOW) {
         swapChain.create(size, enableVsync);

@@ -47,6 +47,10 @@ namespace FireRays
         float2& operator *= (float2 const& o) { x*=o.x; y*=o.y; return *this; }
         float2& operator *= (float c) { x*=c; y*=c; return *this; }
         float2& operator /= (float c) { float cinv = 1.f/c; x*=cinv; y*=cinv; return *this; }
+
+        friend std::ostream& operator<< (std::ostream& stream, const float2& v) {
+            return stream << "<" << v.x << "," << v.y << ">";
+        }
     };
 
 

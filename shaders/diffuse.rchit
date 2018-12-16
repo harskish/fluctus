@@ -1,6 +1,8 @@
 #version 460
 #extension GL_NV_ray_tracing : require
 
+#include "utils.glsl"
+
 // Aligned as vec4
 struct Vertex {
 	vec3 pos;
@@ -8,9 +10,7 @@ struct Vertex {
 	vec3 color;
 };
 
-layout(location = 0) rayPayloadInNV Payload {
-	vec3 color;
-} payload;
+layout(location = 0) rayPayloadInNV PrimaryPayload payload;
 
 layout(location = 1) rayPayloadNV ShadowPayload {
 	uint blocked;
@@ -35,6 +35,7 @@ layout (std140, binding = 6) readonly uniform UBO
 	vec4 lightPos;
 	float aspectRatio;
 	float fov;
+	uint numTasks;
 } ubo;
 
 const vec3 lightColor = vec3(1.0, 1.0, 1.0);
@@ -55,7 +56,7 @@ void main() {
 	vec3 N0 = vertices[i0].normal;
 	vec3 N1 = vertices[i1].normal;
 	vec3 N2 = vertices[i2].normal;
-	vec3 N = bar.x * N0 + bar.y * N1 + bar.z * N2;
+	vec3 N = normalize(bar.x * N0 + bar.y * N1 + bar.z * N2);
 
 	vec3 dirIn = gl_WorldRayDirectionNV;
 	dirIn.y *= -1.0;
@@ -72,4 +73,14 @@ void main() {
 		payload.color = abs(dot(L, N)) * C * lightColor * lightIntensity / (lightDist * lightDist);
 	else
 		payload.color = C * 0.05;
+
+	// Write to hit buffer
+	Hit hit;
+	hit.i = int(gl_PrimitiveID);
+	hit.matId = 0;
+	hit.t = gl_HitTNV;
+	hit.P = posWorld;
+	hit.N = N;
+	hit.uvTex = vec2(0.0);
+	payload.hit = hit;
 }

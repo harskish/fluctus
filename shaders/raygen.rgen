@@ -1,6 +1,8 @@
 #version 460
 #extension GL_NV_ray_tracing : require
 
+#include "utils.glsl"
+
 layout(binding = 0, rgba8) uniform writeonly image2D image;
 layout(binding = 1) uniform accelerationStructureNV bvh;
 
@@ -11,16 +13,16 @@ layout (std140, binding = 2) readonly uniform UBO
 	vec4 lightPos;
 	float aspectRatio;
 	float fov;
+	uint numTasks;
 } ubo;
 
-layout(location = 0) rayPayloadNV Payload {
-	vec3 color;
-} payload;
-
-struct Ray {
-    vec3 origin;
-    vec3 direction;
+layout(std430, binding = 7) buffer HitBuffer {
+    Hit hits[];
 };
+
+layout(location = 0) rayPayloadNV PrimaryPayload payload;
+
+
 
 float toRad(float deg) {
 	return deg * 3.141592 / 360.0;
@@ -42,9 +44,16 @@ Ray generate_ray(vec2 filmPos) {
 
 void main() {
     Ray ray = generate_ray(vec2(gl_LaunchIDNV.xy) + vec2(0.5));
-	const uint rayFlags = gl_RayFlagsOpaqueNV;
 	
+	// Gid starts in lower left, grows towards the right
+	const uint gid = gl_LaunchIDNV.y * gl_LaunchSizeNV.x + gl_LaunchIDNV.x;
+	if (gid > ubo.numTasks)
+		return;
+
+	// TODO: shadow/extension/primary flag in ubo
+
 	// https://github.com/KhronosGroup/GLSL/blob/master/extensions/nvx/GLSL_NVX_raytracing.txt
+	const uint rayFlags = gl_RayFlagsOpaqueNV;
 	traceNV(
 		bvh,              // top level accel
 		rayFlags,         // rayFlags
@@ -58,5 +67,8 @@ void main() {
 		1e+5f,            // tMax
 		0);               // payload idx (for using different payloads)
 	
+	Hit hit = payload.hit;
+	hits[gid] = hit;
+
 	imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(payload.color, 1.0));
 }

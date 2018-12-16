@@ -87,8 +87,10 @@ void Tracer::renderInteractive()
 
     while (running())
     {
-        accelerator.traceRays();
+        accelerator.enqueueTraceRays();
         update();
+        accelerator.finish();
+        accelerator.debugPrintHit0();
     }
 }
 

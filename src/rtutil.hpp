@@ -57,10 +57,6 @@ struct AABB_t {
 	}
 };
 
-inline std::ostream& operator<<(std::ostream& os, const float4& v) {
-    return os << "(" << v.x << ", " << v.y << ", " << v.z << ", " << v.w << ")";
-}
-
 inline std::ostream& operator<<(std::ostream& os, const AABB_t& bb) {
     return os << "BB(" << bb.min << ", " << bb.max << ")";
 }

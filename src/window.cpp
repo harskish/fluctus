@@ -87,6 +87,7 @@ PTWindow::PTWindow(int width, int height, void *tracer)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_DOUBLEBUFFER, GL_FALSE); // no vsync
     //glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
     window = glfwCreateWindow(width, height, "Fluctus", NULL, NULL); // monitor, share

@@ -12,7 +12,7 @@
 #include <GLFW/glfw3.h>
 
 // TEST: create window?
-constexpr bool RT_TEST_WINDOW = false;
+constexpr bool RT_TEST_WINDOW = true;
 
 
 constexpr int RT_STAGE_COUNT = 6;
@@ -31,7 +31,9 @@ public:
     HWAccelerator(void);
     ~HWAccelerator(void) = default;
 
-    void traceRays();
+    void enqueueTraceRays();
+    void finish();
+    void debugPrintHit0();
 
 private:
     void getRTDeviceInfo();
@@ -70,6 +72,7 @@ private:
         glm::vec4 lightPos;
         float aspectRatio;
         float fov = 90.0f;
+        unsigned int numTasks = 0;
     } uboRT;
 
     struct {
@@ -100,6 +103,9 @@ private:
     vk::AccelerationStructureNV topHandle;
     vk::AccelerationStructureNV bottomHandle;
 
+    // Written to by Vulkan, accessed by OpenCL
+    vks::Buffer hitBuffer;
+
     vk::Pipeline rtPipeline;
     vk::Queue raytracingQueue;
     vk::CommandBuffer raytracingCmdBuffer;
@@ -123,6 +129,7 @@ private:
     void updateDescriptorSets();
     void prepareRasterizationPipeline();
     void setupQueryPool();
+    void setupSharedBuffers();
 
     /* 
       ExampleBase
@@ -177,7 +184,7 @@ private:
     vk::CommandPool cmdPool;
     bool prepared = false;
     uint32_t version = VK_MAKE_VERSION(1, 1, 0);
-    vk::Extent2D size{ 1280, 720 };
+    vk::Extent2D size{ 1920, 1080 };
     uint32_t& width{ size.width };
     uint32_t& height{ size.height };
 
