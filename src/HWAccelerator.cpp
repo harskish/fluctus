@@ -340,10 +340,7 @@ void HWAccelerator::setupSharedBuffers()
 {
     assert(uboRT.numTasks > 0);
     vk::DeviceSize hitBufferSize(uboRT.numTasks * sizeof(Hit));
-    //hitBuffer = context.createGLShareableBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, hitBufferSize);
-    hitBuffer = context.createBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, hitBufferSize);
-
-    return;
+    hitBuffer = context.createGLShareableBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, hitBufferSize);
 
     auto memoryHandleType = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32;
     auto semaphoreHandleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;

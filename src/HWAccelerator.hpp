@@ -9,7 +9,7 @@
 #include "VulkanFW/vks/texture.hpp"
 
 #ifdef WIN32
-//#include <handleapi.h>
+#include <handleapi.h>
 #else
 Linux / MacOS support still not implemented
 #endif

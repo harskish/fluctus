@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.3)
 project(Fluctus)
+include(cmake/CompileSpirvShader.cmake)
 
 # OCL 1.2+ needed for clGetKernelArgInfo
 add_definitions(-DCL_HPP_MINIMUM_OPENCL_VERSION=120)
@@ -131,10 +132,37 @@ include_directories(${INCLUDE_DIRS})
 file(GLOB PROJECT_KERNELS src/*.cl)
 source_group("Kernels" FILES ${PROJECT_KERNELS})
 
-file(GLOB PROJECT_VK_SHADERS shaders/*.glsl shaders/*.rchit shaders/*.rahit shaders/*.rmiss shaders/*.rgen)
+file(GLOB_RECURSE PROJECT_VK_SHADERS
+    shaders/*.vert
+    shaders/*.tesc
+    shaders/*.tese
+    shaders/*.geom
+    shaders/*.frag
+    shaders/*.comp
+    shaders/*.mesh
+    shaders/*.task
+    shaders/*.rgen
+    shaders/*.rint
+    shaders/*.rahit
+    shaders/*.rchit
+    shaders/*.rmiss
+    shaders/*.rcall
+    shaders/*.hlsl
+    shaders/*.glsl
+)
+
 source_group("Shaders" FILES ${PROJECT_VK_SHADERS})
 
+# Automatic SPV generation
+foreach(SHADER ${PROJECT_VK_SHADERS})
+    compile_spirv_shader(${SHADER})
+    list(APPEND COMPILED_SHADERS ${COMPILE_SPIRV_SHADER_RETURN})
+    source_group("compiled" FILES ${COMPILE_SPIRV_SHADER_RETURN})
+endforeach()
+add_custom_target(shaders SOURCES ${PROJECT_VK_SHADERS} ${COMPILED_SHADERS})
+
 add_executable(Fluctus ${SOURCE_FILES} ${PROJECT_KERNELS} ${PROJECT_VK_SHADERS} ${PROJECT_CONFIGS})
+add_dependencies(Fluctus shaders)
 target_link_libraries(Fluctus ${LIBRARIES})
 
 set_target_properties(Fluctus PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
