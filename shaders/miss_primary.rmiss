@@ -4,7 +4,7 @@
 
 #include "utils.glh"
 
-layout(location = 0) rayPayloadNV PrimaryPayload payload;
+layout(location = 0) rayPayloadInNV PrimaryPayload payload;
 
 /* Primary ray miss shader */
 
