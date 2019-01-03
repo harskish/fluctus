@@ -22,10 +22,7 @@ OpenCL wavefront path tracer
 - Nanogui-based [user interface](gallery/user_interface.png)
     - Uses only modern OpenGL (3.3+)
     - Drag and drop scene files and environment maps
-- Custom kernel class with several convenience features
-    - Kernel arguments set by name (not by idx)
-    - Supports conservative recompilation when preprocessor definitions change
-    - Kernel binaries cached for massive speedup
+- Uses [CLT][clt] for convenience and robustness
 	
 
 
@@ -70,3 +67,4 @@ See the [LICENSE](./LICENSE.md) file for license rights and limitations (MIT).
 [wavefront]: http://research.nvidia.com/publication/megakernels-considered-harmful-wavefront-path-tracing-gpus
 [sbvh]: http://www.nvidia.com/object/nvidia_research_pub_012.html
 [ggx]: https://doi.org/10.2312/EGWR/EGSR07/195-206
+[clt]: https://github.com/harskish/CLT

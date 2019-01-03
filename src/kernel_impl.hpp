@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Kernel.hpp"
+#include <clt.hpp>
 #include "tracer.hpp"
 #include "clcontext.hpp"
 
@@ -11,9 +11,10 @@ inline CLContext* getCtxPtr(void* userPtr)
     return ctx;
 }
 
-class WFLogicKernel : public flt::Kernel
+class WFLogicKernel : public clt::Kernel
 {
-private:
+public:
+    WFLogicKernel(void) : Kernel("src/wf_logic.cl", "logic") {}
     void setArgs() override {
         const CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -43,9 +44,8 @@ private:
         err |= setArg("params",         ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks",       ctx->getNumTasks());
         err |= setArg("firstIteration", (cl_uint)false);
-        verify(err, "Failed to set wf_logic arguments");
+        clt::check(err, "Failed to set wf_logic arguments");
     }
-
     std::string getAdditionalBuildOptions() override {
         Tracer* tracer = static_cast<Tracer*>(userPtr);
         const RenderParams& params = tracer->getParams();
@@ -60,9 +60,10 @@ private:
     }
 };
 
-class PickKernel : public flt::Kernel
+class PickKernel : public clt::Kernel
 {
-private:
+public:
+    PickKernel(void) : Kernel("src/kernel_pick.cl", "pick") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -71,13 +72,14 @@ private:
         err |= setArg("nodes", ctx->deviceBuffers.nodeBuffer);
         err |= setArg("indices", ctx->deviceBuffers.indexBuffer);
         err |= setArg("pickResult", ctx->deviceBuffers.pickResult);
-        verify(err, "Failed to set kernel_pick arguments!");
+        clt::check(err, "Failed to set kernel_pick arguments!");
     }
 };
 
-class WFExtensionKernel : public flt::Kernel
+class WFExtensionKernel : public clt::Kernel
 {
-private:
+public:
+    WFExtensionKernel(void) : Kernel("src/wf_extrays.cl", "traceExtension") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -89,13 +91,14 @@ private:
         err |= setArg("indices", ctx->deviceBuffers.indexBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_extension arguments!");
+        clt::check(err, "Failed to set wf_extension arguments!");
     }
 };
 
-class WFShadowKernel : public flt::Kernel
+class WFShadowKernel : public clt::Kernel
 {
-private:
+public:
+    WFShadowKernel(void) : Kernel("src/wf_shadowrays.cl", "traceShadow") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -107,13 +110,14 @@ private:
         err |= setArg("indices", ctx->deviceBuffers.indexBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_shadow arguments!");
+        clt::check(err, "Failed to set wf_shadow arguments!");
     }
 };
 
-class WFRaygenKernel : public flt::Kernel
+class WFRaygenKernel : public clt::Kernel
 {
-private:
+public:
+    WFRaygenKernel(void) : Kernel("src/wf_raygen.cl", "genRays") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -124,13 +128,14 @@ private:
         err |= setArg("extensionQueue", ctx->deviceBuffers.extensionQueue);
         err |= setArg("currPixelIdx", ctx->deviceBuffers.currentPixelIdx);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_raygen arguments!");
+        clt::check(err, "Failed to set wf_raygen arguments!");
     }
 };
 
-class WFDiffuseKernel : public flt::Kernel
+class WFDiffuseKernel : public clt::Kernel
 {
-private:
+public:
+    WFDiffuseKernel(void) : Kernel("src/wf_mat_diffuse.cl", "wavefrontDiffuse") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -143,13 +148,14 @@ private:
         err |= setArg("textures", ctx->deviceBuffers.texDescriptorBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_diffuse arguments!");
+        clt::check(err, "Failed to set wf_diffuse arguments!");
     }
 };
 
-class WFGlossyKernel : public flt::Kernel
+class WFGlossyKernel : public clt::Kernel
 {
-private:
+public:
+    WFGlossyKernel(void) : Kernel("src/wf_mat_glossy.cl", "wavefrontGlossy") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -162,13 +168,14 @@ private:
         err |= setArg("textures", ctx->deviceBuffers.texDescriptorBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_glossy arguments!");
+        clt::check(err, "Failed to set wf_glossy arguments!");
     }
 };
 
-class WFGGXReflKernel : public flt::Kernel
+class WFGGXReflKernel : public clt::Kernel
 {
-private:
+public:
+    WFGGXReflKernel(void) : Kernel("src/wf_mat_ggx_reflection.cl", "wavefrontGGXReflection") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -181,13 +188,14 @@ private:
         err |= setArg("textures", ctx->deviceBuffers.texDescriptorBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_ggx_refl arguments!");
+        clt::check(err, "Failed to set wf_ggx_refl arguments!");
     }
 };
 
-class WFGGXRefrKernel : public flt::Kernel
+class WFGGXRefrKernel : public clt::Kernel
 {
-private:
+public:
+    WFGGXRefrKernel(void) : Kernel("src/wf_mat_ggx_refraction.cl", "wavefrontGGXRefraction") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -200,13 +208,14 @@ private:
         err |= setArg("textures", ctx->deviceBuffers.texDescriptorBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_ggx_refr arguments!");
+        clt::check(err, "Failed to set wf_ggx_refr arguments!");
     }
 };
 
-class WFDeltaKernel : public flt::Kernel
+class WFDeltaKernel : public clt::Kernel
 {
-private:
+public:
+    WFDeltaKernel(void) : Kernel("src/wf_mat_delta.cl", "wavefrontDelta") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -219,13 +228,14 @@ private:
         err |= setArg("textures", ctx->deviceBuffers.texDescriptorBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_delta arguments!");
+        clt::check(err, "Failed to set wf_delta arguments!");
     }
 };
 
-class WFAllMaterialsKernel : public flt::Kernel
+class WFAllMaterialsKernel : public clt::Kernel
 {
-private:
+public:
+    WFAllMaterialsKernel(void) : Kernel("src/wf_mat_all.cl", "wavefrontAllMaterials") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -238,7 +248,7 @@ private:
         err |= setArg("textures", ctx->deviceBuffers.texDescriptorBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_all_mats arguments!");
+        clt::check(err, "Failed to set wf_all_mats arguments!");
     }
 
     std::string getAdditionalBuildOptions() override {
@@ -249,9 +259,10 @@ private:
     }
 };
 
-class WFResetKernel : public flt::Kernel
+class WFResetKernel : public clt::Kernel
 {
-private:
+public:
+    WFResetKernel(void) : Kernel("src/wf_reset.cl", "reset") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -263,13 +274,14 @@ private:
         err |= setArg("raygenQueue", ctx->deviceBuffers.raygenQueue);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set wf_reset arguments!");
+        clt::check(err, "Failed to set wf_reset arguments!");
     }
 };
 
-class MKResetKernel : public flt::Kernel
+class MKResetKernel : public clt::Kernel
 {
-private:
+public:
+    MKResetKernel(void) : Kernel("src/mk_reset.cl", "reset") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -279,26 +291,28 @@ private:
         err |= setArg("denoiserNormal", ctx->deviceBuffers.denoiserNormalBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set mk_reset arguments!");
+        clt::check(err, "Failed to set mk_reset arguments!");
     }
 };
 
-class MKRaygenKernel : public flt::Kernel
+class MKRaygenKernel : public clt::Kernel
 {
-private:
+public:
+    MKRaygenKernel(void) : Kernel("src/mk_raygen.cl", "genCameraRays") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
         err |= setArg("tasks", ctx->deviceBuffers.tasksBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set mk_raygen arguments!");
+        clt::check(err, "Failed to set mk_raygen arguments!");
     }
 };
 
-class MKNextVertexKernel : public flt::Kernel
+class MKNextVertexKernel : public clt::Kernel
 {
-private:
+public:
+    MKNextVertexKernel(void) : Kernel("src/mk_next_vertex.cl", "nextVertex") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -315,7 +329,7 @@ private:
         err |= setArg("envMap", ctx->deviceBuffers.environmentMap);
         err |= setArg("pdfTable", ctx->deviceBuffers.pdfTable);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set mk_next_vertex arguments!");
+        clt::check(err, "Failed to set mk_next_vertex arguments!");
     }
 
     std::string getAdditionalBuildOptions() override {
@@ -327,9 +341,10 @@ private:
     }
 };
 
-class MKSampleBSDFKernel : public flt::Kernel
+class MKSampleBSDFKernel : public clt::Kernel
 {
-private:
+public:
+    MKSampleBSDFKernel(void) : Kernel("src/mk_sample_bsdf.cl", "sampleBsdf") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -348,7 +363,7 @@ private:
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("stats", ctx->deviceBuffers.renderStats);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set mk_sample_bsdf arguments!");
+        clt::check(err, "Failed to set mk_sample_bsdf arguments!");
     }
 
     std::string getAdditionalBuildOptions() override {
@@ -365,9 +380,10 @@ private:
     }
 };
 
-class MKSplatKernel : public flt::Kernel
+class MKSplatKernel : public clt::Kernel
 {
-private:
+public:
+    MKSplatKernel(void) : Kernel("src/mk_splat.cl", "splat") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -376,13 +392,14 @@ private:
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("stats", ctx->deviceBuffers.renderStats);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set mk_splat arguments!");
+        clt::check(err, "Failed to set mk_splat arguments!");
     }
 };
 
-class MKSplatPreviewKernel : public flt::Kernel
+class MKSplatPreviewKernel : public clt::Kernel
 {
-private:
+public:
+    MKSplatPreviewKernel(void) : Kernel("src/mk_splat_preview.cl", "splatPreview") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -390,13 +407,14 @@ private:
         err |= setArg("pixels", ctx->deviceBuffers.pixelBuffer);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set mk_splat_preview arguments!");
+        clt::check(err, "Failed to set mk_splat_preview arguments!");
     }
 };
 
-class MKPostprocessKernel : public flt::Kernel
+class MKPostprocessKernel : public clt::Kernel
 {
-private:
+public:
+    MKPostprocessKernel(void) : Kernel("src/mk_postprocess.cl", "process") {}
     void setArgs() override {
         CLContext *ctx = getCtxPtr(userPtr);
         int err = 0;
@@ -408,7 +426,7 @@ private:
         err |= setArg("denoiserNormalGL", ctx->deviceBuffers.denoiserNormalBufferGL);
         err |= setArg("params", ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks", ctx->getNumTasks());
-        verify(err, "Failed to set mk_postprocess arguments!");
+        clt::check(err, "Failed to set mk_postprocess arguments!");
     }
 
     std::string getAdditionalBuildOptions() override {

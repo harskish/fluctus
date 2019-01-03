@@ -15,77 +15,29 @@
 #include <string>
 #include <vector>
 
-#if defined(__APPLE__)
-#include <OpenCL/cl_gl_ext.h>
-#include <OpenGL/OpenGL.h>
-#elif defined(__linux__)
-#include <GL/glxew.h>
-#elif defined(_WIN32)
-#define NOMINMAX
-#include <Windows.h>
-#endif
-
 CLContext::CLContext()
 {
-    printDevices();
+    Settings& s = Settings::getInstance();
 
-    std::vector<cl::Platform> platforms;
-    cl::Platform::get(&platforms);
-    platform = getPlatformByName(platforms, Settings::getInstance().getPlatformName());
-    std::cout << "PLATFORM: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
+    clt::printDevices();
+    clt::setKernelCacheDir("data/kernel_binaries");
 
-	#ifdef CPU_DEBUGGING
-		platform.getDevices(CL_DEVICE_TYPE_CPU, &clDevices);
-	#else
-		platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
-	#endif
+    clt::State state = clt::initialize(s.getPlatformName(), s.getDeviceName());
+    device = state.device;
+    platform = state.platform;
+    context = state.context;
+    cmdQueue = state.cmdQueue;
 
-    if (clDevices.size() == 0)
-    {
-        std::cout << "No device found that matches the given criteria. Check settings.json." << std::endl;
-        waitExit();
-    }
-        
+    if (!state.hasGLInterop)
+        throw std::runtime_error("Error: could not init CL-GL interop");
 
-
-    // Init shared context
-    #ifdef __APPLE__
-        CGLContextObj kCGLContext = CGLGetCurrentContext();
-        CGLShareGroupObj kCGLShareGroup = CGLGetShareGroup(kCGLContext);
-        cl_context_properties props[] =
-        {
-            CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
-                (cl_context_properties)kCGLShareGroup, 0
-        };
-    #else
-        cl_context_properties props[] = {
-            CL_CONTEXT_PLATFORM, (cl_context_properties)platform(),
-        #if defined(__linux__)
-            CL_GL_CONTEXT_KHR, (cl_context_properties)glXGetCurrentContext(),
-            CL_GLX_DISPLAY_KHR, (cl_context_properties)glXGetCurrentDisplay(),
-        #elif defined(_WIN32)
-            CL_GL_CONTEXT_KHR, (cl_context_properties)wglGetCurrentContext(),
-            CL_WGL_HDC_KHR, (cl_context_properties)wglGetCurrentDC(),
-        #endif
-            0
-        };
-    #endif
-
-    // Select correct device from context based on settings
-    device = getDeviceByName(clDevices, Settings::getInstance().getDeviceName());
-    std::cout << "DEVICE: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
-
-    // Restrict context to selected device
-    clDevices = { device };
-    context = cl::Context(clDevices, props, NULL, NULL, &err);
-    verify("Failed to create shared context");
-
-    // Create command queue for context
-    cmdQueue = cl::CommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
-    verify("Failed to create command queue!");
+#ifdef _DEBUG
+    if (device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_CPU)
+        clt::setCpuDebug(true);
+#endif
 
     // Setup WF task buffer size
-    cl_uint bufferSize = Settings::getInstance().getWfBufferSize();
+    cl_uint bufferSize = s.getWfBufferSize();
     NUM_TASKS = bufferSize;
 }
 
@@ -119,7 +71,7 @@ void CLContext::setup(PTWindow *window)
 void CLContext::setupKernels()
 {
     // Microkernels
-	setupResetKernel();
+    setupResetKernel();
     setupRayGenKernel();
     setupNextVertexKernel();
     setupBsdfSampleKernel();
@@ -197,7 +149,7 @@ void CLContext::setKernelBuildSettings()
     if (platformIsNvidia(platform)) buildOpts += " -DNVIDIA -cl-nv-verbose";
 
     // Static, shared by all kernels
-    flt::Kernel::setBuildOptions(buildOpts);
+    clt::setGlobalBuildOptions(buildOpts);
 }
 
 void CLContext::setupPickKernel()
@@ -206,7 +158,7 @@ void CLContext::setupPickKernel()
         kernel_pick = new PickKernel();
 
     window->showMessage("Building kernel", "kernel_pick");
-    kernel_pick->build("src/kernel_pick.cl", "pick", context, device, platform);
+    kernel_pick->build(context, device, platform);
 }
 
 void CLContext::setupWfExtKernel()
@@ -215,7 +167,7 @@ void CLContext::setupWfExtKernel()
         wf_extension = new WFExtensionKernel();
 
     window->showMessage("Building kernel", "wf_extrays");
-    wf_extension->build("src/wf_extrays.cl", "traceExtension", context, device, platform);
+    wf_extension->build(context, device, platform);
 }
 
 void CLContext::setupWfLogicKernel()
@@ -224,7 +176,7 @@ void CLContext::setupWfLogicKernel()
         wf_logic = new WFLogicKernel();
 
     window->showMessage("Building kernel", "wf_logic");
-    wf_logic->build("src/wf_logic.cl", "logic", context, device, platform);
+    wf_logic->build(context, device, platform);
 }
 
 void CLContext::setupWfShadowKernel()
@@ -233,7 +185,7 @@ void CLContext::setupWfShadowKernel()
         wf_shadow = new WFShadowKernel();
 
     window->showMessage("Building kernel", "wf_shadowrays");
-    wf_shadow->build("src/wf_shadowrays.cl", "traceShadow", context, device, platform);
+    wf_shadow->build(context, device, platform);
 }
 
 void CLContext::setupWfRaygenKernel()
@@ -242,7 +194,7 @@ void CLContext::setupWfRaygenKernel()
         wf_raygen = new WFRaygenKernel();
 
     window->showMessage("Building kernel", "wf_raygen");
-    wf_raygen->build("src/wf_raygen.cl", "genRays", context, device, platform);
+    wf_raygen->build(context, device, platform);
 }
 
 void CLContext::setupWfDiffuseKernel()
@@ -251,7 +203,7 @@ void CLContext::setupWfDiffuseKernel()
         wf_diffuse = new WFDiffuseKernel();
 
     window->showMessage("Building kernel", "wf_mat_diffuse");
-    wf_diffuse->build("src/wf_mat_diffuse.cl", "wavefrontDiffuse", context, device, platform);
+    wf_diffuse->build(context, device, platform);
 }
 
 void CLContext::setupWfGlossyKernel()
@@ -260,7 +212,7 @@ void CLContext::setupWfGlossyKernel()
         wf_glossy = new WFGlossyKernel();
 
     window->showMessage("Building kernel", "wf_mat_glossy");
-    wf_glossy->build("src/wf_mat_glossy.cl", "wavefrontGlossy", context, device, platform);
+    wf_glossy->build(context, device, platform);
 }
 
 void CLContext::setupWfGGXReflKernel()
@@ -269,7 +221,7 @@ void CLContext::setupWfGGXReflKernel()
         wf_ggx_refl = new WFGGXReflKernel();
 
     window->showMessage("Building kernel", "wf_mat_ggx_reflection");
-    wf_ggx_refl->build("src/wf_mat_ggx_reflection.cl", "wavefrontGGXReflection", context, device, platform);
+    wf_ggx_refl->build(context, device, platform);
 }
 
 void CLContext::setupWfGGXRefrKernel()
@@ -278,7 +230,7 @@ void CLContext::setupWfGGXRefrKernel()
         wf_ggx_refr = new WFGGXRefrKernel();
 
     window->showMessage("Building kernel", "wf_mat_ggx_refraction");
-    wf_ggx_refr->build("src/wf_mat_ggx_refraction.cl", "wavefrontGGXRefraction", context, device, platform);
+    wf_ggx_refr->build(context, device, platform);
 }
 
 void CLContext::setupWfDeltaKernel()
@@ -287,7 +239,7 @@ void CLContext::setupWfDeltaKernel()
         wf_delta = new WFDeltaKernel();
 
     window->showMessage("Building kernel", "wf_mat_delta");
-    wf_delta->build("src/wf_mat_delta.cl", "wavefrontDelta", context, device, platform);
+    wf_delta->build(context, device, platform);
 }
 
 void CLContext::setupWfAllMaterialsKernel()
@@ -296,7 +248,7 @@ void CLContext::setupWfAllMaterialsKernel()
         wf_mat_all = new WFAllMaterialsKernel();
 
     window->showMessage("Building kernel", "wf_mat_all");
-    wf_mat_all->build("src/wf_mat_all.cl", "wavefrontAllMaterials", context, device, platform);
+    wf_mat_all->build(context, device, platform);
 }
 
 void CLContext::setupWfResetKernel()
@@ -305,16 +257,16 @@ void CLContext::setupWfResetKernel()
         wf_reset = new WFResetKernel();
     
     window->showMessage("Building kernel", "wf_reset");
-    wf_reset->build("src/wf_reset.cl", "reset", context, device, platform);
+    wf_reset->build(context, device, platform);
 }
 
 void CLContext::setupResetKernel()
-{
+{	
     if (!mk_reset)
         mk_reset = new MKResetKernel();
-
+    
     window->showMessage("Building kernel", "mk_reset");
-    mk_reset->build("src/mk_reset.cl", "reset", context, device, platform);
+    mk_reset->build(context, device, platform);
 }
 
 void CLContext::setupRayGenKernel()
@@ -323,7 +275,7 @@ void CLContext::setupRayGenKernel()
         mk_raygen = new MKRaygenKernel();
 
     window->showMessage("Building kernel", "mk_raygen");
-    mk_raygen->build("src/mk_raygen.cl", "genCameraRays", context, device, platform);
+    mk_raygen->build(context, device, platform);
 }
 
 void CLContext::setupNextVertexKernel()
@@ -332,7 +284,7 @@ void CLContext::setupNextVertexKernel()
         mk_next_vertex = new MKNextVertexKernel();
 
     window->showMessage("Building kernel", "mk_next_vertex");
-    mk_next_vertex->build("src/mk_next_vertex.cl", "nextVertex", context, device, platform);
+    mk_next_vertex->build(context, device, platform);
 }
 
 void CLContext::setupBsdfSampleKernel()
@@ -341,7 +293,7 @@ void CLContext::setupBsdfSampleKernel()
         mk_sample_bsdf = new MKSampleBSDFKernel();
 
     window->showMessage("Building kernel", "mk_sample_bsdf");
-    mk_sample_bsdf->build("src/mk_sample_bsdf.cl", "sampleBsdf", context, device, platform);
+    mk_sample_bsdf->build(context, device, platform);
 }
 
 void CLContext::setupSplatKernel()
@@ -350,7 +302,7 @@ void CLContext::setupSplatKernel()
         mk_splat = new MKSplatKernel();
 
     window->showMessage("Building kernel", "mk_splat");
-    mk_splat->build("src/mk_splat.cl", "splat", context, device, platform);
+    mk_splat->build(context, device, platform);
 }
 
 void CLContext::setupSplatPreviewKernel()
@@ -359,7 +311,7 @@ void CLContext::setupSplatPreviewKernel()
         mk_splat_preview = new MKSplatPreviewKernel();
 
     window->showMessage("Building kernel", "mk_splat_preview");
-    mk_splat_preview->build("src/mk_splat_preview.cl", "splatPreview", context, device, platform);
+    mk_splat_preview->build(context, device, platform);
 }
 
 void CLContext::setupPostprocessKernel()
@@ -368,7 +320,7 @@ void CLContext::setupPostprocessKernel()
         mk_postprocess = new MKPostprocessKernel();
 
     window->showMessage("Building kernel", "mk_postprocess");
-    mk_postprocess->build("src/mk_postprocess.cl", "process", context, device, platform);
+    mk_postprocess->build(context, device, platform);
 }
 
 void CLContext::setupPixelStorage(PTWindow *window)
@@ -390,10 +342,10 @@ void CLContext::setupPixelStorage(PTWindow *window)
     sharedMemory = { deviceBuffers.previewBuffer, deviceBuffers.denoiserAlbedoBufferGL, deviceBuffers.denoiserNormalBufferGL };
     verify("CL pixel storage creation failed!");
 
-	// Set new kernel args (pointers might have changed)
-	err = 0;
-	if (mk_splat)
-		err |= mk_splat->setArg("pixels", deviceBuffers.pixelBuffer);
+    // Set new kernel args (pointers might have changed)
+    err = 0;
+    if (mk_splat)
+        err |= mk_splat->setArg("pixels", deviceBuffers.pixelBuffer);
     if (mk_splat_preview)
         err |= mk_splat_preview->setArg("pixels", deviceBuffers.pixelBuffer);
     if (mk_next_vertex)
@@ -428,14 +380,14 @@ void CLContext::setupPixelStorage(PTWindow *window)
         err |= mk_postprocess->setArg("denoiserNormalGL", deviceBuffers.denoiserNormalBufferGL);
     }
         
-	verify("Failed to update kernel pixel storage args");
+    verify("Failed to update kernel pixel storage args");
 }
 
 void CLContext::saveImage(std::string filename, const RenderParams &params)
 {
     unsigned int numBytes = params.width * params.height * 3; // rgb
     unsigned int numFloats = params.width * params.height * 4; // rgba
-	std::unique_ptr<unsigned char[]> dataBytes(new unsigned char[numBytes]);
+    std::unique_ptr<unsigned char[]> dataBytes(new unsigned char[numBytes]);
     std::unique_ptr<float[]> dataFloats(new float[numFloats]);
 
     bool hdr = endsWith(filename, ".hdr") || endsWith(filename, ".HDR");
@@ -508,14 +460,14 @@ void CLContext::saveImage(std::string filename, const RenderParams &params)
     {
         printf("\n%d: %s", Error, iluErrorString(Error));
     }
-	
-	std::cout << ((Error == IL_NO_ERROR) ? "\nSaved " : "\nFailed saving ") << filename << std::endl;
+    
+    std::cout << ((Error == IL_NO_ERROR) ? "\nSaved " : "\nFailed saving ") << filename << std::endl;
 }
 
 void CLContext::createEnvMap(EnvironmentMap *map)
 {
-	int width = map->getWidth(), height = map->getHeight();
-	float *data = map->getData();
+    int width = map->getWidth(), height = map->getHeight();
+    float *data = map->getData();
 
     // Convert rgb to rgba (OpenCL doesn't support floats for RGB-images)
     float *rgba = new float[width * height * 4];
@@ -533,25 +485,25 @@ void CLContext::createEnvMap(EnvironmentMap *map)
         }
     }
 
-	// Upload rgb colors
+    // Upload rgb colors
     const cl::ImageFormat format(CL_RGBA, CL_FLOAT);
     deviceBuffers.environmentMap = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, format, width, height, 0, rgba, &err);
     verify("Environment map creation failed!");
 
-	// Upload probability and alias tables for importance sampling
-	size_t pBytes = width * height * sizeof(float);
-	size_t aBytes = width * height * sizeof(int);
+    // Upload probability and alias tables for importance sampling
+    size_t pBytes = width * height * sizeof(float);
+    size_t aBytes = width * height * sizeof(int);
     deviceBuffers.probTable = cl::Buffer(context, CL_MEM_READ_ONLY, pBytes, NULL, &err);
     deviceBuffers.aliasTable = cl::Buffer(context, CL_MEM_READ_ONLY, aBytes, NULL, &err);
     deviceBuffers.pdfTable = cl::Buffer(context, CL_MEM_READ_ONLY, pBytes, NULL, &err);
-	verify("Env map IS table creation failed");
+    verify("Env map IS table creation failed");
 
-	err |= cmdQueue.enqueueWriteBuffer(deviceBuffers.probTable, CL_TRUE, 0, pBytes, map->getProbTable());
-	err |= cmdQueue.enqueueWriteBuffer(deviceBuffers.aliasTable, CL_TRUE, 0, aBytes, map->getAliasTable());
-	err |= cmdQueue.enqueueWriteBuffer(deviceBuffers.pdfTable, CL_TRUE, 0, pBytes, map->getPdfTable());
-	verify("Env map IS table writing failed");
+    err |= cmdQueue.enqueueWriteBuffer(deviceBuffers.probTable, CL_TRUE, 0, pBytes, map->getProbTable());
+    err |= cmdQueue.enqueueWriteBuffer(deviceBuffers.aliasTable, CL_TRUE, 0, aBytes, map->getAliasTable());
+    err |= cmdQueue.enqueueWriteBuffer(deviceBuffers.pdfTable, CL_TRUE, 0, pBytes, map->getPdfTable());
+    verify("Env map IS table writing failed");
 
-	// Cleanup
+    // Cleanup
     delete[] rgba;
 
     // Update env map references
@@ -560,10 +512,10 @@ void CLContext::createEnvMap(EnvironmentMap *map)
 
 void CLContext::setupScene()
 {
-	// Dummy env map
-	float rgba[4] { 0.0f, 0.0f, 0.0f, 0.0f };
+    // Dummy env map
+    float rgba[4] { 0.0f, 0.0f, 0.0f, 0.0f };
     deviceBuffers.environmentMap = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, cl::ImageFormat(CL_RGBA, CL_FLOAT), 1, 1, 0, rgba, &err);
-	verify("Dummy env map creation failed");
+    verify("Dummy env map creation failed");
 }
 
 // Upload BVH data, geometry and materials to GPU
@@ -756,9 +708,9 @@ void CLContext::updateParams(const RenderParams &params)
 
 void CLContext::enqueueResetKernel(const RenderParams &params)
 {
-	err = 0;
-	err |= cmdQueue.enqueueNDRangeKernel(*mk_reset, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
-	verify("Failed to enqueue reset kernel!");
+    err = 0;
+    err |= cmdQueue.enqueueNDRangeKernel(*mk_reset, cl::NullRange, cl::NDRange(params.width, params.height), cl::NullRange);
+    verify("Failed to enqueue reset kernel!");
 }
 
 void CLContext::enqueueRayGenKernel(const RenderParams &params)
@@ -970,81 +922,12 @@ Hit CLContext::pickSingle(float NDCx, float NDCy)
     return hit;
 }
 
-cl::Platform &CLContext::getPlatformByName(std::vector<cl::Platform> &platforms, std::string name) {
-    for (cl::Platform &p : platforms) {
-        std::string platformName = p.getInfo<CL_PLATFORM_NAME>();
-        if (platformName.find(name) != std::string::npos) {
-            return p;
-        }
-    }
-
-    std::cout << "No platform name containing \"" << name << "\" found!" << std::endl;
-    return platforms[0];
-}
-
-cl::Device &CLContext::getDeviceByName(std::vector<cl::Device> &devices, std::string name) {
-    for (cl::Device &d : devices) {
-        std::string deviceName = d.getInfo<CL_DEVICE_NAME>();
-        if (deviceName.find(name) != std::string::npos) {
-            return d;
-        }
-    }
-
-    std::cout << "No device name containing \"" << name << "\" in selected context!" << std::endl;
-    return devices[0];
-}
-
 // Check error, second optional parameter acts as boolean predicate
 void CLContext::verify(std::string msg, int pred)
 {
-	// Use default value if predicate is -1
-	int code = (pred > -1) ? !pred : this->err;
-
-    if(code != CL_SUCCESS)
-    {
-        std::string message = msg + " (" + getCLErrorString(code) + ")";
-        std::cout << message << std::endl;
-        waitExit();
-    }
+    // Use default value if predicate is -1
+    int code = (pred > -1) ? !pred : this->err;
+    clt::check(code, msg);
 }
-
-// Print the devices, C++ style
-void CLContext::printDevices()
-{
-    std::vector<cl::Platform> platforms;
-    cl::Platform::get(&platforms);
-    const std::string DECORATOR = "================";
-
-    int platform_id = 0;
-    int device_id = 0;
-
-    std::cout << "Number of Platforms: " << platforms.size() << std::endl;
-
-    for(cl::Platform &platform : platforms)
-    {
-        std::cout << DECORATOR << " Platform " << platform_id++ << " (" << platform.getInfo<CL_PLATFORM_NAME>() << ") " << DECORATOR << std::endl;
-
-        std::vector<cl::Device> devices;
-        platform.getDevices(CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_CPU, &devices);
-
-        for(cl::Device &device : devices)
-        {
-            bool GPU = (device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_GPU);
-
-            std::cout << "Device " << device_id++ << ": " << std::endl;
-            std::cout << "\tName: " << device.getInfo<CL_DEVICE_NAME>() << std::endl;
-            std::cout << "\tType: " << (GPU ? "(GPU)" : "(CPU)") << std::endl;
-            std::cout << "\tVendor: " << device.getInfo<CL_DEVICE_VENDOR>() << std::endl;
-            std::cout << "\tCompute Units: " << device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << std::endl;
-            std::cout << "\tGlobal Memory: " << device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>() << std::endl;
-            std::cout << "\tMax Clock Frequency: " << device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>() << std::endl;
-            std::cout << "\tMax Allocateable Memory: " << device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>() << std::endl;
-            std::cout << "\tLocal Memory: " << device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>() << std::endl;
-            std::cout << "\tAvailable: " << device.getInfo< CL_DEVICE_AVAILABLE>() << std::endl;
-        }
-        std::cout << std::endl;
-    }
-}
-
 
 

@@ -10,6 +10,7 @@ add_subdirectory(ext ext_build)
 
 set(INCLUDE_DIRS
 	ext/nanogui/include
+	${CLT_INCLUDE_DIR}
     ${GLEW_INCLUDE_DIR}
     ${NANOGUI_EXTRA_INCS}
     ${IL_INCLUDE_DIR}
@@ -21,6 +22,7 @@ set(INCLUDE_DIRS
 
 set(LIBRARIES
 	nanogui
+	CLT
     ${NANOGUI_EXTRA_LIBS}
     ${OPENGL_LIBRARIES}
     ${OpenCL_LIBRARY}
@@ -38,8 +40,6 @@ set(SOURCE_FILES
     src/progressview.hpp
     src/geom.h
 	src/bxdf_types.h
-    src/kernelreader.cpp
-    src/kernelreader.hpp
     src/tracer.cpp
     src/tracer_ui.cpp
     src/tracer.hpp
@@ -55,8 +55,6 @@ set(SOURCE_FILES
     src/scene.hpp
     src/tinyfiledialogs.c
     src/tinyfiledialogs.h
-    src/Kernel.hpp
-    src/Kernel.cpp
     src/kernel_impl.hpp
     src/envmap.hpp
     src/envmap.cpp

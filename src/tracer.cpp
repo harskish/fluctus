@@ -2,7 +2,6 @@
 #include "window.hpp"
 #include "progressview.hpp"
 #include "clcontext.hpp"
-#include "Kernel.hpp"
 #include "settings.hpp"
 #include "utils.h"
 #include "geom.h"
@@ -12,7 +11,7 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     resetParams(width, height);
 
     // For getting build options from program state
-    flt::Kernel::setUserPointer((void*)this);
+    clt::Kernel::setUserPointer((void*)this);
 
     // Before UI
     initCamera();

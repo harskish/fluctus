@@ -100,9 +100,13 @@ elseif("${CMAKE_GENERATOR}" MATCHES "Visual Studio")
 endif()
 
 # Other dependencies
-find_package(OpenCL 1.2 REQUIRED) # 1.2+ for getArgInfo, not strictly vital
+find_package(OpenCL 1.2 REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(DevIL REQUIRED)
+
+# CLT
+add_subdirectory(CLT)
+set(CLT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/CLT/include PARENT_SCOPE)
 
 # Fix broken DevIL include
 if(IL_INCLUDE_DIR MATCHES ".*\/IL$")
@@ -111,12 +115,6 @@ if(IL_INCLUDE_DIR MATCHES ".*\/IL$")
 	string(SUBSTRING "${IL_INCLUDE_DIR}" 0 "${IL_INC_PATH_LEN}" FIXED_IL_PATH)
 	set(IL_INCLUDE_DIR "${FIXED_IL_PATH}" CACHE STRING "" FORCE)
 endif()
-
-#if(NOT MSVC)
-#	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -Wno-writable-strings -Wno-missing-braces")
-#endif()
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
 
 
 set(GLFW_INCLUDE_DIR
@@ -128,19 +126,6 @@ set(NANOGUI_INCLUDE_DIR
 set(EIGEN_INCLUDE_DIR
   ${CMAKE_CURRENT_SOURCE_DIR}/nanogui/ext/eigen)
 
-# Compile remainder of the codebase with compiler warnings turned on
-#if(MSVC)
-#  if(CMAKE_CXX_FLAGS MATCHES "/W[0-4]")
-#    string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-#  else()
-#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
-#  endif()
-#elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-#  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter")
-#  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-gnu-anonymous-struct -Wno-c99-extensions -Wno-nested-anon-types -Wno-deprecated-register")
-#  endif()
-#endif()
 
 set(CompilerFlags
       CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE

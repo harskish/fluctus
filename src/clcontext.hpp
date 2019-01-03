@@ -6,7 +6,7 @@
 
 #include "cl2.hpp"
 #include "geom.h"
-#include "Kernel.hpp"
+#include <clt.hpp>
 #include <string>
 
 typedef struct
@@ -32,8 +32,8 @@ public:
     CLContext();
     ~CLContext() = default;
 
-	void enqueueResetKernel(const RenderParams &params);
-	void enqueueRayGenKernel(const RenderParams &params);
+    void enqueueResetKernel(const RenderParams &params);
+    void enqueueRayGenKernel(const RenderParams &params);
     void enqueueNextVertexKernel(const RenderParams &params);
     void enqueueBsdfSampleKernel(const RenderParams &params);
     void enqueueSplatKernel(const RenderParams &params);
@@ -74,10 +74,9 @@ public:
     void updateParams(const RenderParams &params);
     void uploadSceneData(BVH *bvh, Scene *scene);
     void setupPixelStorage(PTWindow *window);
-	void saveImage(std::string filename, const RenderParams &params);
+    void saveImage(std::string filename, const RenderParams &params);
     void createEnvMap(EnvironmentMap *map);
 private:
-    void printDevices();
     void setupScene();
     void verify(std::string msg, int pred = -1);
     void packTextures(Scene *scene);
@@ -90,7 +89,7 @@ private:
     void enqueueWfAllMaterialsKernel(const RenderParams &params);
     
     void setupKernels();
-	void setupResetKernel();
+    void setupResetKernel();
     void setupRayGenKernel();
     void setupNextVertexKernel();
     void setupBsdfSampleKernel();
@@ -113,45 +112,41 @@ private:
 
     void setKernelBuildSettings();
 
-    cl::Platform &getPlatformByName(std::vector<cl::Platform> &platforms, std::string name);
-    cl::Device &getDeviceByName(std::vector<cl::Device> &devices, std::string name);
-
     int err;                // error code returned from api calls
     cl_uint NUM_TASKS = 0;  // the amount of paths in flight simultaneously, limited by VRAM, defined in settings
 
     // For showing progress
     PTWindow *window;
     
-    std::vector<cl::Device> clDevices;
     cl::Device device;
     cl::Platform platform;
     cl::Context context;
     cl::CommandQueue cmdQueue;
     
     // General kernels
-    flt::Kernel* kernel_pick = nullptr;
-    flt::Kernel* mk_postprocess = nullptr;
+    clt::Kernel* kernel_pick = nullptr;
+    clt::Kernel* mk_postprocess = nullptr;
 
     // Luxrender-style microkernels
-    flt::Kernel* mk_reset = nullptr;
-    flt::Kernel* mk_raygen = nullptr;
-    flt::Kernel* mk_next_vertex = nullptr;
-    flt::Kernel* mk_sample_bsdf = nullptr;
-    flt::Kernel* mk_splat = nullptr;
-    flt::Kernel* mk_splat_preview = nullptr;
+    clt::Kernel* mk_reset = nullptr;
+    clt::Kernel* mk_raygen = nullptr;
+    clt::Kernel* mk_next_vertex = nullptr;
+    clt::Kernel* mk_sample_bsdf = nullptr;
+    clt::Kernel* mk_splat = nullptr;
+    clt::Kernel* mk_splat_preview = nullptr;
     
     // Aila-style wavefront kernels
-    flt::Kernel* wf_reset = nullptr;
-    flt::Kernel* wf_extension = nullptr;
-    flt::Kernel* wf_raygen = nullptr;
-    flt::Kernel* wf_logic = nullptr;
-    flt::Kernel* wf_shadow = nullptr;
-    flt::Kernel* wf_diffuse = nullptr;
-    flt::Kernel* wf_glossy = nullptr;
-    flt::Kernel* wf_ggx_refl = nullptr;
-    flt::Kernel* wf_ggx_refr = nullptr;
-    flt::Kernel* wf_delta = nullptr;
-    flt::Kernel* wf_mat_all = nullptr;
+    clt::Kernel* wf_reset = nullptr;
+    clt::Kernel* wf_extension = nullptr;
+    clt::Kernel* wf_raygen = nullptr;
+    clt::Kernel* wf_logic = nullptr;
+    clt::Kernel* wf_shadow = nullptr;
+    clt::Kernel* wf_diffuse = nullptr;
+    clt::Kernel* wf_glossy = nullptr;
+    clt::Kernel* wf_ggx_refl = nullptr;
+    clt::Kernel* wf_ggx_refr = nullptr;
+    clt::Kernel* wf_delta = nullptr;
+    clt::Kernel* wf_mat_all = nullptr;
 
     
     // Device memory shared with GL

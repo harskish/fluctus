@@ -60,7 +60,6 @@ inline bool platformIsNvidia(cl::Platform& platform)
     return name.find("NVIDIA") != std::string::npos;
 }
 
-std::string getCLErrorString(int code);
 std::string getAbsolutePath(std::string filename);
 std::string getFileName(const std::string path);
 
