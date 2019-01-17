@@ -5,6 +5,7 @@
 #include "settings.hpp"
 #include "utils.h"
 #include "geom.h"
+#include <cmath>
 
 Tracer::Tracer(int width, int height) : useWavefront(true)
 {
@@ -799,10 +800,8 @@ void Tracer::initAreaLight()
 //  coordinate axes of the rotated space." (https://www.fastgraph.com/makegames/3drotation/)
 void Tracer::updateCamera()
 {
-    if(cameraRotation.x < 0) cameraRotation.x += 360.0f;
-    if(cameraRotation.y < 0) cameraRotation.y += 360.0f;
-    if(cameraRotation.x > 360.0f) cameraRotation.x -= 360.0f;
-    if(cameraRotation.y > 360.0f) cameraRotation.y -= 360.0f;
+    cameraRotation.x = fmod(cameraRotation.x + 360.0f, 360.0f);
+    cameraRotation.y = fmod(cameraRotation.y + 360.0f, 360.0f);
 
     matrix rot = rotation(float3(1, 0, 0), toRad(cameraRotation.y)) * rotation(float3(0, 1, 0), toRad(cameraRotation.x));
 
