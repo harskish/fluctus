@@ -33,7 +33,10 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     clctx->setup(window);
     setupToolbar();
 
-    accelerator.createGLObjects();
+    accelerator = new HWAccelerator();
+    accelerator->createGLObjects();
+
+    clctx->initVKSharedBuffers(accelerator);
 }
 
 void Tracer::resetParams(int width, int height)
@@ -89,10 +92,10 @@ void Tracer::renderInteractive()
 
     while (running())
     {
-        accelerator.enqueueTraceRays();
+        accelerator->enqueueTraceRays();
         update();
-        accelerator.finish();
-        accelerator.debugPrintHit0();
+        accelerator->finish();
+        //accelerator->debugPrintHit0();
     }
 }
 

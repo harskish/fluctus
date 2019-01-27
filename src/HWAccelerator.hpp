@@ -34,6 +34,8 @@ struct VertexModel {
 };
 
 
+const uint32_t SHARED_TEXTURE_DIMENSION = 512;
+
 class HWAccelerator
 {
 public:
@@ -42,8 +44,144 @@ public:
 
     void enqueueTraceRays();
     void finish();
+    void transitionGL();
     void debugPrintHit0();
     void createGLObjects();
+
+    void prepareFrame();
+
+    unsigned int hitBufferSize() {
+        return hitBuffer.allocSize;
+    }
+
+    struct GLHandles {
+        GLuint semGlReady = 0;
+        GLuint semGlComplete = 0;
+        GLuint memShared = 0; // memory object EXT
+        GLuint hitBuffer = 0; // buffer (GL_SHADER_STORAGE_BUFFER)
+        GLuint memSharedTex = 0;
+        GLuint color = 0; // TEST: shared texture
+
+        GLuint vanillaColor = 0; // TEST: shared texture
+        GLuint vanillaHitBuffer = 0;
+    } glHandles;
+
+    struct ShareHandles {
+        HANDLE memory = INVALID_HANDLE_VALUE;
+        HANDLE memory_tex = INVALID_HANDLE_VALUE;
+        HANDLE glReady = INVALID_HANDLE_VALUE;
+        HANDLE glComplete = INVALID_HANDLE_VALUE;
+    } handles;
+
+    
+
+    //struct SharedResources {
+    //    vks::Image texture;
+    //    struct {
+    //        vk::Semaphore glReady;
+    //        vk::Semaphore glComplete;
+    //    } semaphores;
+    //    vk::CommandBuffer transitionCmdBuf;
+    //    ShareHandles handles;
+    //    vk::Device device;
+    //
+    //    void init(const vks::Context& context) {
+    //        device = context.device;
+    //        vk::DispatchLoaderDynamic dynamicLoader{ context.instance, device };
+    //        {
+    //            auto handleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;
+    //            {
+    //                vk::SemaphoreCreateInfo sci;
+    //                vk::ExportSemaphoreCreateInfo esci;
+    //                sci.pNext = &esci;
+    //                esci.handleTypes = handleType;
+    //                semaphores.glReady = device.createSemaphore(sci);
+    //                semaphores.glComplete = device.createSemaphore(sci);
+    //            }
+    //            handles.glReady = device.getSemaphoreWin32HandleKHR({ semaphores.glReady, handleType }, dynamicLoader);
+    //            handles.glComplete = device.getSemaphoreWin32HandleKHR({ semaphores.glComplete, handleType }, dynamicLoader);
+    //        }
+    //
+    //        {
+    //            vk::ImageCreateInfo imageCreateInfo;
+    //            imageCreateInfo.imageType = vk::ImageType::e2D;
+    //            imageCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
+    //            imageCreateInfo.mipLevels = 1;
+    //            imageCreateInfo.arrayLayers = 1;
+    //            imageCreateInfo.extent.depth = 1;
+    //            imageCreateInfo.extent.width = SHARED_TEXTURE_DIMENSION;
+    //            imageCreateInfo.extent.height = SHARED_TEXTURE_DIMENSION;
+    //            imageCreateInfo.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
+    //            texture.image = device.createImage(imageCreateInfo);
+    //            texture.device = device;
+    //            texture.format = imageCreateInfo.format;
+    //            texture.extent = imageCreateInfo.extent;
+    //        }
+    //
+    //        {
+    //            vk::MemoryRequirements memReqs = device.getImageMemoryRequirements(texture.image);
+    //            vk::MemoryAllocateInfo memAllocInfo;
+    //            vk::ExportMemoryAllocateInfo exportAllocInfo{ vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 };
+    //            memAllocInfo.pNext = &exportAllocInfo;
+    //            memAllocInfo.allocationSize = texture.allocSize = memReqs.size;
+    //            memAllocInfo.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    //            texture.memory = device.allocateMemory(memAllocInfo);
+    //            device.bindImageMemory(texture.image, texture.memory, 0);
+    //            handles.memory = device.getMemoryWin32HandleKHR({ texture.memory, vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 }, dynamicLoader);
+    //        }
+    //
+    //        {
+    //            // Create sampler
+    //            vk::SamplerCreateInfo samplerCreateInfo;
+    //            samplerCreateInfo.magFilter = vk::Filter::eLinear;
+    //            samplerCreateInfo.minFilter = vk::Filter::eLinear;
+    //            samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
+    //            // Max level-of-detail should match mip level count
+    //            samplerCreateInfo.maxLod = (float)1;
+    //            // Only enable anisotropic filtering if enabled on the devicec
+    //            samplerCreateInfo.maxAnisotropy = context.deviceFeatures.samplerAnisotropy ? context.deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
+    //            samplerCreateInfo.anisotropyEnable = context.deviceFeatures.samplerAnisotropy;
+    //            samplerCreateInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
+    //            texture.sampler = device.createSampler(samplerCreateInfo);
+    //        }
+    //
+    //        {
+    //            // Create image view
+    //            vk::ImageViewCreateInfo viewCreateInfo;
+    //            viewCreateInfo.viewType = vk::ImageViewType::e2D;
+    //            viewCreateInfo.image = texture.image;
+    //            viewCreateInfo.format = texture.format;
+    //            viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+    //            texture.view = context.device.createImageView(viewCreateInfo);
+    //        }
+    //
+    //        // Setup the command buffers used to transition the image between GL and VK
+    //        transitionCmdBuf = context.createCommandBuffer();
+    //        transitionCmdBuf.begin(vk::CommandBufferBeginInfo{});
+    //        context.setImageLayout(transitionCmdBuf, texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
+    //            vk::ImageLayout::eColorAttachmentOptimal);
+    //        transitionCmdBuf.end();
+    //    }
+    //
+    //    void destroy() {
+    //        texture.destroy();
+    //        device.destroy(semaphores.glComplete);
+    //        device.destroy(semaphores.glReady);
+    //    }
+    //
+    //    void transitionToGl(const vk::Queue& queue, const vk::Semaphore& waitSemaphore) const {
+    //        vk::SubmitInfo submitInfo;
+    //        vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eBottomOfPipe;
+    //        submitInfo.pWaitDstStageMask = &stageFlags;
+    //        submitInfo.waitSemaphoreCount = 1;
+    //        submitInfo.pWaitSemaphores = &waitSemaphore;
+    //        submitInfo.signalSemaphoreCount = 1;
+    //        submitInfo.pSignalSemaphores = &semaphores.glReady;
+    //        submitInfo.commandBufferCount = 1;
+    //        submitInfo.pCommandBuffers = &transitionCmdBuf;
+    //        queue.submit({ submitInfo }, {});
+    //    }
+    //} shared;
 
 private:
     void getRTDeviceInfo();
@@ -61,7 +199,7 @@ private:
     void getRaytracingQueue();
 
     void draw();
-    void prepareFrame();
+    // void prepareFrame(); => moved to public
     void submitFrame();
     void drawCurrentCommandBuffer();
 
@@ -95,20 +233,6 @@ private:
         vk::Pipeline raytracing;
     } pipelines;
 
-    struct ShareHandles {
-        HANDLE memory = INVALID_HANDLE_VALUE;
-        HANDLE glReady = INVALID_HANDLE_VALUE;
-        HANDLE glComplete = INVALID_HANDLE_VALUE;
-    } handles;
-
-    struct GLHandles {
-        GLuint semGlReady{ 0 };
-        GLuint semGlComplete{ 0 };
-        GLuint memShared{ 0 };
-        GLuint hitBuffer{ 0 };
-    } glHandles;
-    
-
     vk::DispatchLoaderDynamic loaderNV;
     vks::Image textureRaytracingTarget;
     vks::Buffer uniformDataRaytracing;
@@ -127,8 +251,14 @@ private:
     vk::AccelerationStructureNV topHandle;
     vk::AccelerationStructureNV bottomHandle;
 
+
+
     // Written to by Vulkan, accessed by OpenCL
     vks::Buffer hitBuffer;
+    vks::Image texture;
+    vk::CommandBuffer transitionCmdBuf;
+
+
 
     vk::Pipeline rtPipeline;
     vk::Queue raytracingQueue;
@@ -154,6 +284,7 @@ private:
     void prepareRasterizationPipeline();
     void setupQueryPool();
     void setupSharedBuffers();
+    void transitionToGl(const vk::Queue& queue, const vk::Semaphore& waitSemaphore) const;
 
     /* 
       ExampleBase

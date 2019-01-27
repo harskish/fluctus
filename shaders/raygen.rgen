@@ -69,6 +69,7 @@ void main() {
 		0);               // payload idx (for using different payloads)
 	
 	Hit hit = payload.hit;
+	hit.i = 1234;
 	hits[gid] = hit;
 
 	imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(payload.color, 1.0));

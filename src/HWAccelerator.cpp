@@ -1,6 +1,7 @@
 #include "HWAccelerator.hpp"
 #include "VulkanFW/glfw/glfw.hpp"
 #include "geom.h"
+#include "utils.h"
 #include <iostream>
 
 
@@ -16,25 +17,39 @@ HWAccelerator::HWAccelerator(void)
     else
         std::cout << "RT test: no window!" << std::endl;
 
+    uboRT.numTasks = static_cast<unsigned int>(size.width * size.height);
+
     initVulkan();
     setupSwapchain();
     prepare();
 
     if (RT_TEST_WINDOW) {
-        // TEST render loop
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
-
-            // Render frame
-            if (prepared) {
-                draw();
-                enqueueTraceRays();
-                finish();
-                updateUniformBuffers();
-            }
+        for (int i = 0; i < 2; i++) {
+            draw();
+            enqueueTraceRays();
+            finish();
+            updateUniformBuffers();
         }
 
-        exit(1);
+        // TEST render loop
+        //while (!glfwWindowShouldClose(window)) {
+        //    glfwPollEvents();
+        //
+        //    // Render frame
+        //    if (prepared) {
+        //        draw();
+        //        enqueueTraceRays();
+        //        finish();
+        //        updateUniformBuffers();
+        //    }
+        //}
+
+        //exit(1);
+    }
+    else {
+        // Trace rays once
+        enqueueTraceRays();
+        finish();
     }
     
     std::cout << "HWAccelerator init done" << std::endl;
@@ -107,25 +122,170 @@ void HWAccelerator::debugPrintHit0()
 
 void HWAccelerator::createGLObjects()
 {
-    glCreateBuffers(1, &glHandles.hitBuffer);
+    /** THIS MATCHES TextureGenerator::init() **/
 
     // Import semaphores
     glGenSemaphoresEXT(1, &glHandles.semGlReady);
     glGenSemaphoresEXT(1, &glHandles.semGlComplete);
+    GLcheckErrors();
 
     // Platform specific import.  On non-Win32 systems use glImportSemaphoreFdEXT instead
     glImportSemaphoreWin32HandleEXT(glHandles.semGlReady, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glReady);
     glImportSemaphoreWin32HandleEXT(glHandles.semGlComplete, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glComplete);
+    GLcheckErrors();
 
     glCreateMemoryObjectsEXT(1, &glHandles.memShared);
     glImportMemoryWin32HandleEXT(glHandles.memShared, hitBuffer.allocSize, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.memory);
+    GLcheckErrors();
 
-    // Use the imported memory as backing for the OpenGL texture.  The internalFormat, dimensions
-    // and mip count should match the ones used by Vulkan to create the image and determine it's memory
-    // allocation.
+    glCreateBuffers(1, &glHandles.hitBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, glHandles.hitBuffer);
+    GLcheckErrors();
+    
+    glBufferStorageMemEXT(GL_SHADER_STORAGE_BUFFER, hitBuffer.allocSize, glHandles.memShared, 0); // offset = 0
+    GLcheckErrors();
+    
+    glCreateBuffers(1, &glHandles.vanillaHitBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, glHandles.vanillaHitBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, hitBuffer.allocSize, nullptr, GL_DYNAMIC_COPY);
+    GLcheckErrors();
 
-    glBufferStorageMemEXT(glHandles.hitBuffer, hitBuffer.allocSize, glHandles.memShared, 0);
-    //glTextureStorageMem2DEXT(color, 1, GL_RGBA8, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, mem, 0);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    
+
+    //Hit h;
+    //h.i = 5432;
+    //glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Hit), &h, GL_DYNAMIC_COPY);
+    //GLcheckErrors();
+
+    glFinish();
+    GLcheckErrors();
+
+    //Hit* hit = (Hit*)glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    //GLcheckErrors();
+    //if (!hit)
+    //    std::cout << "Could not read from GL hit buffer!" << std::endl;
+    //else
+    //    std::cout << "GL buffer Hit i: " << hit->i << std::endl;
+
+
+
+
+
+
+    
+    glCreateTextures(GL_TEXTURE_2D, 1, &glHandles.color);
+    glCreateMemoryObjectsEXT(1, &glHandles.memSharedTex);
+    glImportMemoryWin32HandleEXT(glHandles.memSharedTex, texture.allocSize, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.memory_tex);
+    glTextureStorageMem2DEXT(glHandles.color, 1, GL_RGBA8, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, glHandles.memSharedTex, 0);
+    GLcheckErrors();
+
+    // Vanilla GL texture test
+    glCreateTextures(GL_TEXTURE_2D, 1, &glHandles.vanillaColor);
+    glBindTexture(GL_TEXTURE_2D, glHandles.vanillaColor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    GLcheckErrors();
+}
+
+void HWAccelerator::setupSharedBuffers()
+{
+    assert(uboRT.numTasks > 0);
+    vk::DeviceSize hitBufferSize(uboRT.numTasks * sizeof(Hit));
+    hitBuffer = context.createGLShareableBuffer(vk::BufferUsageFlagBits::eRayTracingNV | vk::BufferUsageFlagBits::eStorageBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal, hitBufferSize);
+
+    auto memoryHandleType = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32;
+    auto semaphoreHandleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;
+
+    handles.memory = device.getMemoryWin32HandleKHR({ hitBuffer.memory, memoryHandleType }, loaderNV);
+
+    {
+        vk::SemaphoreCreateInfo sci;
+        vk::ExportSemaphoreCreateInfo esci;
+        sci.pNext = &esci;
+        esci.handleTypes = semaphoreHandleType;
+        semaphores.glReady = device.createSemaphore(sci);
+        semaphores.glComplete = device.createSemaphore(sci);
+    }
+
+    handles.glReady = device.getSemaphoreWin32HandleKHR({ semaphores.glReady, semaphoreHandleType }, loaderNV);
+    handles.glComplete = device.getSemaphoreWin32HandleKHR({ semaphores.glComplete, semaphoreHandleType }, loaderNV);
+
+
+
+    // TEST: Shared image
+    {
+        vk::ImageCreateInfo imageCreateInfo;
+        imageCreateInfo.imageType = vk::ImageType::e2D;
+        imageCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
+        imageCreateInfo.mipLevels = 1;
+        imageCreateInfo.arrayLayers = 1;
+        imageCreateInfo.extent.depth = 1;
+        imageCreateInfo.extent.width = SHARED_TEXTURE_DIMENSION;
+        imageCreateInfo.extent.height = SHARED_TEXTURE_DIMENSION;
+        imageCreateInfo.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
+        texture.image = device.createImage(imageCreateInfo);
+        texture.device = device;
+        texture.format = imageCreateInfo.format;
+        texture.extent = imageCreateInfo.extent;
+    }
+
+    {
+        vk::MemoryRequirements memReqs = device.getImageMemoryRequirements(texture.image);
+        vk::MemoryAllocateInfo memAllocInfo;
+        vk::ExportMemoryAllocateInfo exportAllocInfo{ vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 };
+        memAllocInfo.pNext = &exportAllocInfo;
+        memAllocInfo.allocationSize = texture.allocSize = memReqs.size;
+        memAllocInfo.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        texture.memory = device.allocateMemory(memAllocInfo);
+        device.bindImageMemory(texture.image, texture.memory, 0);
+        handles.memory_tex = device.getMemoryWin32HandleKHR({ texture.memory, vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 }, loaderNV);
+    }
+
+    {
+        // Create sampler
+        vk::SamplerCreateInfo samplerCreateInfo;
+        samplerCreateInfo.magFilter = vk::Filter::eLinear;
+        samplerCreateInfo.minFilter = vk::Filter::eLinear;
+        samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
+        // Max level-of-detail should match mip level count
+        samplerCreateInfo.maxLod = (float)1;
+        // Only enable anisotropic filtering if enabled on the devicec
+        samplerCreateInfo.maxAnisotropy = context.deviceFeatures.samplerAnisotropy ? context.deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
+        samplerCreateInfo.anisotropyEnable = context.deviceFeatures.samplerAnisotropy;
+        samplerCreateInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
+        texture.sampler = device.createSampler(samplerCreateInfo);
+    }
+
+    {
+        // Create image view
+        vk::ImageViewCreateInfo viewCreateInfo;
+        viewCreateInfo.viewType = vk::ImageViewType::e2D;
+        viewCreateInfo.image = texture.image;
+        viewCreateInfo.format = texture.format;
+        viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+        texture.view = context.device.createImageView(viewCreateInfo);
+    }
+
+    // Setup the command buffers used to transition the image between GL and VK
+    transitionCmdBuf = context.createCommandBuffer();
+    transitionCmdBuf.begin(vk::CommandBufferBeginInfo{});
+    context.setImageLayout(transitionCmdBuf, texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eColorAttachmentOptimal);
+    transitionCmdBuf.end();
+}
+
+void HWAccelerator::transitionToGl(const vk::Queue& queue, const vk::Semaphore& waitSemaphore) const {
+    vk::SubmitInfo submitInfo;
+    vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eBottomOfPipe;
+    submitInfo.pWaitDstStageMask = &stageFlags;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &waitSemaphore;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &semaphores.glReady;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &transitionCmdBuf;
+    queue.submit({ submitInfo }, {});
 }
 
 void HWAccelerator::getRTDeviceInfo()
@@ -334,30 +494,6 @@ void HWAccelerator::prepareRasterizationPipeline() {
 void HWAccelerator::setupQueryPool()
 {
     (void)rtPerfQueryPool;
-}
-
-void HWAccelerator::setupSharedBuffers()
-{
-    assert(uboRT.numTasks > 0);
-    vk::DeviceSize hitBufferSize(uboRT.numTasks * sizeof(Hit));
-    hitBuffer = context.createGLShareableBuffer(vk::BufferUsageFlagBits::eRayTracingNV, vk::MemoryPropertyFlagBits::eDeviceLocal, hitBufferSize);
-
-    auto memoryHandleType = vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32;
-    auto semaphoreHandleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;
-
-    handles.memory = device.getMemoryWin32HandleKHR({ hitBuffer.memory, memoryHandleType }, loaderNV);
-
-    {
-        vk::SemaphoreCreateInfo sci;
-        vk::ExportSemaphoreCreateInfo esci;
-        sci.pNext = &esci;
-        esci.handleTypes = semaphoreHandleType;
-        semaphores.glReady = device.createSemaphore(sci);
-        semaphores.glComplete = device.createSemaphore(sci);
-    }
-
-    handles.glReady = device.getSemaphoreWin32HandleKHR({ semaphores.glReady, semaphoreHandleType }, loaderNV);
-    handles.glComplete = device.getSemaphoreWin32HandleKHR({ semaphores.glComplete, semaphoreHandleType }, loaderNV);
 }
 
 void HWAccelerator::buildAccelerationStructure()
@@ -639,7 +775,15 @@ void HWAccelerator::enqueueTraceRays()
 
 void HWAccelerator::finish()
 {
-    raytracingQueue.waitIdle();
+    //transitionToGl(context.queue, semaphores.acquireComplete);
+
+    raytracingQueue.waitIdle(loaderNV);
+    device.waitIdle(loaderNV);
+}
+
+void HWAccelerator::transitionGL()
+{
+    transitionToGl(context.queue, semaphores.acquireComplete);
 }
 
 void HWAccelerator::setupWindow() {
@@ -659,8 +803,6 @@ void HWAccelerator::setupWindow() {
         size.height /= 2;
         window = glfwCreateWindow(size.width, size.height, "NVRay test window", nullptr, nullptr);
     }
-
-    uboRT.numTasks = static_cast<unsigned int>(size.width * size.height);
     
     glfwSetWindowUserPointer(window, this);
     /*glfwSetKeyCallback(window, KeyboardHandler);
@@ -1010,6 +1152,17 @@ void HWAccelerator::initVulkan()
     }
     else {
         context.createDevice();
+
+        // A semaphore used to synchronize image presentation
+        // Ensures that the image is displayed before we start submitting new commands to the queu
+        semaphores.acquireComplete = device.createSemaphore({});
+        // A semaphore used to synchronize command submission
+        // Ensures that the image is not presented until all commands have been sumbitted and executed
+        semaphores.renderComplete = device.createSemaphore({});
+
+        renderWaitSemaphores.push_back(semaphores.acquireComplete);
+        renderWaitStages.push_back(vk::PipelineStageFlagBits::eBottomOfPipe);
+        renderSignalSemaphores.push_back(semaphores.renderComplete);
     }
     
 

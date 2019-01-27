@@ -8,7 +8,6 @@ layout(location = 0) rayPayloadInNV PrimaryPayload payload;
 
 /* Primary ray miss shader */
 
-
 void main() {
     payload.color = vec3(0.2, 0.2, 0.2);
 }

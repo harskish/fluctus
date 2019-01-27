@@ -34,19 +34,13 @@ CLContext::CLContext()
     platform = getPlatformByName(platforms, Settings::getInstance().getPlatformName());
     std::cout << "PLATFORM: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
 
-	#ifdef CPU_DEBUGGING
-		platform.getDevices(CL_DEVICE_TYPE_CPU, &clDevices);
-	#else
-		platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
-	#endif
+    platform.getDevices(CL_DEVICE_TYPE_ALL, &clDevices);
 
     if (clDevices.size() == 0)
     {
         std::cout << "No device found that matches the given criteria. Check settings.json." << std::endl;
         waitExit();
     }
-        
-
 
     // Init shared context
     #ifdef __APPLE__
@@ -919,6 +913,63 @@ void CLContext::recompileKernels(bool setArgs)
     mk_sample_bsdf->rebuild(setArgs);
     mk_splat->rebuild(setArgs);
     mk_splat_preview->rebuild(setArgs);
+}
+
+void CLContext::initVKSharedBuffers(HWAccelerator* acc)
+{
+    acc->prepareFrame();
+    acc->finish();
+    acc->transitionGL();
+    acc->finish();
+    glFlush();
+    glFinish();
+    GLcheckErrors();
+
+
+    cl::ImageGL imageV = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, acc->glHandles.vanillaColor, &err);
+    sharedMemory.push_back(imageV);
+    verify("Failed to create vanilla shared texture");
+
+
+    //cl::ImageGL image = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, acc->glHandles.color, &err);
+    //verify("Failed to create 3-way texture");
+    
+    deviceBuffers.hitBuffer = cl::BufferGL(context, CL_MEM_READ_ONLY, (GLuint)acc->glHandles.vanillaHitBuffer, &err);
+    sharedMemory.push_back(deviceBuffers.hitBuffer);
+    verify("Failed to create GL-CL shared hit buffer");
+    
+    acc->finish();
+    glFlush();
+    glFinish();
+
+    // COPY VK-GL BUFFER CONTENTS TO CL-GL BUFFER
+    GLint buffSize = 0;
+    glBindBuffer(GL_COPY_READ_BUFFER, acc->glHandles.hitBuffer);
+    glBindBuffer(GL_COPY_WRITE_BUFFER, acc->glHandles.vanillaHitBuffer);
+    glGetBufferParameteriv(GL_COPY_READ_BUFFER, GL_BUFFER_SIZE, &buffSize);
+    glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, buffSize);
+    glFinish();
+    GLcheckErrors();
+
+    const int N = 2;
+    Hit hits[N];
+    cmdQueue.enqueueAcquireGLObjects(&sharedMemory);
+    cmdQueue.enqueueReadBuffer(deviceBuffers.hitBuffer, CL_FALSE, 0, N * sizeof(Hit), &hits);
+    cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
+    cmdQueue.finish();
+
+    verify("Failed to read back VK-GL-CL hit buffer contents");
+
+    for (int i = 0; i < N; i++) {
+        Hit hit = hits[i];
+        std::cout << "Hit " << i << ":\n"
+            << "    i     " << hit.i << std::endl
+            << "    N     " << hit.N << std::endl
+            << "    P     " << hit.P << std::endl
+            << "    t     " << hit.t << std::endl
+            << "    uv    " << hit.uvTex << std::endl
+            << "    matID " << hit.matId << std::endl;
+    }
 }
 
 // Clear wavefront queues by setting counters to zero

@@ -138,5 +138,5 @@ private:
 
     bool useWavefront;
 
-    HWAccelerator accelerator;
+    HWAccelerator* accelerator;
 };

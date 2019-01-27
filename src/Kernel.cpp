@@ -4,9 +4,9 @@
 #include <cassert>
 #include "utils.h"
 
-#ifdef _DEBUG
-#define CPU_DEBUGGING
-#endif
+//#ifdef _DEBUG
+//#define CPU_DEBUGGING
+//#endif
 
 FLT_NAMESPACE_BEGIN
 

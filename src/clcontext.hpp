@@ -1,12 +1,13 @@
 #pragma once
 
-#ifdef _DEBUG
-#define CPU_DEBUGGING
-#endif
+//#ifdef _DEBUG
+//#define CPU_DEBUGGING
+//#endif
 
 #include "cl2.hpp"
 #include "geom.h"
 #include "Kernel.hpp"
+#include "HWAccelerator.hpp"
 #include <string>
 
 typedef struct
@@ -50,6 +51,7 @@ public:
     // Done conservatively
     void recompileKernels(bool setArgs);
    
+    void initVKSharedBuffers(HWAccelerator* acc);
     void enqueueClearWfQueues();
     void finishQueue();
     void updatePixelIndex(cl_uint numPixels, cl_uint numNewPaths);
@@ -211,5 +213,8 @@ public:
         // Single element buffers
         cl::Buffer pickResult;
         cl::Buffer renderParams;
+
+        // Accelerator buffers
+        cl::BufferGL hitBuffer;
     } deviceBuffers;
 };
