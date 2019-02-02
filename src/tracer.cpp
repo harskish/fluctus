@@ -33,9 +33,7 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     clctx->setup(window);
     setupToolbar();
 
-    accelerator = new HWAccelerator();
-    accelerator->createGLObjects();
-
+    accelerator = new HWAccelerator((unsigned int)clctx->getNumTasks());
     clctx->initVKSharedBuffers(accelerator);
 }
 
@@ -92,10 +90,7 @@ void Tracer::renderInteractive()
 
     while (running())
     {
-        accelerator->enqueueTraceRays();
         update();
-        accelerator->finish();
-        //accelerator->debugPrintHit0();
     }
 }
 
@@ -227,6 +222,8 @@ void Tracer::update()
 
     QueueCounters cnt = {};
     
+    bool useRtx = true;
+
     if (useWavefront)
     {
         // Aila-style WF
@@ -247,6 +244,14 @@ void Tracer::update()
             clctx->enqueueWfExtRayKernel(params);
             clctx->enqueueClearWfQueues();
         }
+
+        // TODO: CL-Vulkan shared semaphore (when available...)
+        accelerator->enqueueTraceRays(params);
+        accelerator->finish();
+        //accelerator->transitionGL(); => just finish() instead
+        accelerator->copyHitsToCL();
+        
+        clctx->finishQueue();
 
         // Advance wavefront N segments
         for (int i = 0; i < N; i++)

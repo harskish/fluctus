@@ -36,6 +36,7 @@ kernel void logic(
     global uchar *texData,
     global TexDescriptor *textures,
     global RenderParams *params,
+    global Hit* hitsRTX,
     uint numTasks,
     uint firstIteration
 )
@@ -50,7 +51,26 @@ kernel void logic(
     uint seed = ReadU32(seed, tasks);
     uint len = ReadU32(pathLen, tasks);
     
-    Hit hit = readHitSoA(tasks, gid, numTasks);
+    Hit hit = hitsRTX[gid];
+
+    if (hit.i > -1) {
+        uint pixIdx = gid % (params->width * params->height);
+        float4 color = (float4)(1.0f, 1.0f, 0.0f, 1.0f);
+        *(pixels + pixIdx * 4 + 0) = color.x;
+        *(pixels + pixIdx * 4 + 1) = color.y;
+        *(pixels + pixIdx * 4 + 2) = color.z;
+        *(pixels + pixIdx * 4 + 3) = color.w;
+    }
+    else {
+        uint pixIdx = gid % (params->width * params->height);
+        *(pixels + pixIdx * 4 + 0) = 0.0f;
+        *(pixels + pixIdx * 4 + 1) = 0.0f;
+        *(pixels + pixIdx * 4 + 2) = 0.0f;
+        *(pixels + pixIdx * 4 + 3) = 1.0f;
+    }
+
+
+    //Hit hit = readHitSoA(tasks, gid, numTasks);
     const float3 rayOrig = ReadFloat3(orig, tasks);
     const float3 rayDir = ReadFloat3(dir, tasks);
     Ray r = { rayOrig, rayDir };

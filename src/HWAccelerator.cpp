@@ -5,7 +5,7 @@
 #include <iostream>
 
 
-HWAccelerator::HWAccelerator(void)
+HWAccelerator::HWAccelerator(const unsigned int numTasks)
 {
     if (!glfwInit()) {
         std::cout << "Could not init GLFW" << std::endl;
@@ -17,19 +17,20 @@ HWAccelerator::HWAccelerator(void)
     else
         std::cout << "RT test: no window!" << std::endl;
 
-    uboRT.numTasks = static_cast<unsigned int>(size.width * size.height);
+    uboRT.numTasks = numTasks; // static_cast<unsigned int>(size.width * size.height);
+    std::cout << "RTX: numTasks = " << numTasks;
 
     initVulkan();
     setupSwapchain();
     prepare();
 
     if (RT_TEST_WINDOW) {
-        for (int i = 0; i < 2; i++) {
-            draw();
-            enqueueTraceRays();
-            finish();
-            updateUniformBuffers();
-        }
+        //for (int i = 0; i < 2; i++) {
+        //    draw();
+        //    enqueueTraceRays();
+        //    finish();
+        //    updateUniformBuffers();
+        //}
 
         // TEST render loop
         //while (!glfwWindowShouldClose(window)) {
@@ -48,10 +49,11 @@ HWAccelerator::HWAccelerator(void)
     }
     else {
         // Trace rays once
-        enqueueTraceRays();
-        finish();
+        //enqueueTraceRays();
+        //finish();
     }
     
+    createGLObjects();
     std::cout << "HWAccelerator init done" << std::endl;
 }
 
@@ -118,6 +120,18 @@ void HWAccelerator::debugPrintHit0()
         << "    t     " << hit0->t << std::endl
         << "    uv    " << hit0->uvTex << std::endl
         << "    matID " << hit0->matId << std::endl;
+}
+
+// Copy hits from VK-GL buffer to GL-CL buffer
+void HWAccelerator::copyHitsToCL()
+{
+    GLint buffSize = 0;
+    glBindBuffer(GL_COPY_READ_BUFFER, glHandles.hitBuffer);
+    glBindBuffer(GL_COPY_WRITE_BUFFER, glHandles.vanillaHitBuffer);
+    glGetBufferParameteriv(GL_COPY_READ_BUFFER, GL_BUFFER_SIZE, &buffSize);
+    glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, buffSize);
+    glFinish();
+    GLcheckErrors();
 }
 
 void HWAccelerator::createGLObjects()
@@ -187,6 +201,7 @@ void HWAccelerator::createGLObjects()
     glBindTexture(GL_TEXTURE_2D, 0);
     GLcheckErrors();
 }
+
 
 void HWAccelerator::setupSharedBuffers()
 {
@@ -749,12 +764,32 @@ void HWAccelerator::getRaytracingQueue()
     raytracingQueue = device.getQueue(queueIndex, 0);
 }
 
-void HWAccelerator::enqueueTraceRays()
+void HWAccelerator::enqueueTraceRays(RenderParams& params)
 {
     //raytracingCmdBuffer.writeTimestamp(vk::PipelineStageFlagBits::eAllGraphics, rtPerfQueryPool, 1234, loaderNV);
     //static double lastPrinted = 0;
 
     //double t1 = glfwGetTime();
+
+
+    // TODO: create updateCamera() method, do sparingly
+
+    auto toVec3 = [](FireRays::float3& v) {
+        return glm::vec3(v.x, v.y, v.z);
+    };
+
+    //glm::mat3 R;
+    //R[0] = toVec3(params.camera.right);
+    //R[1] = toVec3(params.camera.up);
+    //R[2] = toVec3(params.camera.dir);
+    //
+    //std::cout << "Camera dir: " << params.camera.dir << std::endl;
+    //
+    //uboRT.invR = glm::mat4(glm::inverse(R));
+    //uboRT.aspectRatio = (float)size.width / (float)size.height;
+    //uboRT.camPos = glm::vec4(toVec3(params.camera.pos), 1.0f);
+    //uniformDataRaytracing.copy(uboRT);
+
 
     vk::SubmitInfo raytracingSubmitInfo;
     raytracingSubmitInfo.commandBufferCount = 1;

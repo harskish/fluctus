@@ -833,7 +833,9 @@ void CLContext::enqueueWfLogicKernel(const RenderParams& params, const bool firs
 {
     cl_uint numElems = ((NUM_TASKS - 1) / 32 + 1) * 32;
     err |= wf_logic->setArg("firstIteration", (cl_uint)firstIteration);
+    err |= cmdQueue.enqueueAcquireGLObjects(&sharedMemory);
     err |= cmdQueue.enqueueNDRangeKernel(*wf_logic, cl::NullRange, cl::NDRange(numElems), cl::NullRange);
+    err |= cmdQueue.enqueueReleaseGLObjects(&sharedMemory);
     verify("Failed to enqueue wf_logic");
 }
 
@@ -929,10 +931,6 @@ void CLContext::initVKSharedBuffers(HWAccelerator* acc)
     cl::ImageGL imageV = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, acc->glHandles.vanillaColor, &err);
     sharedMemory.push_back(imageV);
     verify("Failed to create vanilla shared texture");
-
-
-    //cl::ImageGL image = cl::ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, acc->glHandles.color, &err);
-    //verify("Failed to create 3-way texture");
     
     deviceBuffers.hitBuffer = cl::BufferGL(context, CL_MEM_READ_ONLY, (GLuint)acc->glHandles.vanillaHitBuffer, &err);
     sharedMemory.push_back(deviceBuffers.hitBuffer);
@@ -943,15 +941,9 @@ void CLContext::initVKSharedBuffers(HWAccelerator* acc)
     glFinish();
 
     // COPY VK-GL BUFFER CONTENTS TO CL-GL BUFFER
-    GLint buffSize = 0;
-    glBindBuffer(GL_COPY_READ_BUFFER, acc->glHandles.hitBuffer);
-    glBindBuffer(GL_COPY_WRITE_BUFFER, acc->glHandles.vanillaHitBuffer);
-    glGetBufferParameteriv(GL_COPY_READ_BUFFER, GL_BUFFER_SIZE, &buffSize);
-    glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, buffSize);
-    glFinish();
-    GLcheckErrors();
+    acc->copyHitsToCL();
 
-    const int N = 2;
+    const int N = 1;
     Hit hits[N];
     cmdQueue.enqueueAcquireGLObjects(&sharedMemory);
     cmdQueue.enqueueReadBuffer(deviceBuffers.hitBuffer, CL_FALSE, 0, N * sizeof(Hit), &hits);

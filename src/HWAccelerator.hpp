@@ -11,13 +11,15 @@
 #ifdef WIN32
 #include <handleapi.h>
 #else
-Linux / MacOS support still not implemented
+Linux / MacOS support not yet implemented
 #endif
 
 #include <vulkan/vulkan.hpp>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+
+#include "geom.h"
 
 
 // TEST: create window?
@@ -39,14 +41,15 @@ const uint32_t SHARED_TEXTURE_DIMENSION = 512;
 class HWAccelerator
 {
 public:
-    HWAccelerator(void);
+    HWAccelerator(const unsigned int numTasks); // must match CL task buffer
     ~HWAccelerator(void) = default;
 
-    void enqueueTraceRays();
+    void enqueueTraceRays(RenderParams& params);
     void finish();
     void transitionGL();
     void debugPrintHit0();
-    void createGLObjects();
+
+    void copyHitsToCL();
 
     void prepareFrame();
 
@@ -73,117 +76,9 @@ public:
         HANDLE glComplete = INVALID_HANDLE_VALUE;
     } handles;
 
-    
-
-    //struct SharedResources {
-    //    vks::Image texture;
-    //    struct {
-    //        vk::Semaphore glReady;
-    //        vk::Semaphore glComplete;
-    //    } semaphores;
-    //    vk::CommandBuffer transitionCmdBuf;
-    //    ShareHandles handles;
-    //    vk::Device device;
-    //
-    //    void init(const vks::Context& context) {
-    //        device = context.device;
-    //        vk::DispatchLoaderDynamic dynamicLoader{ context.instance, device };
-    //        {
-    //            auto handleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;
-    //            {
-    //                vk::SemaphoreCreateInfo sci;
-    //                vk::ExportSemaphoreCreateInfo esci;
-    //                sci.pNext = &esci;
-    //                esci.handleTypes = handleType;
-    //                semaphores.glReady = device.createSemaphore(sci);
-    //                semaphores.glComplete = device.createSemaphore(sci);
-    //            }
-    //            handles.glReady = device.getSemaphoreWin32HandleKHR({ semaphores.glReady, handleType }, dynamicLoader);
-    //            handles.glComplete = device.getSemaphoreWin32HandleKHR({ semaphores.glComplete, handleType }, dynamicLoader);
-    //        }
-    //
-    //        {
-    //            vk::ImageCreateInfo imageCreateInfo;
-    //            imageCreateInfo.imageType = vk::ImageType::e2D;
-    //            imageCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
-    //            imageCreateInfo.mipLevels = 1;
-    //            imageCreateInfo.arrayLayers = 1;
-    //            imageCreateInfo.extent.depth = 1;
-    //            imageCreateInfo.extent.width = SHARED_TEXTURE_DIMENSION;
-    //            imageCreateInfo.extent.height = SHARED_TEXTURE_DIMENSION;
-    //            imageCreateInfo.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
-    //            texture.image = device.createImage(imageCreateInfo);
-    //            texture.device = device;
-    //            texture.format = imageCreateInfo.format;
-    //            texture.extent = imageCreateInfo.extent;
-    //        }
-    //
-    //        {
-    //            vk::MemoryRequirements memReqs = device.getImageMemoryRequirements(texture.image);
-    //            vk::MemoryAllocateInfo memAllocInfo;
-    //            vk::ExportMemoryAllocateInfo exportAllocInfo{ vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 };
-    //            memAllocInfo.pNext = &exportAllocInfo;
-    //            memAllocInfo.allocationSize = texture.allocSize = memReqs.size;
-    //            memAllocInfo.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    //            texture.memory = device.allocateMemory(memAllocInfo);
-    //            device.bindImageMemory(texture.image, texture.memory, 0);
-    //            handles.memory = device.getMemoryWin32HandleKHR({ texture.memory, vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 }, dynamicLoader);
-    //        }
-    //
-    //        {
-    //            // Create sampler
-    //            vk::SamplerCreateInfo samplerCreateInfo;
-    //            samplerCreateInfo.magFilter = vk::Filter::eLinear;
-    //            samplerCreateInfo.minFilter = vk::Filter::eLinear;
-    //            samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
-    //            // Max level-of-detail should match mip level count
-    //            samplerCreateInfo.maxLod = (float)1;
-    //            // Only enable anisotropic filtering if enabled on the devicec
-    //            samplerCreateInfo.maxAnisotropy = context.deviceFeatures.samplerAnisotropy ? context.deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
-    //            samplerCreateInfo.anisotropyEnable = context.deviceFeatures.samplerAnisotropy;
-    //            samplerCreateInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-    //            texture.sampler = device.createSampler(samplerCreateInfo);
-    //        }
-    //
-    //        {
-    //            // Create image view
-    //            vk::ImageViewCreateInfo viewCreateInfo;
-    //            viewCreateInfo.viewType = vk::ImageViewType::e2D;
-    //            viewCreateInfo.image = texture.image;
-    //            viewCreateInfo.format = texture.format;
-    //            viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-    //            texture.view = context.device.createImageView(viewCreateInfo);
-    //        }
-    //
-    //        // Setup the command buffers used to transition the image between GL and VK
-    //        transitionCmdBuf = context.createCommandBuffer();
-    //        transitionCmdBuf.begin(vk::CommandBufferBeginInfo{});
-    //        context.setImageLayout(transitionCmdBuf, texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
-    //            vk::ImageLayout::eColorAttachmentOptimal);
-    //        transitionCmdBuf.end();
-    //    }
-    //
-    //    void destroy() {
-    //        texture.destroy();
-    //        device.destroy(semaphores.glComplete);
-    //        device.destroy(semaphores.glReady);
-    //    }
-    //
-    //    void transitionToGl(const vk::Queue& queue, const vk::Semaphore& waitSemaphore) const {
-    //        vk::SubmitInfo submitInfo;
-    //        vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eBottomOfPipe;
-    //        submitInfo.pWaitDstStageMask = &stageFlags;
-    //        submitInfo.waitSemaphoreCount = 1;
-    //        submitInfo.pWaitSemaphores = &waitSemaphore;
-    //        submitInfo.signalSemaphoreCount = 1;
-    //        submitInfo.pSignalSemaphores = &semaphores.glReady;
-    //        submitInfo.commandBufferCount = 1;
-    //        submitInfo.pCommandBuffers = &transitionCmdBuf;
-    //        queue.submit({ submitInfo }, {});
-    //    }
-    //} shared;
-
 private:
+    void createGLObjects();
+
     void getRTDeviceInfo();
     void prepareTextureTarget(vks::Image& tex, uint32_t width, uint32_t height, vk::Format format);
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer);
@@ -204,6 +99,8 @@ private:
     void drawCurrentCommandBuffer();
 
 private:
+
+
     struct InstanceNV {
         float transform[12];
         uint32_t instanceID : 24;
@@ -216,11 +113,18 @@ private:
     // Order by size to avoid alignment mismatches between host and device
     struct UboCompute {
         glm::mat4 invR;
+        
+        // Mirrors RenderParams
         glm::vec4 camPos = glm::vec4(0.5f, 0.0f, 0.0f, 1.0f);
+
+
         glm::vec4 lightPos;
         float aspectRatio;
         float fov = 90.0f;
         unsigned int numTasks = 0;
+
+        // Temporary, mirrors RenderParams
+        
     } uboRT;
 
     struct {

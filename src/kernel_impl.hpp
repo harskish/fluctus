@@ -43,6 +43,9 @@ private:
         err |= setArg("params",         ctx->deviceBuffers.renderParams);
         err |= setArg("numTasks",       ctx->getNumTasks());
         err |= setArg("firstIteration", (cl_uint)false);
+
+        err |= setArg("hitsRTX", ctx->deviceBuffers.hitBuffer); // RTX test
+
         verify(err, "Failed to set wf_logic arguments");
     }
 
