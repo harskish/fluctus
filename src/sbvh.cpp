@@ -9,7 +9,8 @@ SBVH::SBVH(std::vector<RTTriangle>* tris, SplitMode mode, ProgressView *progress
 	NodeSpec rootSpec;
 	rootSpec.refs = tris->size();
 
-	// Setup references for building
+	// Setup references. New ones are added (splitting)
+	// and removed (leaf node creation) during building
 	m_refs.resize(rootSpec.refs);
 	for (int i = 0; i < m_triangles->size(); i++)
 	{
@@ -329,6 +330,9 @@ void SBVH::partitionSpatial(NodeSpec& left, NodeSpec& right, const NodeSpec& spe
 	// Left-hand side:      [leftStart, leftEnd[
 	// Uncategorized/split: [leftEnd, rightStart[
 	// Right-hand side:     [rightStart, m_refs.size()[
+
+	// The size of m_refs grows (adding duplicates) and shrinks
+	// (creating leaf nodes) dynamically during building
 
 	int leftStart = m_refs.size() - spec.refs;
 	int leftEnd = leftStart;
