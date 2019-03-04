@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <memory>
 #include "texture.hpp"
 #include "envmap.hpp"
 #include "triangle.hpp"
