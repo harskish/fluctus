@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.3)
 project(BMFR)
 
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+	message(FATAL_ERROR "Only 64bit build supported due to prebuilt libs.")
+endif()
+
 # OCL 1.2+ needed for clGetKernelArgInfo
 add_definitions(-DCL_HPP_MINIMUM_OPENCL_VERSION=120)
 add_definitions(-DCL_HPP_TARGET_OPENCL_VERSION=120)
@@ -12,9 +16,7 @@ find_package(OpenGL REQUIRED)
 set(LIBRARIES
     ${OPENGL_LIBRARIES}
     ${OpenCL_LIBRARY}
-    ${CMAKE_SOURCE_DIR}\\..\\..\\ext\\windows\\oiio\\lib\\x64\\OpenImageIOD.lib
-    
-    # C:\\Users\\Erik\\code\\fluctus\\ext\\windows\\oiio\\lib\\x64\\OpenImageIOD.lib
+    ${CMAKE_SOURCE_DIR}/../../ext/windows/oiio/lib/x64/OpenImageIOD.lib
 )
 
 set(INCLUDE_DIRS
