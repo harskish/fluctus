@@ -61,7 +61,7 @@ void Tracer::setupToolbar()
         if (name.find('.') == std::string::npos) name += ".png";
 #ifdef WITH_OPTIX
         if (useDenoiser)
-            denoiser.denoise();
+            denoiser->denoise();
 #endif
         clctx->saveImage(name, params);
     });
@@ -349,7 +349,7 @@ void Tracer::addDenoiserSettings(Widget *parent)
     });
 
     FloatWidget* mixWidget = addFloatWidget(denoiserPopup, "Strength", "DENOISER_BLEND", 0.0f, 1.0f, [this](float val) {
-        denoiser.setBlend(1.0f - val);
+        denoiser->setBlend(1.0f - val);
         denoiserStrength = val;
     });
 #endif

@@ -7,14 +7,12 @@
 #include <map>
 #include "sbvh.hpp"
 #include "scene.hpp"
+#include "Denoiser.hpp"
+#include "BMFRDenoiser.hpp"
 #include "math/float2.hpp"
 #include "math/float3.hpp"
 #include "math/matrix.hpp"
 #include "geom.h"
-
-#ifdef WITH_OPTIX
-#include "OptixDenoiser.hpp"
-#endif
 
 using namespace FireRays;
 
@@ -52,6 +50,7 @@ public:
     CLContext* getClContext() { return clctx; };
     const RenderParams& getParams() { return params; }
     std::shared_ptr<Scene> getScene() { return scene; }
+    std::shared_ptr<Denoiser> getDenoiser() { return denoiser; }
 
     bool useDenoiser = false;
 
@@ -109,11 +108,11 @@ private:
     void toggleDenoiserVisibility();
     void initEnvMap();
 
-#ifdef WITH_OPTIX
-    OptixDenoiser denoiser;
-    optix::Buffer denoisedResult;
+    // TODO: allow both denoisers active at the same time?
+    //std::shared_ptr<Denoiser> denoiser;
+    std::shared_ptr<BMFRDenoiser> denoiser;
     float denoiserStrength = 1.0f;
-#endif
+    void setupDenoiser();
 
     PTWindow *window;
     CLContext *clctx;

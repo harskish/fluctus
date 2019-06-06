@@ -55,6 +55,7 @@ public:
     void updatePixelIndex(cl_uint numPixels, cl_uint numNewPaths);
     void resetPixelIndex();
     cl_uint getNumTasks() const;
+    clt::State& getState() { return state; }
 
     Hit pickSingle(float NDCx, float NDCy);
 
@@ -122,6 +123,7 @@ private:
     cl::Platform platform;
     cl::Context context;
     cl::CommandQueue cmdQueue;
+    clt::State state; // contains all the above
     
     // General kernels
     clt::Kernel* kernel_pick = nullptr;

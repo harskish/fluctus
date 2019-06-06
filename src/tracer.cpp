@@ -2,6 +2,7 @@
 #include "window.hpp"
 #include "progressview.hpp"
 #include "clcontext.hpp"
+#include "BMFRDenoiser.hpp"
 #include "settings.hpp"
 #include "utils.h"
 #include "geom.h"
@@ -23,13 +24,13 @@ Tracer::Tracer(int width, int height) : useWavefront(true)
     // done only once (VS debugging stops working if context is recreated)
     window = new PTWindow(width, height, this); // this = glfw user pointer
     window->setShowFPS(true);
-#ifdef WITH_OPTIX
-    denoiser.bindBuffers(window);
-#endif
     clctx = new CLContext();
+    denoiser.reset(new BMFRDenoiser());
     window->setCLContextPtr(clctx);
     window->setupGUI();
     clctx->setup(window);
+    denoiser->setup(clctx, window);
+    
     setupToolbar();
 }
 
@@ -159,7 +160,7 @@ void Tracer::renderSingle(int spp, bool denoise)
     if (denoise)
     {
         std::cout << "Initializing denoiser..." << std::endl;
-        denoiser.denoise();
+        denoiser->denoise();
         clctx->saveImage("output_" + std::to_string(sample) + "_denoised.png", params);
     }
 #else
@@ -317,7 +318,7 @@ void Tracer::update()
     else if (iteration % threshold == 0) 
     {
         // Denoise sparingly (expensive!)
-        denoiser.denoise();
+        denoiser->denoise();
         window->drawDenoised();
     }
     else
@@ -569,6 +570,14 @@ void Tracer::initEnvMap()
     }
 }
 
+void Tracer::setupDenoiser()
+{
+#ifdef WITH_OPTIX
+    //denoiser.reset(new OptixDenoiser());
+    //denoiser->bindBuffers(window);
+#endif
+}
+
 // Check if old hierarchy can be reused
 void Tracer::initHierarchy()
 {
@@ -610,7 +619,7 @@ void Tracer::resizeBuffers(int width, int height)
     window->createPBOs();
     clctx->setupPixelStorage(window);
 #ifdef WITH_OPTIX
-    denoiser.resizeBuffers(window);
+    denoiser->resizeBuffers(window);
 #endif
     paramsUpdatePending = true;
 }
@@ -732,7 +741,7 @@ void Tracer::saveImage()
     std::string fileName = "output_" + std::to_string(epoch) + ".png";
 #ifdef WITH_OPTIX
     if (useDenoiser)
-        denoiser.denoise();
+        denoiser->denoise();
 #endif
     clctx->saveImage(fileName, params);
 }
@@ -889,7 +898,7 @@ void Tracer::toggleDenoiserVisibility()
     }
 
     denoiserStrength = (denoiserStrength > 0.5f) ? 0.0f : 1.0f;
-    denoiser.setBlend(1.0f - denoiserStrength);
+    denoiser->setBlend(1.0f - denoiserStrength);
     updateGUI();
 #endif
 }

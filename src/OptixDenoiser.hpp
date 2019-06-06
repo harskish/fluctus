@@ -1,20 +1,20 @@
 #pragma once
 
 #include <optixu/optixpp_namespace.h>
+#include "Denoiser.hpp"
 
 class PTWindow;
 
-class OptixDenoiser
+class OptixDenoiser : public Denoiser
 {
 public:
     OptixDenoiser(void);
     ~OptixDenoiser(void) = default;
 
-    void bindBuffers(PTWindow *window);
-    void resizeBuffers(PTWindow *window);
-    void denoise(void);
-
-    void setBlend(float val);
+    void bindBuffers(PTWindow *window) override;
+    void resizeBuffers(PTWindow *window) override;
+    void denoise(void) override;
+    void setBlend(float val) override;
 
 private:
     void setupCommandList(unsigned int width, unsigned int height);

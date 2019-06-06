@@ -68,6 +68,9 @@ set(SOURCE_FILES
     src/texture.hpp
     src/GLProgram.cpp
     src/GLProgram.hpp
+    src/Denoiser.hpp
+    src/BMFRDenoiser.hpp
+    src/BMFRDenoiser.cpp
     src/utils.h
     src/utils.cpp)
 

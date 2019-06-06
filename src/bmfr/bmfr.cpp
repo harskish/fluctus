@@ -521,8 +521,8 @@ int tasks()
         profile_info_total.print();
     }
 
-	printf("Skipping image saving...");
-	return 0;
+	//printf("Skipping image saving...");
+	//return 0;
 
     // Store results
     error = false;

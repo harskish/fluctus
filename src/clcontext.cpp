@@ -22,7 +22,7 @@ CLContext::CLContext()
     clt::printDevices();
     clt::setKernelCacheDir("data/kernel_binaries");
 
-    clt::State state = clt::initialize(s.getPlatformName(), s.getDeviceName());
+    state = clt::initialize(s.getPlatformName(), s.getDeviceName());
     device = state.device;
     platform = state.platform;
     context = state.context;
