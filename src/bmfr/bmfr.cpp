@@ -25,6 +25,9 @@
 #include "OpenImageIO/imageio.h"
 #include "CLUtils/CLUtils.hpp"
 
+#define TINYEXR_IMPLEMENTATION
+#include "tinyexr.h"
+
 #define _CRT_SECURE_NO_WARNINGS
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
@@ -39,7 +42,7 @@
 #define IMAGE_WIDTH 1280
 #define IMAGE_HEIGHT 720
 // TODO detect FRAME_COUNT from the input files
-#define FRAME_COUNT 60
+#define FRAME_COUNT 30
 // Location where input frames and feature buffers are located
 #define INPUT_DATA_PATH ../../sponza-(glossy)/inputs
 #define INPUT_DATA_PATH_STR STR(INPUT_DATA_PATH)
@@ -147,29 +150,68 @@ struct Operation_result
         success(success), error_message(error_message) {}
 };
 
-Operation_result read_image_file(
-    const std::string &file_name, const int frame, float *buffer)
-{
-    OpenImageIO::ImageInput *in = OpenImageIO::ImageInput::open(
-        file_name + std::to_string(frame) + ".exr");
-    if (!in || in->spec().width != IMAGE_WIDTH ||
-        in->spec().height != IMAGE_HEIGHT || in->spec().nchannels != 3)
-    {
+//Operation_result read_image_file(
+//    const std::string &file_name, const int frame, float *buffer)
+//{
+//    OpenImageIO::ImageInput *in = OpenImageIO::ImageInput::open(
+//        file_name + std::to_string(frame) + ".exr");
+//    if (!in || in->spec().width != IMAGE_WIDTH ||
+//        in->spec().height != IMAGE_HEIGHT || in->spec().nchannels != 3)
+//    {
+//
+//        return {false, "Can't open image file or it has wrong type: " + file_name};
+//    }
+//
+//    // NOTE: this converts .exr files that might be in halfs to single precision floats
+//    // In the dataset distributed with the BMFR paper all exr files are in single precision
+//    in->read_image(OpenImageIO::TypeDesc::FLOAT, buffer);
+//    in->close();
+//
+//    return {true};
+//}
 
-        return {false, "Can't open image file or it has wrong type: " + file_name};
+Operation_result read_image_file_tinyexr(
+    const std::string& file_name, const int frame, float* buffer)
+{
+    float* out; // width * height * RGBA
+    int width;
+    int height;
+    const char* err = nullptr;
+
+    std::string input = file_name + std::to_string(frame) + ".exr";
+    int ret = LoadEXR(&out, &width, &height, input.c_str(), &err);
+
+    if (ret != TINYEXR_SUCCESS) {
+        if (err) {
+            fprintf(stderr, "ERR : %s\n", err);
+            FreeEXRErrorMessage(err); // release memory of error message.
+        }
+        
+        return { false, "Can't open image: " + file_name };
+    }
+    else {
+        if (width != IMAGE_WIDTH || height != IMAGE_HEIGHT) {
+            free(out);
+            return { false, "Dimensions don't match for " + file_name };
+        }
+        
+        // Convert RGBA to RGB
+        for (int i = 0; i < width * height; i++) {
+            buffer[i * 3 + 0] = out[i * 4 + 0];
+            buffer[i * 3 + 1] = out[i * 4 + 1];
+            buffer[i * 3 + 2] = out[i * 4 + 2];
+        }
     }
 
-    // NOTE: this converts .exr files that might be in halfs to single precision floats
-    // In the dataset distributed with the BMFR paper all exr files are in single precision
-    in->read_image(OpenImageIO::TypeDesc::FLOAT, buffer);
-    in->close();
-
-    return {true};
+    free(out);
+    return { true };
 }
 
 Operation_result load_image(cl_float *image, const std::string file_name, const int frame)
 {
-    Operation_result result = read_image_file(file_name, frame, image);
+    //Operation_result result = read_image_file(file_name, frame, image);
+    Operation_result result = read_image_file_tinyexr(file_name, frame, image);
+    
     if (!result.success)
         return result;
 

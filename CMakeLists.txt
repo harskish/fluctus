@@ -55,6 +55,7 @@ set(SOURCE_FILES
     src/scene.hpp
     src/tinyfiledialogs.c
     src/tinyfiledialogs.h
+    src/tinyexr.h
     src/kernel_impl.hpp
     src/envmap.hpp
     src/envmap.cpp

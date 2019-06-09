@@ -52,7 +52,7 @@ public:
     std::shared_ptr<Scene> getScene() { return scene; }
     std::shared_ptr<Denoiser> getDenoiser() { return denoiser; }
 
-    bool useDenoiser = false;
+    bool useDenoiser = true;
 
     // GUI - implemented in tracer_ui.cpp
 private:

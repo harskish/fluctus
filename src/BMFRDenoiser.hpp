@@ -37,6 +37,10 @@ class BMFRDenoiser : public Denoiser
 {
     friend class BMFRKernelBase;
     friend class FitterKernel;
+    friend class WeightedSumKernel;
+    friend class AccumNoisyKernel;
+    friend class AccumFilteredKernel;
+    friend class TAAKernel;
 
 public:
     BMFRDenoiser(void) = default;
@@ -73,7 +77,7 @@ private:
     std::vector<Double_buffer<cl::Buffer> *> all_double_buffers;
 
     // Kernels
-    clt::Kernel* filterKernel;
+    clt::Kernel* fitter_kernel;
     clt::Kernel* weighted_sum_kernel;
     clt::Kernel* accum_noisy_kernel;
     clt::Kernel* accum_filtered_kernel;
@@ -82,4 +86,6 @@ private:
     // Amount of original image blended into denoised result, in range [0.0, 1.0]
     float denoiseBlend = 0.0f;
     CLContext* ctx;
+
+    unsigned int frame = 0;
 };

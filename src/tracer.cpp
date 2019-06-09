@@ -307,6 +307,18 @@ void Tracer::update()
     // Enqueue WF pixel index update
     clctx->updatePixelIndex(params.width * params.height, cnt.raygenQueue);
 
+    // BMFR
+    if (useDenoiser)
+    {
+        denoiser->denoise();
+        window->drawDenoised();
+    }
+    else
+    {
+        window->draw();
+    }
+
+    /*
     // Denoise and draw preview
 #ifdef WITH_OPTIX
     const int threshold = 10;
@@ -329,6 +341,7 @@ void Tracer::update()
 #else
     window->draw();
 #endif
+    */
     
     if (useWavefront)
     {

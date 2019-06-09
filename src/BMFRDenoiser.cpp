@@ -33,6 +33,11 @@
 //#include "OpenImageIO/imageio.h" TODO: use TinyEXR instead!
 #include "bmfr/CLUtils/CLUtils.hpp"
 
+#define TINYEXR_IMPLEMENTATION
+#include "tinyexr.h"
+
+#include "IL/ilu.h"
+
 #define _CRT_SECURE_NO_WARNINGS
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
@@ -49,26 +54,30 @@
 // TODO detect FRAME_COUNT from the input files
 #define FRAME_COUNT 60
 // Location where input frames and feature buffers are located
-#define INPUT_DATA_PATH ../../sponza-(glossy)/inputs
+//#define INPUT_DATA_PATH sponza-(glossy)/inputs
+#define INPUT_DATA_PATH san_miguel/inputs
 #define INPUT_DATA_PATH_STR STR(INPUT_DATA_PATH)
 
 // camera_matrices.h is expected to be in the same folder
 //#include STR(INPUT_DATA_PATH/camera_matrices.h)
 
-const float position_limit_squared = 0.001600;
-const float normal_limit_squared = 0.250000;
+//const float position_limit_squared = 0.001600;
+//const float normal_limit_squared = 0.250000;
+
 // Every matrix is multiplication of camera projection, rotation and position matrices
-const float camera_matrices[1][4][4] = {
-   { // frame 0
-      {0.821398, 0.958759, -0.862917, -0.862916},
-      {0.000000, 3.290975, 0.305999, 0.305999},
-      {-1.762433, 0.446838, -0.402170, -0.402170},
-      {-2.446395, -10.698995, -0.135571, -0.065571},
-   },
-};
-const float pixel_offsets[1][2] = {
-   {0.500000, 0.500000}, // frame 0
-};
+//const float camera_matrices[1][4][4] = {
+//   { // frame 0
+//      {0.821398, 0.958759, -0.862917, -0.862916},
+//      {0.000000, 3.290975, 0.305999, 0.305999},
+//      {-1.762433, 0.446838, -0.402170, -0.402170},
+//      {-2.446395, -10.698995, -0.135571, -0.065571},
+//   },
+//};
+//const float pixel_offsets[1][2] = {
+//   {0.500000, 0.500000}, // frame 0
+//};
+#include STR(../INPUT_DATA_PATH/camera_matrices.h)
+
 
 // These names are appended with NN.exr, where NN is the frame number
 #define NOISY_FILE_NAME INPUT_DATA_PATH_STR"/color"
@@ -156,6 +165,54 @@ struct Operation_result
 };
 
 
+Operation_result read_image_file(
+    const std::string& file_name, const int frame, float* buffer)
+{
+    float* out; // width * height * RGBA
+    int width;
+    int height;
+    const char* err = nullptr;
+
+    std::string input = file_name + std::to_string(frame) + ".exr";
+    int ret = LoadEXR(&out, &width, &height, input.c_str(), &err);
+
+    if (ret != TINYEXR_SUCCESS) {
+        if (err) {
+            fprintf(stderr, "ERR : %s\n", err);
+            FreeEXRErrorMessage(err); // release memory of error message.
+        }
+
+        return { false, "Can't open image: " + file_name };
+    }
+    else {
+        if (width != IMAGE_WIDTH || height != IMAGE_HEIGHT) {
+            free(out);
+            return { false, "Dimensions don't match for " + file_name };
+        }
+
+        // Convert RGBA to RGB
+        for (int i = 0; i < width * height; i++) {
+            buffer[i * 3 + 0] = out[i * 4 + 0];
+            buffer[i * 3 + 1] = out[i * 4 + 1];
+            buffer[i * 3 + 2] = out[i * 4 + 2];
+        }
+    }
+
+    free(out);
+    return { true };
+}
+
+Operation_result load_image(cl_float* image, const std::string file_name, const int frame)
+{
+    Operation_result result = read_image_file(file_name, frame, image);
+
+    if (!result.success)
+        return result;
+
+    return { true };
+}
+
+
 // TODO: Move to BMFRKernels.hpp?
 
 inline BMFRDenoiser* getDenoiserPtr(void* userPtr)
@@ -226,9 +283,8 @@ public:
         err |= setArg("r_mat", r_size, nullptr);
         err |= setArg("weights", denoiser->weights_buffer);
         err |= setArg("mins_maxs", denoiser->mins_maxs_buffer);
-        //err |= setArg("tmp_data", ctx->deviceBuffers.pickResult); // in_buffer
-        err |= setArg("frame_number", 0); // frame
-        clt::check(err, "Failed to set BMFR fitter arguments!");
+        err |= setArg("frame_number", denoiser->frame);
+        clt::check(err, "Failed to set BMFR fitter arguments");
     }
 };
 
@@ -238,7 +294,12 @@ public:
     WeightedSumKernel(void) : BMFRKernelBase("weighted_sum") {}
     void setArgs() override
     {
-
+        BMFRDenoiser* denoiser = getDenoiserPtr(userPtr);
+        int err = 0;
+        err |= setArg("weights", denoiser->weights_buffer);
+        err |= setArg("mins_maxs", denoiser->mins_maxs_buffer);
+        err |= setArg("output", denoiser->filtered_buffer);
+        clt::check(err, "Failed to set BMFR weighted_sum arguments");
     }
 };
 
@@ -248,7 +309,11 @@ public:
     AccumNoisyKernel(void) : BMFRKernelBase("accumulate_noisy_data") {}
     void setArgs() override
     {
-
+        BMFRDenoiser* denoiser = getDenoiserPtr(userPtr);
+        int err = 0;
+        err |= setArg("out_prev_frame_pixel", denoiser->prev_pixels_buffer);
+        err |= setArg("accept_bools", denoiser->accept_buffer);
+        clt::check(err, "Failed to set BMFR accumulate_noisy_data arguments");
     }
 };
 
@@ -258,7 +323,14 @@ public:
     AccumFilteredKernel(void) : BMFRKernelBase("accumulate_filtered_data") {}
     void setArgs() override
     {
-
+        BMFRDenoiser* denoiser = getDenoiserPtr(userPtr);
+        int err = 0;
+        err |= setArg("filtered_frame", denoiser->filtered_buffer);
+        err |= setArg("in_prev_frame_pixel", denoiser->prev_pixels_buffer);
+        err |= setArg("accept_bools", denoiser->accept_buffer);
+        err |= setArg("albedo", denoiser->albedo_buffer);
+        err |= setArg("tone_mapped_frame", denoiser->tone_mapped_buffer);
+        clt::check(err, "Failed to set BMFR accumulate_filtered_data arguments");
     }
 };
 
@@ -268,7 +340,14 @@ public:
     TAAKernel(void) : BMFRKernelBase("taa") {}
     void setArgs() override
     {
-
+        BMFRDenoiser* denoiser = getDenoiserPtr(userPtr);
+        int err = 0;
+        err |= setArg("in_prev_frame_pixel", denoiser->prev_pixels_buffer);
+        err |= setArg("new_frame", denoiser->tone_mapped_buffer);
+        err |= setArg("result_frame", *denoiser->result_buffer.current());
+        err |= setArg("prev_frame", *denoiser->result_buffer.previous());
+        err |= setArg("frame_number", denoiser->frame);
+        clt::check(err, "Failed to set BMFR taa arguments");
     }
 };
 
@@ -328,8 +407,8 @@ void BMFRDenoiser::setup(CLContext* context, PTWindow* window)
 
     // Kernels
     window->showMessage("Building kernel", "BMFR fitter");
-    filterKernel = new FitterKernel();
-    filterKernel->build(state.context, state.device, state.platform);
+    fitter_kernel = new FitterKernel();
+    fitter_kernel->build(state.context, state.device, state.platform);
 
     window->showMessage("Building kernel", "BMFR weighted sum");
     weighted_sum_kernel = new WeightedSumKernel();
@@ -348,12 +427,6 @@ void BMFRDenoiser::setup(CLContext* context, PTWindow* window)
     taa_kernel->build(state.context, state.device, state.platform);
 
     window->hideMessage();
-
-    cl::NDRange accum_global(WORKSET_WITH_MARGINS_WIDTH, WORKSET_WITH_MARGINS_HEIGHT);
-    cl::NDRange output_global(WORKSET_WIDTH, WORKSET_HEIGHT);
-    cl::NDRange local(LOCAL_WIDTH, LOCAL_HEIGHT);
-    cl::NDRange fitter_global(FITTER_GLOBAL);
-    cl::NDRange fitter_local(LOCAL_SIZE);
 }
 
 void BMFRDenoiser::bindBuffers(PTWindow *window)
@@ -368,7 +441,177 @@ void BMFRDenoiser::resizeBuffers(PTWindow *window)
 
 void BMFRDenoiser::denoise()
 {
+    cl::NDRange accum_global(WORKSET_WITH_MARGINS_WIDTH, WORKSET_WITH_MARGINS_HEIGHT);
+    cl::NDRange output_global(WORKSET_WIDTH, WORKSET_HEIGHT);
+    cl::NDRange local(LOCAL_WIDTH, LOCAL_HEIGHT);
+    cl::NDRange fitter_global(FITTER_GLOBAL);
+    cl::NDRange fitter_local(LOCAL_SIZE);
 
+    cl::CommandQueue& queue = ctx->getState().cmdQueue;
+
+    // Data arrays
+    std::vector<cl_float> out_data;
+    std::vector<cl_float> albedos;
+    std::vector<cl_float> normals;
+    std::vector<cl_float> positions;
+    std::vector<cl_float> noisy_input;
+
+    {
+        out_data.resize(3 * OUTPUT_SIZE);
+
+        albedos.resize(3 * IMAGE_WIDTH * IMAGE_HEIGHT);
+        Operation_result result = load_image(albedos.data(), ALBEDO_FILE_NAME,
+            frame);
+
+        bool error = false;
+        if (!result.success)
+        {
+            error = true;
+            printf("Albedo buffer loading failed, reason: %s\n",
+                result.error_message.c_str());
+        }
+
+        normals.resize(3 * IMAGE_WIDTH * IMAGE_HEIGHT);
+        result = load_image(normals.data(), NORMAL_FILE_NAME, frame);
+        if (!result.success)
+        {
+            error = true;
+            printf("Normal buffer loading failed, reason: %s\n",
+                result.error_message.c_str());
+        }
+
+        positions.resize(3 * IMAGE_WIDTH * IMAGE_HEIGHT);
+        result = load_image(positions.data(), POSITION_FILE_NAME, frame);
+        if (!result.success)
+        {
+            error = true;
+            printf("Position buffer loading failed, reason: %s\n",
+                result.error_message.c_str());
+        }
+
+        noisy_input.resize(3 * IMAGE_WIDTH * IMAGE_HEIGHT);
+        result = load_image(noisy_input.data(), NOISY_FILE_NAME, frame);
+        if (!result.success)
+        {
+            error = true;
+            printf("Position buffer loading failed, reason: %s\n",
+                result.error_message.c_str());
+        }
+
+        if (error) {
+            throw std::runtime_error("Could not load input exrs");
+        }
+    }
+
+    int err = 0;
+
+    err |= queue.enqueueWriteBuffer(albedo_buffer, true, 0, IMAGE_WIDTH * IMAGE_HEIGHT * 3 *
+        sizeof(cl_float), albedos.data());
+    err |= queue.enqueueWriteBuffer(*normals_buffer.current(), true, 0, IMAGE_WIDTH *
+        IMAGE_HEIGHT * 3 * sizeof(cl_float), normals.data());
+    err |= queue.enqueueWriteBuffer(*positions_buffer.current(), true, 0, IMAGE_WIDTH *
+        IMAGE_HEIGHT * 3 * sizeof(cl_float), positions.data());
+    err |= queue.enqueueWriteBuffer(*noisy_buffer.current(), true, 0, IMAGE_WIDTH * IMAGE_HEIGHT *
+        3 * sizeof(cl_float), noisy_input.data());
+
+
+    // On the first frame accum_noisy_kernel just copies to the in_buffer
+    err |= accum_noisy_kernel->setArg("current_normals", *normals_buffer.current());
+    err |= accum_noisy_kernel->setArg("previous_normals", *normals_buffer.previous());
+    err |= accum_noisy_kernel->setArg("current_positions", *positions_buffer.current());
+    err |= accum_noisy_kernel->setArg("previous_positions", *positions_buffer.previous());
+    err |= accum_noisy_kernel->setArg("current_noisy", *noisy_buffer.current());
+    err |= accum_noisy_kernel->setArg("previous_noisy", *noisy_buffer.previous());
+    err |= accum_noisy_kernel->setArg("previous_spp", *spp_buffer.previous());
+    err |= accum_noisy_kernel->setArg("current_spp", *spp_buffer.current());
+    err |= accum_noisy_kernel->setArg("tmp_data", in_buffer);
+    const int matrix_index = frame == 0 ? 0 : frame - 1;
+    err |= accum_noisy_kernel->setArg("prev_frame_camera_matrix", sizeof(cl_float16),
+        &(camera_matrices[matrix_index][0][0]));
+    err |= accum_noisy_kernel->setArg("pixel_offset", sizeof(cl_float2),
+        &(pixel_offsets[frame][0]));
+    err |= accum_noisy_kernel->setArg("frame_number", frame);
+    err |= queue.enqueueNDRangeKernel(*accum_noisy_kernel, cl::NullRange, accum_global, local,
+        nullptr); //, &accum_noisy_timer[matrix_index].event());
+
+    err |= fitter_kernel->setArg("tmp_data", in_buffer);
+    err |= fitter_kernel->setArg("frame_number", frame);
+    err |= queue.enqueueNDRangeKernel(*fitter_kernel, cl::NullRange, fitter_global,
+        fitter_local, nullptr); // , & fitter_timer[frame].event());
+
+    //arg_index = 3;
+    err |= weighted_sum_kernel->setArg("current_normals", *normals_buffer.current());
+    err |= weighted_sum_kernel->setArg("current_positions", *positions_buffer.current());
+    err |= weighted_sum_kernel->setArg("current_noisy", *noisy_buffer.current());
+    err |= weighted_sum_kernel->setArg("frame_number", frame);
+    err |= queue.enqueueNDRangeKernel(*weighted_sum_kernel, cl::NullRange, output_global,
+        local, nullptr); // , & weighted_sum_timer[frame].event());
+
+    //arg_index = 5;
+    err |= accum_filtered_kernel->setArg("current_spp", *spp_buffer.current());
+    err |= accum_filtered_kernel->setArg("accumulated_prev_frame", *out_buffer.previous());
+    err |= accum_filtered_kernel->setArg("accumulated_frame", *out_buffer.current());
+    err |= accum_filtered_kernel->setArg("frame_number", frame);
+    err |= queue.enqueueNDRangeKernel(*accum_filtered_kernel, cl::NullRange, output_global,
+        local, nullptr); // , & accum_filtered_timer[matrix_index].event());
+
+    //arg_index = 2;
+    err |= taa_kernel->setArg("result_frame", *result_buffer.current());
+    err |= taa_kernel->setArg("prev_frame", *result_buffer.previous());
+    err |= taa_kernel->setArg("frame_number", frame);
+    err |= queue.enqueueNDRangeKernel(*taa_kernel, cl::NullRange, output_global, local,
+        nullptr); // , & taa_timer[matrix_index].event());
+    
+    err |= queue.enqueueReadBuffer(*result_buffer.current(), false, 0,
+        OUTPUT_SIZE * 3 * sizeof(cl_float), out_data.data());
+
+    err |= queue.finish();
+    clt::check(err, "BMFR denoising error!");
+
+    {
+        unsigned int numBytes = IMAGE_WIDTH * IMAGE_HEIGHT * 3; // rgb
+        std::unique_ptr<unsigned char[]> dataBytes(new unsigned char[numBytes]);
+
+        // Convert to bytes
+        // Already tonemapped and gamma-corrected
+        int counter = 0;
+        for (int i = 0; i < numBytes; i += 3)
+        {
+            float r = out_data[numBytes - 1 - (i + 2)];
+            float g = out_data[numBytes - 1 - (i + 1)];
+            float b = out_data[numBytes - 1 - (i + 0)];
+
+            // Convert to bytes
+            auto clamp = [](float value) { return std::max(0.0f, std::min(1.0f, value)); };
+            dataBytes[counter++] = (unsigned char)(255 * clamp(r));
+            dataBytes[counter++] = (unsigned char)(255 * clamp(g));
+            dataBytes[counter++] = (unsigned char)(255 * clamp(b));
+        }
+
+        std::string outname = "bmfr_out/bmfr_" + std::to_string(frame) + ".png";
+
+        //ilOriginFunc(IL_ORIGIN_UPPER_LEFT);
+
+        ILuint imageID = ilGenImage();
+        ilBindImage(imageID);
+        ilTexImage(IMAGE_WIDTH, IMAGE_HEIGHT, 1, 3, IL_RGB, IL_UNSIGNED_BYTE, dataBytes.get());
+        ilSaveImage(outname.c_str());
+        ilDeleteImage(imageID);
+
+        //ilOriginFunc(IL_ORIGIN_LOWER_LEFT);
+    }
+
+    // Swap all double buffers
+    std::for_each(all_double_buffers.begin(), all_double_buffers.end(),
+        std::bind(&Double_buffer<cl::Buffer>::swap, std::placeholders::_1));
+
+    std::cout << "Denoised frame " << frame << std::endl;
+    
+    frame++;
+
+    if (frame >= 60) {
+        throw std::runtime_error("Out of BMFR frames!");
+    }
 }
 
 void BMFRDenoiser::setBlend(float val)
