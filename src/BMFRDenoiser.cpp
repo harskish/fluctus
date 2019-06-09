@@ -54,8 +54,8 @@
 // TODO detect FRAME_COUNT from the input files
 #define FRAME_COUNT 60
 // Location where input frames and feature buffers are located
-//#define INPUT_DATA_PATH sponza-(glossy)/inputs
-#define INPUT_DATA_PATH san_miguel/inputs
+#define INPUT_DATA_PATH sponza-(glossy)/inputs
+//#define INPUT_DATA_PATH san_miguel/inputs
 #define INPUT_DATA_PATH_STR STR(INPUT_DATA_PATH)
 
 // camera_matrices.h is expected to be in the same folder
@@ -365,7 +365,6 @@ void BMFRDenoiser::setup(CLContext* context, PTWindow* window)
         std::count(features_scaled.begin(), features_scaled.end(), ',') + 1;
 
     // + 3 stands for three noisy channels.
-    std::cout << "TODO: +4 here for RGBA?!" << std::endl;
     buffer_count = features_not_scaled_count + features_scaled_count + 3;
 
     clt::State& state = ctx->getState();
@@ -559,8 +558,11 @@ void BMFRDenoiser::denoise()
     err |= taa_kernel->setArg("result_frame", *result_buffer.current());
     err |= taa_kernel->setArg("prev_frame", *result_buffer.previous());
     err |= taa_kernel->setArg("frame_number", frame);
+    err |= queue.enqueueAcquireGLObjects(&ctx->sharedMemory);
+    err |= taa_kernel->setArg("preview_frame", ctx->deviceBuffers.previewBuffer); // FLUCTUS TEST
     err |= queue.enqueueNDRangeKernel(*taa_kernel, cl::NullRange, output_global, local,
         nullptr); // , & taa_timer[matrix_index].event());
+    err |= queue.enqueueReleaseGLObjects(&ctx->sharedMemory);
     
     err |= queue.enqueueReadBuffer(*result_buffer.current(), false, 0,
         OUTPUT_SIZE * 3 * sizeof(cl_float), out_data.data());
@@ -568,6 +570,8 @@ void BMFRDenoiser::denoise()
     err |= queue.finish();
     clt::check(err, "BMFR denoising error!");
 
+    bool saveToDisk = false;
+    if (saveToDisk)
     {
         unsigned int numBytes = IMAGE_WIDTH * IMAGE_HEIGHT * 3; // rgb
         std::unique_ptr<unsigned char[]> dataBytes(new unsigned char[numBytes]);
@@ -604,13 +608,17 @@ void BMFRDenoiser::denoise()
     // Swap all double buffers
     std::for_each(all_double_buffers.begin(), all_double_buffers.end(),
         std::bind(&Double_buffer<cl::Buffer>::swap, std::placeholders::_1));
-
-    std::cout << "Denoised frame " << frame << std::endl;
     
     frame++;
 
     if (frame >= 60) {
-        throw std::runtime_error("Out of BMFR frames!");
+        if (saveToDisk) {
+            throw std::runtime_error("Out of BMFR frames!");
+        }
+        else
+        {
+            frame = 0;
+        }
     }
 }
 

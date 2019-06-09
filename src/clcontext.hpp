@@ -27,6 +27,7 @@ class CLContext
 {
 
 friend class Tracer;
+friend class BMFRDenoiser;
 
 public:
     CLContext();

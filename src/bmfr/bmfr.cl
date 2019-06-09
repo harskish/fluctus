@@ -231,6 +231,17 @@ static inline void store_float3(
    buffer[index * 3 + 2] = value.z;
 }
 
+static inline void store_float4(
+    __global float* restrict buffer,
+    const int index,
+    const float4 value) {
+
+    buffer[index * 4 + 0] = value.x;
+    buffer[index * 4 + 1] = value.y;
+    buffer[index * 4 + 2] = value.z;
+    buffer[index * 4 + 3] = value.w;
+}
+
 // This is significantly slower the the inline function on Vega FE
 //#define store_float3(buffer, index, value) \
 //   buffer[(index) * 3 + 0] = value.x; \
@@ -861,6 +872,7 @@ __kernel void taa(
       const __global float2* restrict in_prev_frame_pixel,
       const __global float* restrict new_frame,
       __global float* restrict result_frame,
+      __global float* restrict preview_frame, // FLUCTUS TEST
       const __global float* restrict prev_frame,
       const int frame_number){
 
@@ -971,4 +983,9 @@ __kernel void taa(
    float3 result_color = TAA_BLEND_ALPHA * my_new_color +
       (1.f - TAA_BLEND_ALPHA) * prev_color_rgb;
    store_float3(result_frame, linear_pixel, result_color);
+   
+   // FLUCTUS TEST
+   const int new_linear_pixel = (IMAGE_HEIGHT - 1 - pixel.y) * IMAGE_WIDTH + pixel.x;
+   store_float4(preview_frame, new_linear_pixel, (float4)(max(result_color.x, 0.0f), max(result_color.y, 0.0f), max(result_color.z, 0.0f), 1.0f));
+   //store_float4(preview_frame, linear_pixel, (float4)(result_color.x, result_color.y, result_color.z, 1.0));
 }
