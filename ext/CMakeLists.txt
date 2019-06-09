@@ -87,12 +87,12 @@ add_subdirectory(nanogui)
 set_property(TARGET glfw glfw_objects nanogui nanogui-obj PROPERTY FOLDER "dependencies")
 
 # Setup custom search paths on Windows
-if("${CMAKE_GENERATOR}" MATCHES "Win64")
+if("${CMAKE_GENERATOR}" MATCHES "Visual Studio" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
 	list(APPEND CMAKE_PREFIX_PATH
 	 "${CMAKE_CURRENT_SOURCE_DIR}/windows/DevIL/x64")
 	list(APPEND CMAKE_LIBRARY_PATH
 	 "${CMAKE_CURRENT_SOURCE_DIR}/windows/DevIL/x64")
-elseif("${CMAKE_GENERATOR}" MATCHES "Visual Studio")
+elseif("${CMAKE_GENERATOR}" MATCHES "Visual Studio" AND CMAKE_SIZEOF_VOID_P EQUAL 4)
 	list(APPEND CMAKE_PREFIX_PATH
 	 "${CMAKE_CURRENT_SOURCE_DIR}/windows/DevIL/Win32")
 	list(APPEND CMAKE_LIBRARY_PATH
