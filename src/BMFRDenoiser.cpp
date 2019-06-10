@@ -570,7 +570,7 @@ void BMFRDenoiser::denoise()
     err |= queue.finish();
     clt::check(err, "BMFR denoising error!");
 
-    bool saveToDisk = false;
+    static bool saveToDisk = false;
     if (saveToDisk)
     {
         unsigned int numBytes = IMAGE_WIDTH * IMAGE_HEIGHT * 3; // rgb
@@ -593,16 +593,11 @@ void BMFRDenoiser::denoise()
         }
 
         std::string outname = "bmfr_out/bmfr_" + std::to_string(frame) + ".png";
-
-        //ilOriginFunc(IL_ORIGIN_UPPER_LEFT);
-
         ILuint imageID = ilGenImage();
         ilBindImage(imageID);
         ilTexImage(IMAGE_WIDTH, IMAGE_HEIGHT, 1, 3, IL_RGB, IL_UNSIGNED_BYTE, dataBytes.get());
         ilSaveImage(outname.c_str());
         ilDeleteImage(imageID);
-
-        //ilOriginFunc(IL_ORIGIN_LOWER_LEFT);
     }
 
     // Swap all double buffers
@@ -610,15 +605,9 @@ void BMFRDenoiser::denoise()
         std::bind(&Double_buffer<cl::Buffer>::swap, std::placeholders::_1));
     
     frame++;
-
     if (frame >= 60) {
-        if (saveToDisk) {
-            throw std::runtime_error("Out of BMFR frames!");
-        }
-        else
-        {
-            frame = 0;
-        }
+        saveToDisk = false;
+        frame = 0;
     }
 }
 

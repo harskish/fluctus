@@ -105,7 +105,7 @@ else()
 endif()
 
 include_directories(${INCLUDE_DIRS})
-file(GLOB PROJECT_KERNELS src/*.cl)
+file(GLOB PROJECT_KERNELS src/*.cl src/bmfr/*.cl)
 source_group("Kernels" FILES ${PROJECT_KERNELS})
 
 add_executable(Fluctus ${SOURCE_FILES} ${PROJECT_KERNELS} ${PROJECT_CONFIGS})

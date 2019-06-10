@@ -879,6 +879,7 @@ __kernel void taa(
    // Return if out of image
    const int2 pixel = (int2){get_global_id(0), get_global_id(1)};
    const int linear_pixel = pixel.y * IMAGE_WIDTH + pixel.x;
+   const int linear_pixel_flipped = (IMAGE_HEIGHT - 1 - pixel.y) * IMAGE_WIDTH + pixel.x;
    if(pixel.x >= IMAGE_WIDTH || pixel.y >=  IMAGE_HEIGHT)
       return;
 
@@ -898,6 +899,7 @@ __kernel void taa(
       prev_frame_pixel.x >= IMAGE_WIDTH || prev_frame_pixel.y >= IMAGE_HEIGHT){
 
       store_float3(result_frame, linear_pixel, my_new_color);
+      store_float4(preview_frame, linear_pixel_flipped, (float4)(my_new_color, 1.0f));
       return;
    }
 
@@ -985,7 +987,6 @@ __kernel void taa(
    store_float3(result_frame, linear_pixel, result_color);
    
    // FLUCTUS TEST
-   const int new_linear_pixel = (IMAGE_HEIGHT - 1 - pixel.y) * IMAGE_WIDTH + pixel.x;
-   store_float4(preview_frame, new_linear_pixel, (float4)(max(result_color.x, 0.0f), max(result_color.y, 0.0f), max(result_color.z, 0.0f), 1.0f));
+   store_float4(preview_frame, linear_pixel_flipped, (float4)(result_color, 1.0f));
    //store_float4(preview_frame, linear_pixel, (float4)(result_color.x, result_color.y, result_color.z, 1.0));
 }
