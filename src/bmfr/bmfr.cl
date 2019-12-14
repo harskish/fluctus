@@ -263,6 +263,11 @@ static inline void store_float4(
 //   };
 //}
 
+//#define load_float4(buffer, index) ((float4)\
+//   {buffer[(index) * 4], buffer[(index) * 4 + 1], buffer[(index) * 4 + 2], buffer[(index) * 4 + 3]})
+
+#define load_float4(buffer, index) vload4(index, buffer)
+
 #if USE_HALF_PRECISION_IN_TMP_DATA
 
 #define LOAD(buffer, index) vload_half(index, buffer)
@@ -328,8 +333,8 @@ __kernel void accumulate_noisy_data(
    const int linear_pixel = pixel.y * IMAGE_WIDTH + pixel.x;
 
    float4 world_position = (float4){0.f, 0.f, 0.f, 1.f};
-   world_position.xyz = load_float3(current_positions, linear_pixel);
-   float3 normal = load_float3(current_normals, linear_pixel);
+   world_position.xyz = load_float4(current_positions, linear_pixel).xyz;
+   float3 normal = load_float4(current_normals, linear_pixel).xyz;
    float3 current_color = load_float3(current_noisy, linear_pixel);
 
    // Default previous frame pixel is the same pixel
@@ -393,7 +398,7 @@ __kernel void accumulate_noisy_data(
 
             // Fetch previous frame world position
             float3 prev_world_position =
-               load_float3(previous_positions, linear_sample_location);
+               load_float4(previous_positions, linear_sample_location).xyz;
 
             // Compute world distance squared
             float3 position_difference = prev_world_position - world_position.xyz;
@@ -404,7 +409,7 @@ __kernel void accumulate_noisy_data(
             if(position_distance_squared < convert_float(POSITION_LIMIT_SQUARED)){
 
                // Fetch previous frame normal
-               float3 prev_normal = load_float3(previous_normals, linear_sample_location);
+               float3 prev_normal = load_float4(previous_normals, linear_sample_location).xyz;
 
                // Distance of the normals
                // NOTE: could use some other distance metric (e.g. angle), but we use hard
@@ -733,8 +738,8 @@ __kernel void weighted_sum(
       (WORKSET_WITH_MARGINS_WIDTH / BLOCK_EDGE_LENGTH);
 
    // Load feature buffers
-   float3 world_position = load_float3(current_positions, linear_pixel);
-   float3 normal = load_float3(current_normals, linear_pixel);
+   float3 world_position = load_float4(current_positions, linear_pixel).xyz;
+   float3 normal = load_float4(current_normals, linear_pixel).xyz;
    float features[BUFFER_COUNT - 3] = {
       FEATURE_BUFFERS
    };
@@ -860,7 +865,7 @@ __kernel void accumulate_filtered_data(
    store_float3(accumulated_frame, linear_pixel, accumulated_color);
 
    // Remodulate albedo and tone map
-   float3 my_albedo = load_float3(albedo, linear_pixel);
+   float3 my_albedo = load_float4(albedo, linear_pixel).xyz;
    const float3 tone_mapped_color = clamp(
       powr(max(0.f, my_albedo * accumulated_color), 0.454545f), 0.f, 1.f);
 

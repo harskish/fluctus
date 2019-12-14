@@ -206,6 +206,12 @@ public:
         cl::BufferGL denoiserAlbedoBufferGL;
         cl::BufferGL denoiserNormalBufferGL;
 
+        // BMFR
+        cl::Buffer denoiserPositionBuffer;
+        cl::Buffer denoiserPositionBuffer2;
+        cl::Buffer denoiserNormalBuffer2;
+        cl::Buffer pixelBuffer2; // = noisy
+
         // Single element buffers
         cl::Buffer pickResult;
         cl::Buffer renderParams;

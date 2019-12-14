@@ -30,7 +30,6 @@
 #include <clt.hpp>
 #include <sstream>
 
-//#include "OpenImageIO/imageio.h" TODO: use TinyEXR instead!
 #include "bmfr/CLUtils/CLUtils.hpp"
 
 #define TINYEXR_IMPLEMENTATION
@@ -166,7 +165,7 @@ struct Operation_result
 
 
 Operation_result read_image_file(
-    const std::string& file_name, const int frame, float* buffer)
+    const std::string& file_name, const int frame, float* buffer, bool rgba)
 {
     float* out; // width * height * RGBA
     int width;
@@ -190,11 +189,11 @@ Operation_result read_image_file(
             return { false, "Dimensions don't match for " + file_name };
         }
 
-        // Convert RGBA to RGB
+        int stride = rgba ? 4 : 3;
         for (int i = 0; i < width * height; i++) {
-            buffer[i * 3 + 0] = out[i * 4 + 0];
-            buffer[i * 3 + 1] = out[i * 4 + 1];
-            buffer[i * 3 + 2] = out[i * 4 + 2];
+            for (int j = 0; j < stride; j++) {
+                buffer[i * stride + j] = out[i * 4 + j];
+            }
         }
     }
 
@@ -202,9 +201,9 @@ Operation_result read_image_file(
     return { true };
 }
 
-Operation_result load_image(cl_float* image, const std::string file_name, const int frame)
+Operation_result load_image(cl_float* image, const std::string file_name, const int frame, bool rgba = false)
 {
-    Operation_result result = read_image_file(file_name, frame, image);
+    Operation_result result = read_image_file(file_name, frame, image, rgba);
 
     if (!result.success)
         return result;
@@ -371,9 +370,9 @@ void BMFRDenoiser::setup(CLContext* context, PTWindow* window)
 
     // Create buffers
     normals_buffer = Double_buffer<cl::Buffer>(state.context,
-        CL_MEM_READ_WRITE, OUTPUT_SIZE * 3 * sizeof(cl_float));
+        CL_MEM_READ_WRITE, OUTPUT_SIZE * 4 * sizeof(cl_float));
     positions_buffer = Double_buffer<cl::Buffer>(state.context,
-        CL_MEM_READ_WRITE, OUTPUT_SIZE * 3 * sizeof(cl_float));
+        CL_MEM_READ_WRITE, OUTPUT_SIZE * 4 * sizeof(cl_float));
     noisy_buffer = Double_buffer<cl::Buffer>(state.context,
         CL_MEM_READ_WRITE, OUTPUT_SIZE * 3 * sizeof(cl_float));
     size_t in_buffer_data_size = USE_HALF_PRECISION_IN_TMP_DATA ? sizeof(cl_half) : sizeof(cl_float);
@@ -389,7 +388,7 @@ void BMFRDenoiser::setup(CLContext* context, PTWindow* window)
         OUTPUT_SIZE * sizeof(cl_float2));
     accept_buffer = cl::Buffer(state.context, CL_MEM_READ_WRITE, OUTPUT_SIZE * sizeof(cl_uchar));
     albedo_buffer = cl::Buffer(state.context, CL_MEM_READ_ONLY,
-        IMAGE_WIDTH * IMAGE_HEIGHT * 3 * sizeof(cl_float));
+        IMAGE_WIDTH * IMAGE_HEIGHT * 4 * sizeof(cl_float));
     tone_mapped_buffer = cl::Buffer(state.context, CL_MEM_READ_WRITE,
         IMAGE_WIDTH * IMAGE_HEIGHT * 3 * sizeof(cl_float));
     weights_buffer = cl::Buffer(state.context, CL_MEM_READ_WRITE,
@@ -430,7 +429,10 @@ void BMFRDenoiser::setup(CLContext* context, PTWindow* window)
 
 void BMFRDenoiser::bindBuffers(PTWindow *window)
 {
+    unsigned int width = window->getTexWidth();
+    unsigned int height = window->getTexHeight();
 
+    //cl::Buffer& alb = ctx->deviceBuffers.denoiserAlbedoBuffer;
 }
 
 void BMFRDenoiser::resizeBuffers(PTWindow *window)
@@ -458,9 +460,8 @@ void BMFRDenoiser::denoise()
     {
         out_data.resize(3 * OUTPUT_SIZE);
 
-        albedos.resize(3 * IMAGE_WIDTH * IMAGE_HEIGHT);
-        Operation_result result = load_image(albedos.data(), ALBEDO_FILE_NAME,
-            frame);
+        albedos.resize(4 * IMAGE_WIDTH * IMAGE_HEIGHT);
+        Operation_result result = load_image(albedos.data(), ALBEDO_FILE_NAME, frame, true);
 
         bool error = false;
         if (!result.success)
@@ -470,8 +471,8 @@ void BMFRDenoiser::denoise()
                 result.error_message.c_str());
         }
 
-        normals.resize(3 * IMAGE_WIDTH * IMAGE_HEIGHT);
-        result = load_image(normals.data(), NORMAL_FILE_NAME, frame);
+        normals.resize(4 * IMAGE_WIDTH * IMAGE_HEIGHT);
+        result = load_image(normals.data(), NORMAL_FILE_NAME, frame, true);
         if (!result.success)
         {
             error = true;
@@ -479,8 +480,8 @@ void BMFRDenoiser::denoise()
                 result.error_message.c_str());
         }
 
-        positions.resize(3 * IMAGE_WIDTH * IMAGE_HEIGHT);
-        result = load_image(positions.data(), POSITION_FILE_NAME, frame);
+        positions.resize(4 * IMAGE_WIDTH * IMAGE_HEIGHT);
+        result = load_image(positions.data(), POSITION_FILE_NAME, frame, true);
         if (!result.success)
         {
             error = true;
@@ -504,12 +505,12 @@ void BMFRDenoiser::denoise()
 
     int err = 0;
 
-    err |= queue.enqueueWriteBuffer(albedo_buffer, true, 0, IMAGE_WIDTH * IMAGE_HEIGHT * 3 *
+    err |= queue.enqueueWriteBuffer(albedo_buffer, true, 0, IMAGE_WIDTH * IMAGE_HEIGHT * 4 *
         sizeof(cl_float), albedos.data());
     err |= queue.enqueueWriteBuffer(*normals_buffer.current(), true, 0, IMAGE_WIDTH *
-        IMAGE_HEIGHT * 3 * sizeof(cl_float), normals.data());
+        IMAGE_HEIGHT * 4 * sizeof(cl_float), normals.data());
     err |= queue.enqueueWriteBuffer(*positions_buffer.current(), true, 0, IMAGE_WIDTH *
-        IMAGE_HEIGHT * 3 * sizeof(cl_float), positions.data());
+        IMAGE_HEIGHT * 4 * sizeof(cl_float), positions.data());
     err |= queue.enqueueWriteBuffer(*noisy_buffer.current(), true, 0, IMAGE_WIDTH * IMAGE_HEIGHT *
         3 * sizeof(cl_float), noisy_input.data());
 

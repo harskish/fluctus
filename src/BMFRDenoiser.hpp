@@ -46,8 +46,8 @@ public:
     BMFRDenoiser(void) = default;
     ~BMFRDenoiser(void) = default;
 
-    void bindBuffers(PTWindow *window) override;
-    void resizeBuffers(PTWindow *window) override;
+    void bindBuffers(PTWindow* window) override;
+    void resizeBuffers(PTWindow* window) override;
     void denoise(void) override;
     void setBlend(float val) override;
 

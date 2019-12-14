@@ -342,6 +342,11 @@ void CLContext::setupPixelStorage(PTWindow *window)
     sharedMemory = { deviceBuffers.previewBuffer, deviceBuffers.denoiserAlbedoBufferGL, deviceBuffers.denoiserNormalBufferGL };
     verify("CL pixel storage creation failed!");
 
+    // BMFR
+    deviceBuffers.denoiserNormalBuffer2 = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err);
+    deviceBuffers.denoiserPositionBuffer = cl::Buffer(context, CL_MEM_READ_WRITE, numPixels * sizeof(cl_float) * 4, NULL, &err);
+    verify("BMFR buffer creation failed!");
+
     // Set new kernel args (pointers might have changed)
     err = 0;
     if (mk_splat)
