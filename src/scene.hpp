@@ -34,24 +34,35 @@ public:
     std::string hashString();
     unsigned int getMaterialTypes() { return materialTypes; }
 
+    float3 getWorldRight() { return worldRight; }
+    float3 getWorldUp() { return worldUp; }
+
 private:
     void loadObjModel(const std::string filename);
     void loadPlyModel(const std::string filename);
 
+    void loadPBRTModel(const std::string filename);
+    void convertPBRTModel(const std::string filenameIn, const std::string filenameOut);
+    void loadPBFModel(const std::string filename);
+
     // With tiny_obj_loader
     void loadObjWithMaterials(const std::string filename, ProgressView *progress);
     cl_int tryImportTexture(const std::string path, const std::string name);
-    cl_int parseShaderType(std::string &type);
+    cl_int parseShaderType(std::string type);
 
     void unpackIndexedData(const std::vector<float3> &positions,
                            const std::vector<float3>& normals,
                            const std::vector<std::array<unsigned, 6>>& faces,
                            bool type_ply);
 
-  std::shared_ptr<EnvironmentMap> envmap;
-  std::vector<RTTriangle> triangles;
-  std::vector<Material> materials;
-  std::vector<Texture*> textures;
-  size_t hash;
-  unsigned int materialTypes = 0; // bits represent material types present in scene
+    std::shared_ptr<EnvironmentMap> envmap;
+    std::vector<RTTriangle> triangles;
+    std::vector<Material> materials;
+    std::vector<Texture*> textures;
+    size_t hash;
+  
+    float3 worldRight = float3(1.0f, 0.0f, 0.0f);
+    float3 worldUp = float3(0.0f, 1.0f, 0.0f);
+
+    unsigned int materialTypes = 0; // bits represent material types present in scene
 };

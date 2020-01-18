@@ -1,10 +1,14 @@
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 #include "tiny_obj_loader.h"
 
+#include "pbrtParser/Scene.h"
+
 #include "scene.hpp"
 #include "progressview.hpp"
 #include "utils.h"
 #include "bxdf_types.h"
+
+#include <set>
 
 Scene::Scene()
 {
@@ -60,6 +64,28 @@ void Scene::loadModel(const std::string filename, ProgressView *progress)
     {
         std::cout << "Loading PLY file: " << filename << std::endl;
         loadPlyModel(filename);
+    }
+    else if (endsWith(filename, "pbf"))
+    {
+        std::cout << "Loading PBRT binary file: " << filename << std::endl;
+        loadPBFModel(filename);
+    }
+    else if (endsWith(filename, "pbrt"))
+    {
+        const std::string converted = filename.substr(0, filename.length() - 4) + "pbf";
+
+        std::ifstream infile(converted);
+        if (!infile.good())
+        {
+            progress->showMessage("Converting PBRT to binary");
+            std::cout << "Converting PBRT file to PBF: " << filename << std::endl;
+            convertPBRTModel(filename, converted);
+        }        
+        
+        infile.close();
+        progress->showMessage("Loading PBRT binary file");
+        std::cout << "Loading PBRT binary file: " << converted << std::endl;
+        loadPBFModel(converted);
     }
     else
     {
@@ -142,7 +168,7 @@ inline void setFaceFormat(int &format, std::string &format_string, bool &negativ
     }
 }
 
-cl_int Scene::parseShaderType(std::string &type)
+cl_int Scene::parseShaderType(std::string type)
 {
     if (type == "diffuse")
         return BXDF_DIFFUSE;
@@ -222,7 +248,9 @@ void Scene::loadObjWithMaterials(const std::string filePath, ProgressView *progr
                 auto ind = shape.mesh.indices[3 * f + v];
                 
                 // Position
-                V[v].p = float3(attrib.vertices[3 * ind.vertex_index + 0], attrib.vertices[3 * ind.vertex_index + 1], attrib.vertices[3 * ind.vertex_index + 2]);
+                V[v].p = float3(attrib.vertices[3 * ind.vertex_index + 0],
+                                attrib.vertices[3 * ind.vertex_index + 1],
+                                attrib.vertices[3 * ind.vertex_index + 2]);
 
                 // Normal
                 if (ind.normal_index < 0 || !hasNormals)
@@ -232,7 +260,9 @@ void Scene::loadObjWithMaterials(const std::string filePath, ProgressView *progr
                 }
                 else
                 {
-                    V[v].n = float3(attrib.normals[3 * ind.normal_index + 0], attrib.normals[3 * ind.normal_index + 1], attrib.normals[3 * ind.normal_index + 2]);
+                    V[v].n = float3(attrib.normals[3 * ind.normal_index + 0],
+                                    attrib.normals[3 * ind.normal_index + 1],
+                                    attrib.normals[3 * ind.normal_index + 2]);
                 }
 
                 // Tex coord
@@ -520,6 +550,270 @@ void Scene::loadPlyModel(const std::string filename)
     }
 
     unpackIndexedData(positions, normals, faces, true); //true = ply format
+}
+
+void Scene::loadPBRTModel(const std::string filename)
+{
+    try
+    {
+        auto res = pbrt::importPBRT(filename);
+        std::cout << res->toString() << std::endl;
+    }
+    catch (std::exception e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+}
+
+void Scene::convertPBRTModel(const std::string filenameIn, const std::string filenameOut)
+{
+    auto res = pbrt::importPBRT(filenameIn);
+    res->saveTo(filenameOut);
+}
+
+void Scene::loadPBFModel(const std::string filename)
+{
+    pbrt::Scene::SP scene;
+    try
+    {
+        scene = pbrt::Scene::loadFrom(filename);
+        std::cout << scene->toString();
+        scene->makeSingleLevel();
+    }
+    catch (std::runtime_error e)
+    {
+        std::cerr << "**** ERROR IN PBF PARSING ****" << std::endl << e.what() << std::endl;
+        std::cerr << "(this means that either there's something wrong with that PBRT file, or that the parser can't handle it)" << std::endl;
+        exit(1);
+    }
+
+    size_t fileNameStart = filename.find_last_of("\\"); // assume Windows
+    if (fileNameStart == std::string::npos) fileNameStart = filename.find_last_of("/"); // Linux/MacOS
+    std::string folderPath = filename.substr(0, fileNameStart + 1);
+
+    auto toFloat3 = [](pbrt::vec3f v) { return float3(v.x, v.y, v.z); };
+
+    //std::set<pbrt::Object::SP> geometries;
+    std::vector<pbrt::Material::SP> pbrtMaterials;
+
+    std::function<void(pbrt::Object::SP, pbrt::affine3f xform)> traverse;
+    traverse = [&](pbrt::Object::SP object, pbrt::affine3f xform)
+    {
+        //geometries.insert(object);
+        for (auto shape : object->shapes)
+        {
+            int matId = 0;
+            if (shape->material)
+            {
+                auto prev = std::find(pbrtMaterials.begin(), pbrtMaterials.end(), shape->material);
+                if (prev != pbrtMaterials.end())
+                {
+                    matId = (prev - pbrtMaterials.begin()) + 1;
+                }
+                else
+                {
+                    pbrtMaterials.push_back(shape->material);
+                    matId = pbrtMaterials.size();
+                }
+            }
+
+            if (shape->areaLight)
+                std::cout << "Skipping area light " << shape->areaLight->toString() << std::endl;
+            
+            if (pbrt::TriangleMesh::SP mesh = std::dynamic_pointer_cast<pbrt::TriangleMesh>(shape))
+            {
+                const bool hasNormals = mesh->normal.size() > 0;
+                const bool hasTexcoord = mesh->texcoord.size() > 0;
+                
+                // Each triangle
+                for (int i = 0; i < mesh->index.size(); i++)
+                {
+                    VertexPNT V[3];
+                    int *inds = &(mesh->index[i].x); // hopefully contiguous...
+
+                    // Each vertex
+                    for (int v = 0; v < 3; v++)
+                    {
+                        int index = inds[v];
+
+                        if (index < 0)
+                        {
+                            std::cout << "Negative index" << std::endl;
+                            index += mesh->index.size();
+                        }
+
+                        if (index >= mesh->vertex.size())
+                            std::cout << "Mesh index out of range..." << std::endl;
+
+                        if (hasNormals && index >= mesh->normal.size())
+                            std::cout << "Normal index out of range..." << std::endl;
+
+                        if (hasTexcoord && index >= mesh->texcoord.size())
+                            std::cout << "TexCoord index out of range..." << std::endl;
+
+                        auto P = mesh->vertex[index];
+                        auto N = (hasNormals) ? mesh->normal[index] : pbrt::vec3f(0.0f);
+                        auto T = (hasTexcoord) ? mesh->texcoord[index] : pbrt::vec2f(0.0f);
+
+                        // Apply transformation
+                        P = xform * P;
+                        N = pbrt::math::inverse_transpose(xform.l) * N;
+
+                        V[v].p = toFloat3(P);
+                        V[v].n = toFloat3(N);
+                        V[v].t = float3(T.x, T.y, 0.0f);
+                    }
+
+                    if (!hasNormals)
+                        V[0].n = V[1].n = V[2].n = normalize(cross(V[1].p - V[0].p, V[2].p - V[0].p));
+
+                    // Apply transform
+
+                    RTTriangle tri(V[0], V[1], V[2]);
+                    tri.matId = matId;
+                    triangles.push_back(tri);
+                }
+                
+            }
+            else if (pbrt::QuadMesh::SP mesh = std::dynamic_pointer_cast<pbrt::QuadMesh>(shape))
+            {
+                std::cout << "Quads: " << mesh->index.size() << std::endl;
+            }
+            else if (pbrt::Sphere::SP sphere = std::dynamic_pointer_cast<pbrt::Sphere>(shape))
+            {
+                std::cout << "Sphere!" << std::endl;
+            }
+            else if (pbrt::Disk::SP disk = std::dynamic_pointer_cast<pbrt::Disk>(shape))
+            {
+                std::cout << "Disk!" << std::endl;
+            }
+            else if (pbrt::Curve::SP curves = std::dynamic_pointer_cast<pbrt::Curve>(shape))
+            {
+                std::cout << "Curve!" << std::endl;
+            }
+            else
+                std::cout << "unhandled geometry type : " << shape->toString() << std::endl;
+        }
+
+        for (auto inst : object->instances)
+            traverse(inst->object, xform*inst->xfm);
+    };
+
+    traverse(scene->world, pbrt::affine3f::identity());
+
+    // Read xform active when camera was created
+    pbrt::Camera::SP cam = scene->cameras[0];
+    float3 v = toFloat3(cam->frame.l.vy);
+    this->worldUp = (fabs(v.y) > fabs(v.z)) ? float3(0.0f, 1.0f, 0.0f) : float3(0.0f, 0.0f, 1.0f);
+
+    auto loadTex = [&](pbrt::Texture::SP tmap)
+    {
+        if (!tmap)
+            return (cl_int)-1;
+
+        if (pbrt::ImageTexture * tex = dynamic_cast<pbrt::ImageTexture*>(tmap.get()))
+            return tryImportTexture(unixifyPath(folderPath + tex->fileName), unixifyPath(tex->fileName));
+        
+        std::cout << "Unsupported texture type" << std::endl;
+        return (cl_int)-1;
+    };
+
+    // No support for anisitropy at the moment
+    auto convertRoughness = [](float r, bool remap = true, float ru = 0.0f, float rv = 0.0f)
+    {
+        float res = (r > 0.0f) ? r : (0.5f * (ru + rv));
+        return (1.0f - res) * ((remap) ? 5000.0f : 1.0f);
+    };
+
+    // Read materialsVec into own format
+    for (pbrt::Material::SP t_mat : pbrtMaterials)
+    {   
+        // Use default parameters
+        Material m(materials[0]);
+
+        if (auto mat = dynamic_cast<pbrt::PlasticMaterial*>(t_mat.get()))
+        {
+            // Plastic approximated with substrate for now
+            m.type = BXDF_GLOSSY;
+            m.Kd = toFloat3(mat->kd);
+            m.Ks = toFloat3(mat->ks);
+            m.Ns = convertRoughness(mat->roughness, mat->remapRoughness);
+            m.map_Kd = loadTex(mat->map_kd);
+            m.map_Ks = loadTex(mat->map_ks);
+            m.Ni = 1.5; // for Fresnel
+            //m.map_N = loadTex();
+            //m.map_bump = loadTex(mat->map_bump);
+
+        }
+        else if (auto mat = dynamic_cast<pbrt::MatteMaterial*>(t_mat.get()))
+        {
+            m.type = BXDF_DIFFUSE;
+            m.Kd = toFloat3(mat->kd);
+            m.map_Kd = loadTex(mat->map_kd);
+            //m.map_N = loadTex();
+            //m.map_bump = loadTex(mat->map_bump);
+        }
+        else if (auto mat = dynamic_cast<pbrt::SubstrateMaterial*>(t_mat.get()))
+        {
+            // Substrate material: diffuse base layer, glossy varnish on top, Fresnel blending
+            m.type = BXDF_GLOSSY;
+            m.Kd = toFloat3(mat->kd);
+            m.Ks = toFloat3(mat->ks);
+            m.Ns = convertRoughness(0.0f, mat->remapRoughness, mat->uRoughness, mat->vRoughness);
+            m.map_Kd = loadTex(mat->map_kd);
+            m.map_Ks = loadTex(mat->map_ks);
+            m.Ni = 1.5; // for Fresnel
+        }
+        else if (auto mat = dynamic_cast<pbrt::UberMaterial*>(t_mat.get()))
+        {
+            // Substrate material: diffuse base layer, glossy varnish on top, Fresnel blending
+            m.type = BXDF_GLOSSY;
+            m.Kd = toFloat3(mat->kd);
+            m.Ks = toFloat3(mat->ks);
+            m.Ns = convertRoughness(mat->roughness, true, mat->uRoughness, mat->vRoughness);
+            m.map_Kd = loadTex(mat->map_kd);
+            m.map_Ks = loadTex(mat->map_ks);
+            m.Ni = mat->index;
+        }
+        else if (auto mat = dynamic_cast<pbrt::GlassMaterial*>(t_mat.get()))
+        {
+            m.type = BXDF_IDEAL_DIELECTRIC;
+            m.Ks = toFloat3(mat->kt); // m.Ks treated as transmissivity
+            //m.Ns = 12000.0f;
+            m.Ni = (mat->index > 0.0f) ? mat->index : 1.5f;
+        }
+        else if (auto mat = dynamic_cast<pbrt::MirrorMaterial*>(t_mat.get()))
+        {
+            m.type = BXDF_IDEAL_REFLECTION;
+            m.Ks = toFloat3(mat->kr); // reflectivity
+        }
+        else if (auto mat = dynamic_cast<pbrt::MetalMaterial*>(t_mat.get()))
+        {
+            // Very rough approximation of true behavior
+            m.type = BXDF_GGX_ROUGH_REFLECTION;
+            m.Ni = (mat->eta.x + mat->eta.y + mat->eta.z) / 3.0f;
+            m.Ks = toFloat3(mat->k);
+            m.Ns = convertRoughness(mat->roughness, mat->remapRoughness, mat->uRoughness, mat->vRoughness);
+        }
+        else if (auto mat = dynamic_cast<pbrt::FourierMaterial*>(t_mat.get()))
+        {
+            std::cout << "Unsupported material: FourierMaterial" << std::endl;
+        }
+        else if (auto mat = dynamic_cast<pbrt::HairMaterial*>(t_mat.get()))
+        {
+            std::cout << "Unsupported material: HairMaterial" << std::endl;
+        }
+        else
+        {
+            std::cout << "Unhandled material type" << std::endl;
+        }
+
+        //m.Ks = float3(0.6f);
+        //m.Kd = float3(0.6f);
+        //m.Ni = 1.0f;
+        materials.push_back(m);
+        materialTypes |= m.type;
+    }
 }
 
 void Scene::unpackIndexedData(const std::vector<float3> &positions,

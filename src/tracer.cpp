@@ -531,7 +531,7 @@ void Tracer::selectScene(std::string file)
 {
     if (file == "")
     {
-        std::string selected = openFileDialog("Select a scene file", "assets/", { "*.obj", "*.ply" });
+        std::string selected = openFileDialog("Select a scene file", "assets/", { "*.obj", "*.ply", "*.pbrt" });
         file = (selected != "") ? selected : "assets/egyptcat/egyptcat.obj";
     }
 
@@ -804,7 +804,10 @@ void Tracer::updateCamera()
     if(cameraRotation.x > 360.0f) cameraRotation.x -= 360.0f;
     if(cameraRotation.y > 360.0f) cameraRotation.y -= 360.0f;
 
-    matrix rot = rotation(float3(1, 0, 0), toRad(cameraRotation.y)) * rotation(float3(0, 1, 0), toRad(cameraRotation.x));
+    auto right = scene->getWorldRight();
+    auto up = scene->getWorldUp();
+
+    matrix rot = rotation(right, toRad(cameraRotation.y)) * rotation(up, toRad(cameraRotation.x));
 
     params.camera.right = float3(rot.m00, rot.m01, rot.m02);
     params.camera.up =    float3(rot.m10, rot.m11, rot.m12);

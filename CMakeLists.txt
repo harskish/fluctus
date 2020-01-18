@@ -11,6 +11,7 @@ add_subdirectory(ext ext_build)
 set(INCLUDE_DIRS
 	ext/nanogui/include
 	${CLT_INCLUDE_DIR}
+    ${PBRT_PARSER_INCLUDE_DIR}
     ${GLEW_INCLUDE_DIR}
     ${NANOGUI_EXTRA_INCS}
     ${IL_INCLUDE_DIR}
@@ -23,6 +24,7 @@ set(INCLUDE_DIRS
 set(LIBRARIES
 	nanogui
 	CLT
+    pbrtParser
     ${NANOGUI_EXTRA_LIBS}
     ${OPENGL_LIBRARIES}
     ${OpenCL_LIBRARY}
