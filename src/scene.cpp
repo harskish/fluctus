@@ -1,10 +1,14 @@
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 #include "tiny_obj_loader.h"
 
+#include "pbrtParser/Scene.h"
+
 #include "scene.hpp"
 #include "progressview.hpp"
 #include "utils.h"
 #include "bxdf_types.h"
+
+#include <set>
 
 Scene::Scene()
 {
@@ -60,6 +64,19 @@ void Scene::loadModel(const std::string filename, ProgressView *progress)
     {
         std::cout << "Loading PLY file: " << filename << std::endl;
         loadPlyModel(filename);
+    }
+    else if (endsWith(filename, "pbf"))
+    {
+        std::cout << "Loading PBRT binary file: " << filename << std::endl;
+        loadPBFModel(filename);
+    }
+    else if (endsWith(filename, "pbrt"))
+    {
+        std::cout << "Converting PBRT file to PBF: " << filename << std::endl;
+        convertPBRTModel(filename);
+        const std::string converted = filename.substr(0, filename.length() - 4) + "pbf";
+        std::cout << "Loading PBRT binary file: " << converted << std::endl;
+        loadPBFModel(converted);
     }
     else
     {
@@ -520,6 +537,225 @@ void Scene::loadPlyModel(const std::string filename)
     }
 
     unpackIndexedData(positions, normals, faces, true); //true = ply format
+}
+
+void Scene::loadPBRTModel(const std::string filename)
+{
+    try
+    {
+        auto res = pbrt::importPBRT(filename);
+        std::cout << res->toString() << std::endl;
+    }
+    catch (std::exception e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+}
+
+void Scene::convertPBRTModel(const std::string filename)
+{
+    auto res = pbrt::importPBRT(filename);
+    std::string outname = filename.substr(0, filename.length() - 4) + "pbf";
+    res->saveTo(outname);
+}
+
+void Scene::loadPBFModel(const std::string filename)
+{
+    pbrt::Scene::SP scene;
+    try
+    {
+        scene = pbrt::Scene::loadFrom(filename);
+        std::cout << scene->toString();
+        scene->makeSingleLevel();
+
+        std::cout << " => yay! parsing successful..." << std::endl;
+    }
+    catch (std::runtime_error e)
+    {
+        std::cerr << "**** ERROR IN PARSING ****" << std::endl << e.what() << std::endl;
+        std::cerr << "(this means that either there's something wrong with that PBRT file, or that the parser can't handle it)" << std::endl;
+        exit(1);
+    }
+
+    std::set<pbrt::Object::SP> geometries;
+    std::set<pbrt::Material::SP> materials;
+
+    std::function<void(pbrt::Object::SP)> traverse;
+    traverse = [&](pbrt::Object::SP object)
+    {
+        geometries.insert(object);
+        std::cout << object->name << std::endl;
+        
+        for (auto shape : object->shapes)
+        {
+            materials.insert(shape->material);
+
+            if (shape->areaLight)
+                std::cout << "Skipping area light " << shape->areaLight->toString() << std::endl;
+            
+            if (pbrt::TriangleMesh::SP mesh = std::dynamic_pointer_cast<pbrt::TriangleMesh>(shape))
+            {
+                std::cout << "Triangles: " << mesh->index.size() << std::endl;
+                const bool hasNormals = mesh->normal.size() > 0;
+                const bool hasTexcoord = mesh->texcoord.size() > 0;
+                
+                // Each triangle
+                for (int i = 0; i < mesh->index.size(); i++)
+                {
+                    VertexPNT verts[3];
+                    int *inds = &(mesh->index[i].x); // hopefully contiguous...
+
+                    // Each vertex
+                    for (int v = 0; v < 3; v++)
+                    {
+                        VertexPNT* V = &verts[v];
+                        int index = inds[v];
+
+                        if (index < 0)
+                            std::cout << "Negative index" << std::endl;
+                            index += mesh->index.size();
+
+                        if (index >= mesh->vertex.size())
+                            std::cout << "Mesh index out of range..." << std::endl;
+
+                        if (hasNormals && index >= mesh->normal.size())
+                            std::cout << "Normal index out of range..." << std::endl;
+
+                        if (hasTexcoord && index >= mesh->texcoord.size())
+                            std::cout << "TexCoord index out of range..." << std::endl;
+
+                        auto P = mesh->vertex[index];
+                        auto N = (hasNormals) ? mesh->normal[index] : pbrt::vec3f(0.0f, 1.0f, 0.0f); // todo: triangulate
+                        auto T = (hasTexcoord) ? mesh->texcoord[index] : pbrt::vec2f(0.0f, 0.0f);
+
+                        V->p = FireRays::float3(P.x, P.y, P.z);
+                        V->n = FireRays::float3(N.x, N.y, N.z);
+                        V->t = FireRays::float3(T.x, T.y, 0.0f);
+                    }
+
+                    RTTriangle tri(verts[0], verts[1], verts[2]);
+                    
+                    auto mat = mesh->material;
+
+
+                    tri.matId = 0; // shape.mesh.material_ids[f] + 1; // -1 becomes 0 (default material)
+                    triangles.push_back(tri);
+                }
+                
+            }
+            else if (pbrt::QuadMesh::SP mesh = std::dynamic_pointer_cast<pbrt::QuadMesh>(shape))
+            {
+                std::cout << "Quads: " << mesh->index.size() << std::endl;
+            }
+            else if (pbrt::Sphere::SP sphere = std::dynamic_pointer_cast<pbrt::Sphere>(shape))
+            {
+                std::cout << "Sphere!" << std::endl;
+            }
+            else if (pbrt::Disk::SP disk = std::dynamic_pointer_cast<pbrt::Disk>(shape))
+            {
+                std::cout << "Disk!" << std::endl;
+            }
+            else if (pbrt::Curve::SP curves = std::dynamic_pointer_cast<pbrt::Curve>(shape))
+            {
+                std::cout << "Curve!" << std::endl;
+            }
+            else
+                std::cout << "unhandled geometry type : " << shape->toString() << std::endl;
+        }
+
+        for (auto inst : object->instances)
+        {
+            std::cout << "TODO: Handle instance xform!" << std::endl;
+            traverse(inst->object);
+        }
+    };
+
+    traverse(scene->world);
+    std::cout << "Done" << std::endl;
+    
+    
+    /*
+    const bool hasNormals = attrib.normals.size() > 0;
+    const bool hasTexCoords = attrib.texcoords.size() > 0;
+
+
+    size_t numTris = 0;
+    for (tinyobj::shape_t& s : shapesVec)
+    {
+        numTris += s.mesh.indices.size() / 3;
+    }
+
+    // Loop over shapesVec in file
+    for (size_t i = 0; i < shapesVec.size(); i++)
+    {
+        tinyobj::shape_t& shape = shapesVec[i];
+        assert((shapesVec[i].mesh.indices.size() % 3) == 0); // properly triangulated
+
+        // Loop over faces in the shape's mesh
+        for (size_t f = 0; f < shape.mesh.indices.size() / 3; f++)
+        {
+            // Progress bar
+            size_t N = triangles.size();
+            float done = (float)N / numTris;
+            if (N % 5000 == 0)
+                progress->showMessage("Converting mesh", meshName, done);
+
+            VertexPNT V[3];
+
+            // Vertices
+            bool allNormals = true;
+            for (size_t v = 0; v < 3; v++)
+            {
+                auto ind = shape.mesh.indices[3 * f + v];
+
+                // Position
+                V[v].p = float3(attrib.vertices[3 * ind.vertex_index + 0], attrib.vertices[3 * ind.vertex_index + 1], attrib.vertices[3 * ind.vertex_index + 2]);
+
+                // Normal
+                if (ind.normal_index < 0 || !hasNormals)
+                {
+                    allNormals = false;
+                    V[v].n = float3(0.0f);
+                }
+                else
+                {
+                    V[v].n = float3(attrib.normals[3 * ind.normal_index + 0], attrib.normals[3 * ind.normal_index + 1], attrib.normals[3 * ind.normal_index + 2]);
+                }
+
+                // Tex coord
+                if (ind.texcoord_index > -1 && hasTexCoords)
+                    V[v].t = float3(attrib.texcoords[2 * ind.texcoord_index + 0], attrib.texcoords[2 * ind.texcoord_index + 1], 0.0f);
+                else
+                    V[v].t = float3(0.0f);
+            }
+
+            if (!allNormals)
+                V[0].n = V[1].n = V[2].n = normalize(cross(V[1].p - V[0].p, V[2].p - V[0].p));
+
+            RTTriangle tri(V[0], V[1], V[2]);
+            tri.matId = shape.mesh.material_ids[f] + 1; // -1 becomes 0 (default material)
+            triangles.push_back(tri);
+        }
+    }
+
+    // Read materialsVec into own format
+    for (tinyobj::material_t& t_mat : materialsVec)
+    {
+        Material m;
+        m.Kd = float3(t_mat.diffuse[0], t_mat.diffuse[1], t_mat.diffuse[2]);
+        m.Ks = float3(t_mat.specular[0], t_mat.specular[1], t_mat.specular[2]);
+        m.Ke = float3(t_mat.emission[0], t_mat.emission[1], t_mat.emission[2]);
+        m.Ns = t_mat.shininess;
+        m.Ni = t_mat.ior;
+        m.map_Kd = tryImportTexture(unixifyPath(folderPath + t_mat.diffuse_texname), unixifyPath(t_mat.diffuse_texname));
+        m.map_Ks = tryImportTexture(unixifyPath(folderPath + t_mat.specular_texname), unixifyPath(t_mat.specular_texname));
+        m.map_N = tryImportTexture(unixifyPath(folderPath + t_mat.bump_texname), unixifyPath(t_mat.bump_texname)); // map_bump in mtl treated as normal map
+        m.type = parseShaderType(t_mat.unknown_parameter["shader"]);
+
+        materials.push_back(m);
+        materialTypes |= m.type;
+    }
+    */
 }
 
 void Scene::unpackIndexedData(const std::vector<float3> &positions,

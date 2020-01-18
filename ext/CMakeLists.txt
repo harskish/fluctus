@@ -104,6 +104,10 @@ find_package(OpenCL 1.2 REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(DevIL REQUIRED)
 
+# Pbrt-parser
+add_subdirectory(pbrt-parser)
+set(PBRT_PARSER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/pbrt-parser/pbrtParser/include PARENT_SCOPE)
+
 # CLT
 add_subdirectory(CLT)
 set(CLT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/CLT/include PARENT_SCOPE)

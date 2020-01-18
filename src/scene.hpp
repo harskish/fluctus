@@ -38,6 +38,10 @@ private:
     void loadObjModel(const std::string filename);
     void loadPlyModel(const std::string filename);
 
+    void loadPBRTModel(const std::string filename);
+    void convertPBRTModel(const std::string filename); // convert pbrt to binary (pbf)
+    void loadPBFModel(const std::string filename);
+
     // With tiny_obj_loader
     void loadObjWithMaterials(const std::string filename, ProgressView *progress);
     cl_int tryImportTexture(const std::string path, const std::string name);
