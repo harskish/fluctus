@@ -39,13 +39,13 @@ private:
     void loadPlyModel(const std::string filename);
 
     void loadPBRTModel(const std::string filename);
-    void convertPBRTModel(const std::string filename); // convert pbrt to binary (pbf)
+    void convertPBRTModel(const std::string filenameIn, const std::string filenameOut);
     void loadPBFModel(const std::string filename);
 
     // With tiny_obj_loader
     void loadObjWithMaterials(const std::string filename, ProgressView *progress);
     cl_int tryImportTexture(const std::string path, const std::string name);
-    cl_int parseShaderType(std::string &type);
+    cl_int parseShaderType(std::string type);
 
     void unpackIndexedData(const std::vector<float3> &positions,
                            const std::vector<float3>& normals,
