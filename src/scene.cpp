@@ -772,10 +772,10 @@ void Scene::loadPBFModel(const std::string filename)
         }
         else if (auto mat = dynamic_cast<pbrt::GlassMaterial*>(t_mat.get()))
         {
-            m.type = BXDF_GGX_ROUGH_DIELECTRIC;
-            m.Ks = toFloat3(mat->kr); // reflectivity
-            m.Ns = 8000.0f;
-            m.Ni = mat->index;
+            m.type = BXDF_IDEAL_DIELECTRIC;
+            m.Ks = toFloat3(mat->kt); // m.Ks treated as transmissivity
+            //m.Ns = 12000.0f;
+            m.Ni = (mat->index > 0.0f) ? mat->index : 1.5f;
         }
         else if (auto mat = dynamic_cast<pbrt::MirrorMaterial*>(t_mat.get()))
         {
