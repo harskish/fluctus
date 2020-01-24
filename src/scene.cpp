@@ -577,12 +577,10 @@ void Scene::loadPBFModel(const std::string filename)
         scene = pbrt::Scene::loadFrom(filename);
         std::cout << scene->toString();
         scene->makeSingleLevel();
-
-        std::cout << " => yay! parsing successful..." << std::endl;
     }
     catch (std::runtime_error e)
     {
-        std::cerr << "**** ERROR IN PARSING ****" << std::endl << e.what() << std::endl;
+        std::cerr << "**** ERROR IN PBF PARSING ****" << std::endl << e.what() << std::endl;
         std::cerr << "(this means that either there's something wrong with that PBRT file, or that the parser can't handle it)" << std::endl;
         exit(1);
     }
@@ -702,6 +700,13 @@ void Scene::loadPBFModel(const std::string filename)
         return (cl_int)-1;
     };
 
+    // No support for anisitropy at the moment
+    auto convertRoughness = [](float r, bool remap = true, float ru = 0.0f, float rv = 0.0f)
+    {
+        float res = (r > 0.0f) ? r : (0.5f * (ru + rv));
+        return (remap) ? (1.0f - res) * 5000.0f : res;
+    };
+
     // Read materialsVec into own format
     for (pbrt::Material::SP t_mat : pbrtMaterials)
     {
@@ -710,25 +715,77 @@ void Scene::loadPBFModel(const std::string filename)
         // Use default parameters
         Material m = materials[0];
 
-        if (pbrt::PlasticMaterial* mat = dynamic_cast<pbrt::PlasticMaterial*>(t_mat.get()))
+        if (auto mat = dynamic_cast<pbrt::PlasticMaterial*>(t_mat.get()))
         {
+            // Plastic approximated with substrate for now
             m.type = BXDF_GLOSSY;
             m.Kd = toFloat3(mat->kd);
             m.Ks = toFloat3(mat->ks);
-            m.Ns = (1.0 - mat->roughness) * ((mat->map_roughness) ? 5000.0 : 1.0);
+            m.Ns = convertRoughness(mat->roughness, mat->remapRoughness);
             m.map_Kd = loadTex(mat->map_kd);
             m.map_Ks = loadTex(mat->map_ks);
+            m.Ni = 1.5; // for Fresnel
             //m.map_N = loadTex();
             //m.map_bump = loadTex(mat->map_bump);
 
         }
-        else if (pbrt::MatteMaterial * mat = dynamic_cast<pbrt::MatteMaterial*>(t_mat.get()))
+        else if (auto mat = dynamic_cast<pbrt::MatteMaterial*>(t_mat.get()))
         {
             m.type = BXDF_DIFFUSE;
             m.Kd = toFloat3(mat->kd);
             m.map_Kd = loadTex(mat->map_kd);
             //m.map_N = loadTex();
             //m.map_bump = loadTex(mat->map_bump);
+        }
+        else if (auto mat = dynamic_cast<pbrt::SubstrateMaterial*>(t_mat.get()))
+        {
+            // Substrate material: diffuse base layer, glossy varnish on top, Fresnel blending
+            m.type = BXDF_GLOSSY;
+            m.Kd = toFloat3(mat->kd);
+            m.Ks = toFloat3(mat->ks);
+            m.Ns = convertRoughness(0.0f, mat->remapRoughness, mat->uRoughness, mat->vRoughness);
+            m.map_Kd = loadTex(mat->map_kd);
+            m.map_Ks = loadTex(mat->map_ks);
+            m.Ni = 1.5; // for Fresnel
+        }
+        else if (auto mat = dynamic_cast<pbrt::UberMaterial*>(t_mat.get()))
+        {
+            // Substrate material: diffuse base layer, glossy varnish on top, Fresnel blending
+            m.type = BXDF_GLOSSY;
+            m.Kd = toFloat3(mat->kd);
+            m.Ks = toFloat3(mat->ks);
+            m.Ns = convertRoughness(mat->roughness, true, mat->uRoughness, mat->vRoughness);
+            m.map_Kd = loadTex(mat->map_kd);
+            m.map_Ks = loadTex(mat->map_ks);
+            m.Ni = mat->index;
+        }
+        else if (auto mat = dynamic_cast<pbrt::GlassMaterial*>(t_mat.get()))
+        {
+            m.type = BXDF_GGX_ROUGH_DIELECTRIC;
+            m.Ks = toFloat3(mat->kr); // reflectivity
+            m.Ns = 5000.0f;
+            m.Ni = mat->index;
+        }
+        else if (auto mat = dynamic_cast<pbrt::MirrorMaterial*>(t_mat.get()))
+        {
+            m.type = BXDF_IDEAL_REFLECTION;
+            m.Ks = toFloat3(mat->kr); // reflectivity
+        }
+        else if (auto mat = dynamic_cast<pbrt::MetalMaterial*>(t_mat.get()))
+        {
+            // Very rough approximation of true behavior
+            m.type = BXDF_GGX_ROUGH_REFLECTION;
+            m.Ni = (mat->eta.x + mat->eta.y + mat->eta.z) / 3.0f;
+            m.Ks = toFloat3(mat->k);
+            m.Ns = convertRoughness(mat->roughness, mat->remapRoughness, mat->uRoughness, mat->vRoughness);
+        }
+        else if (auto mat = dynamic_cast<pbrt::FourierMaterial*>(t_mat.get()))
+        {
+            std::cout << "Unsupported material: FourierMaterial" << std::endl;
+        }
+        else if (auto mat = dynamic_cast<pbrt::HairMaterial*>(t_mat.get()))
+        {
+            std::cout << "Unsupported material: HairMaterial" << std::endl;
         }
         else
         {
