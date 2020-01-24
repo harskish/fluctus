@@ -594,10 +594,10 @@ void Scene::loadPBFModel(const std::string filename)
     auto toFloat3 = [](pbrt::vec3f v) { return float3(v.x, v.y, v.z); };
 
     //std::set<pbrt::Object::SP> geometries;
-    std::set<pbrt::Material::SP> pbrtMaterials;
+    std::vector<pbrt::Material::SP> pbrtMaterials;
 
-    std::function<void(pbrt::Object::SP)> traverse;
-    traverse = [&](pbrt::Object::SP object)
+    std::function<void(pbrt::Object::SP, pbrt::affine3f xform)> traverse;
+    traverse = [&](pbrt::Object::SP object, pbrt::affine3f xform)
     {
         //geometries.insert(object);
         for (auto shape : object->shapes)
@@ -605,8 +605,16 @@ void Scene::loadPBFModel(const std::string filename)
             int matId = 0;
             if (shape->material)
             {
-                auto ret = pbrtMaterials.insert(shape->material);
-                matId = std::distance(pbrtMaterials.begin(), ret.first) + 1;
+                auto prev = std::find(pbrtMaterials.begin(), pbrtMaterials.end(), shape->material);
+                if (prev != pbrtMaterials.end())
+                {
+                    matId = (prev - pbrtMaterials.begin()) + 1;
+                }
+                else
+                {
+                    pbrtMaterials.push_back(shape->material);
+                    matId = pbrtMaterials.size();
+                }
             }
 
             if (shape->areaLight)
@@ -647,6 +655,10 @@ void Scene::loadPBFModel(const std::string filename)
                         auto N = (hasNormals) ? mesh->normal[index] : pbrt::vec3f(0.0f);
                         auto T = (hasTexcoord) ? mesh->texcoord[index] : pbrt::vec2f(0.0f);
 
+                        // Apply transformation
+                        P = xform * P;
+                        N = pbrt::math::inverse_transpose(xform.l) * N;
+
                         V[v].p = toFloat3(P);
                         V[v].n = toFloat3(N);
                         V[v].t = float3(T.x, T.y, 0.0f);
@@ -654,6 +666,8 @@ void Scene::loadPBFModel(const std::string filename)
 
                     if (!hasNormals)
                         V[0].n = V[1].n = V[2].n = normalize(cross(V[1].p - V[0].p, V[2].p - V[0].p));
+
+                    // Apply transform
 
                     RTTriangle tri(V[0], V[1], V[2]);
                     tri.matId = matId;
@@ -682,13 +696,10 @@ void Scene::loadPBFModel(const std::string filename)
         }
 
         for (auto inst : object->instances)
-        {
-            std::cout << "TODO: Handle instance xform!" << std::endl;
-            traverse(inst->object);
-        }
+            traverse(inst->object, xform*inst->xfm);
     };
 
-    traverse(scene->world);
+    traverse(scene->world, pbrt::affine3f::identity());
 
     auto loadTex = [&](pbrt::Texture::SP tmap)
     {
@@ -706,7 +717,7 @@ void Scene::loadPBFModel(const std::string filename)
     auto convertRoughness = [](float r, bool remap = true, float ru = 0.0f, float rv = 0.0f)
     {
         float res = (r > 0.0f) ? r : (0.5f * (ru + rv));
-        return (remap) ? (1.0f - res) * 5000.0f : res;
+        return (1.0f - res) * ((remap) ? 5000.0f : 1.0f);
     };
 
     // Read materialsVec into own format
@@ -721,7 +732,7 @@ void Scene::loadPBFModel(const std::string filename)
             m.type = BXDF_GLOSSY;
             m.Kd = toFloat3(mat->kd);
             m.Ks = toFloat3(mat->ks);
-            m.Ns = convertRoughness(mat->roughness, mat->remapRoughness);
+            m.Ns = convertRoughness(mat->roughness, true/*mat->remapRoughness*/);
             m.map_Kd = loadTex(mat->map_kd);
             m.map_Ks = loadTex(mat->map_ks);
             m.Ni = 1.5; // for Fresnel
@@ -743,7 +754,7 @@ void Scene::loadPBFModel(const std::string filename)
             m.type = BXDF_GLOSSY;
             m.Kd = toFloat3(mat->kd);
             m.Ks = toFloat3(mat->ks);
-            m.Ns = convertRoughness(0.0f, mat->remapRoughness, mat->uRoughness, mat->vRoughness);
+            m.Ns = convertRoughness(0.0f, true/*mat->remapRoughness*/, mat->uRoughness, mat->vRoughness);
             m.map_Kd = loadTex(mat->map_kd);
             m.map_Ks = loadTex(mat->map_ks);
             m.Ni = 1.5; // for Fresnel
@@ -763,7 +774,7 @@ void Scene::loadPBFModel(const std::string filename)
         {
             m.type = BXDF_GGX_ROUGH_DIELECTRIC;
             m.Ks = toFloat3(mat->kr); // reflectivity
-            m.Ns = 5000.0f;
+            m.Ns = 8000.0f;
             m.Ni = mat->index;
         }
         else if (auto mat = dynamic_cast<pbrt::MirrorMaterial*>(t_mat.get()))
@@ -777,7 +788,7 @@ void Scene::loadPBFModel(const std::string filename)
             m.type = BXDF_GGX_ROUGH_REFLECTION;
             m.Ni = (mat->eta.x + mat->eta.y + mat->eta.z) / 3.0f;
             m.Ks = toFloat3(mat->k);
-            m.Ns = convertRoughness(mat->roughness, mat->remapRoughness, mat->uRoughness, mat->vRoughness);
+            m.Ns = convertRoughness(mat->roughness, true/*mat->remapRoughness*/, mat->uRoughness, mat->vRoughness);
         }
         else if (auto mat = dynamic_cast<pbrt::FourierMaterial*>(t_mat.get()))
         {
