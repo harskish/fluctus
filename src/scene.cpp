@@ -77,11 +77,13 @@ void Scene::loadModel(const std::string filename, ProgressView *progress)
         std::ifstream infile(converted);
         if (!infile.good())
         {
+            progress->showMessage("Converting PBRT to binary");
             std::cout << "Converting PBRT file to PBF: " << filename << std::endl;
             convertPBRTModel(filename, converted);
         }        
         
         infile.close();
+        progress->showMessage("Loading PBRT binary file");
         std::cout << "Loading PBRT binary file: " << converted << std::endl;
         loadPBFModel(converted);
     }
@@ -696,7 +698,7 @@ void Scene::loadPBFModel(const std::string filename)
         if (pbrt::ImageTexture * tex = dynamic_cast<pbrt::ImageTexture*>(tmap.get()))
             return tryImportTexture(unixifyPath(folderPath + tex->fileName), unixifyPath(tex->fileName));
         
-        std::cout << "Unknown texture type" << std::endl;
+        std::cout << "Unsupported texture type" << std::endl;
         return (cl_int)-1;
     };
 
@@ -709,11 +711,9 @@ void Scene::loadPBFModel(const std::string filename)
 
     // Read materialsVec into own format
     for (pbrt::Material::SP t_mat : pbrtMaterials)
-    {
-        std::cout << "Material: " << t_mat->name << std::endl;
-        
+    {   
         // Use default parameters
-        Material m = materials[0];
+        Material m(materials[0]);
 
         if (auto mat = dynamic_cast<pbrt::PlasticMaterial*>(t_mat.get()))
         {
