@@ -6,7 +6,7 @@
 #include "utils.h"
 #include "geom.h"
 
-Tracer::Tracer(int width, int height) : useWavefront(true)
+Tracer::Tracer(int width, int height) : useWavefront(false)
 {
     resetParams(width, height);
 
