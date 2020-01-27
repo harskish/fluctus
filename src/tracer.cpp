@@ -583,7 +583,7 @@ void Tracer::initHierarchy()
     else
     {
         std::cout << "Building BVH..." << std::endl;
-        constructHierarchy(scene->getTriangles(), SplitMode_Sah, window->getProgressView());
+        constructHierarchy(scene->getTriangles(), SplitMode::SAH, window->getProgressView());
         saveHierarchy(hashFile);
     }
 }

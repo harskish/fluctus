@@ -779,7 +779,6 @@ void Scene::loadPBFModel(const std::string filename)
         {
             m.type = BXDF_IDEAL_DIELECTRIC;
             m.Ks = toFloat3(mat->kt); // m.Ks treated as transmissivity
-            //m.Ns = 12000.0f;
             m.Ni = (mat->index > 0.0f) ? mat->index : 1.5f;
         }
         else if (auto mat = dynamic_cast<pbrt::MirrorMaterial*>(t_mat.get()))
@@ -808,9 +807,6 @@ void Scene::loadPBFModel(const std::string filename)
             std::cout << "Unhandled material type" << std::endl;
         }
 
-        //m.Ks = float3(0.6f);
-        //m.Kd = float3(0.6f);
-        //m.Ni = 1.0f;
         materials.push_back(m);
         materialTypes |= m.type;
     }
