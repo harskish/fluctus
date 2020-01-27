@@ -34,6 +34,9 @@ public:
     std::string hashString();
     unsigned int getMaterialTypes() { return materialTypes; }
 
+    float3 getWorldRight() { return worldRight; }
+    float3 getWorldUp() { return worldUp; }
+
 private:
     void loadObjModel(const std::string filename);
     void loadPlyModel(const std::string filename);
@@ -52,10 +55,14 @@ private:
                            const std::vector<std::array<unsigned, 6>>& faces,
                            bool type_ply);
 
-  std::shared_ptr<EnvironmentMap> envmap;
-  std::vector<RTTriangle> triangles;
-  std::vector<Material> materials;
-  std::vector<Texture*> textures;
-  size_t hash;
-  unsigned int materialTypes = 0; // bits represent material types present in scene
+    std::shared_ptr<EnvironmentMap> envmap;
+    std::vector<RTTriangle> triangles;
+    std::vector<Material> materials;
+    std::vector<Texture*> textures;
+    size_t hash;
+  
+    float3 worldRight = float3(1.0f, 0.0f, 0.0f);
+    float3 worldUp = float3(0.0f, 1.0f, 0.0f);
+
+    unsigned int materialTypes = 0; // bits represent material types present in scene
 };

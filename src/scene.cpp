@@ -701,6 +701,11 @@ void Scene::loadPBFModel(const std::string filename)
 
     traverse(scene->world, pbrt::affine3f::identity());
 
+    // Read xform active when camera was created
+    pbrt::Camera::SP cam = scene->cameras[0];
+    float3 v = toFloat3(cam->frame.l.vy);
+    this->worldUp = (fabs(v.y) > fabs(v.z)) ? float3(0.0f, 1.0f, 0.0f) : float3(0.0f, 0.0f, 1.0f);
+
     auto loadTex = [&](pbrt::Texture::SP tmap)
     {
         if (!tmap)
@@ -732,7 +737,7 @@ void Scene::loadPBFModel(const std::string filename)
             m.type = BXDF_GLOSSY;
             m.Kd = toFloat3(mat->kd);
             m.Ks = toFloat3(mat->ks);
-            m.Ns = convertRoughness(mat->roughness, true/*mat->remapRoughness*/);
+            m.Ns = convertRoughness(mat->roughness, mat->remapRoughness);
             m.map_Kd = loadTex(mat->map_kd);
             m.map_Ks = loadTex(mat->map_ks);
             m.Ni = 1.5; // for Fresnel
@@ -754,7 +759,7 @@ void Scene::loadPBFModel(const std::string filename)
             m.type = BXDF_GLOSSY;
             m.Kd = toFloat3(mat->kd);
             m.Ks = toFloat3(mat->ks);
-            m.Ns = convertRoughness(0.0f, true/*mat->remapRoughness*/, mat->uRoughness, mat->vRoughness);
+            m.Ns = convertRoughness(0.0f, mat->remapRoughness, mat->uRoughness, mat->vRoughness);
             m.map_Kd = loadTex(mat->map_kd);
             m.map_Ks = loadTex(mat->map_ks);
             m.Ni = 1.5; // for Fresnel
@@ -788,7 +793,7 @@ void Scene::loadPBFModel(const std::string filename)
             m.type = BXDF_GGX_ROUGH_REFLECTION;
             m.Ni = (mat->eta.x + mat->eta.y + mat->eta.z) / 3.0f;
             m.Ks = toFloat3(mat->k);
-            m.Ns = convertRoughness(mat->roughness, true/*mat->remapRoughness*/, mat->uRoughness, mat->vRoughness);
+            m.Ns = convertRoughness(mat->roughness, mat->remapRoughness, mat->uRoughness, mat->vRoughness);
         }
         else if (auto mat = dynamic_cast<pbrt::FourierMaterial*>(t_mat.get()))
         {
@@ -803,6 +808,9 @@ void Scene::loadPBFModel(const std::string filename)
             std::cout << "Unhandled material type" << std::endl;
         }
 
+        //m.Ks = float3(0.6f);
+        //m.Kd = float3(0.6f);
+        //m.Ni = 1.0f;
         materials.push_back(m);
         materialTypes |= m.type;
     }
