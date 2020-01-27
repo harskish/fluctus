@@ -15,10 +15,10 @@ typedef cl_int S32;
 typedef cl_float F32;
 typedef cl_uchar U8;
 
-enum SplitMode {
-	SplitMode_SpatialMedian,
-	SplitMode_ObjectMedian,
-	SplitMode_Sah
+enum class SplitMode {
+	SpatialMedian,
+	ObjectMedian,
+	SAH
 };
 
 struct AABB_t {

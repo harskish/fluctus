@@ -36,7 +36,8 @@ BVH::BVH(std::vector<RTTriangle>* tris, SplitMode mode)
 
 	std::cout
 		<< "======================" << std::endl
-		<< ((m_mode == SplitMode_Sah) ? "SAH" : (m_mode == SplitMode_ObjectMedian) ? "Object Median" : (m_mode == SplitMode_SpatialMedian) ? "Spatial Median" : "Unknown") << std::endl
+		<< ((m_mode == SplitMode::SAH) ? "SAH" : (m_mode == SplitMode::ObjectMedian)
+            ? "Object Median" : (m_mode == SplitMode::SpatialMedian) ? "Spatial Median" : "Unknown") << std::endl
 		<< "Splits: " << metrics.splits << " (" << int(metrics.bad_splits / float(metrics.splits) * 100.0f) << "% bad)" << std::endl
 		<< "Depth: " << metrics.depth << std::endl
 		<< "Leaves: " << metrics.splits + 1 << std::endl
@@ -238,13 +239,13 @@ void BVH::build(U32 nInd, U32 depth, F32 progressStart = 0.0f, F32 progressEnd =
 bool BVH::partition(BuildNode &n, SplitInfo &split)
 {
 	switch (m_mode) {
-	case SplitMode_Sah:
+	case SplitMode::SAH:
 		return sahSplit(n, split);
 		break;
-	case SplitMode_SpatialMedian:
+	case SplitMode::SpatialMedian:
 		return spatialMedianSplit(n, split);
 		break;
-	case SplitMode_ObjectMedian:
+	case SplitMode::ObjectMedian:
 		return objectMedianSplit(n, split);
 		break;
 	default:
