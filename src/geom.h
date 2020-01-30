@@ -169,7 +169,6 @@ typedef struct
     cl_uint useEnvMap;
     cl_uint useAreaLight;
     cl_float envMapStrength;
-    cl_uint flashlight;
     cl_uint maxBounces;
     cl_uint sampleImpl;    // use implicit light source sampling
     cl_uint sampleExpl;    // use next event estimation
