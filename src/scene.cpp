@@ -14,7 +14,7 @@ Scene::Scene()
 {
     // Init default material
     Material def;
-    def.Kd = float3(0.64, 0.64, 0.64);
+    def.Kd = fr::float3(0.64, 0.64, 0.64);
     def.Ni = 1.8f;
     def.Ns = 700.0f;
     def.map_Kd = -1;
@@ -248,28 +248,28 @@ void Scene::loadObjWithMaterials(const std::string filePath, ProgressView *progr
                 auto ind = shape.mesh.indices[3 * f + v];
                 
                 // Position
-                V[v].p = float3(attrib.vertices[3 * ind.vertex_index + 0],
-                                attrib.vertices[3 * ind.vertex_index + 1],
-                                attrib.vertices[3 * ind.vertex_index + 2]);
+                V[v].p = fr::float3(attrib.vertices[3 * ind.vertex_index + 0],
+                                   attrib.vertices[3 * ind.vertex_index + 1],
+                                   attrib.vertices[3 * ind.vertex_index + 2]);
 
                 // Normal
                 if (ind.normal_index < 0 || !hasNormals)
                 {
                     allNormals = false;
-                    V[v].n = float3(0.0f);
+                    V[v].n = fr::float3(0.0f);
                 }
                 else
                 {
-                    V[v].n = float3(attrib.normals[3 * ind.normal_index + 0],
-                                    attrib.normals[3 * ind.normal_index + 1],
-                                    attrib.normals[3 * ind.normal_index + 2]);
+                    V[v].n = fr::float3(attrib.normals[3 * ind.normal_index + 0],
+                                       attrib.normals[3 * ind.normal_index + 1],
+                                       attrib.normals[3 * ind.normal_index + 2]);
                 }
 
                 // Tex coord
                 if (ind.texcoord_index > -1 && hasTexCoords)
-                    V[v].t = float3(attrib.texcoords[2 * ind.texcoord_index + 0], attrib.texcoords[2 * ind.texcoord_index + 1], 0.0f);
+                    V[v].t = fr::float3(attrib.texcoords[2 * ind.texcoord_index + 0], attrib.texcoords[2 * ind.texcoord_index + 1], 0.0f);
                 else
-                    V[v].t = float3(0.0f);
+                    V[v].t = fr::float3(0.0f);
             }
 
             if(!allNormals)
@@ -285,9 +285,9 @@ void Scene::loadObjWithMaterials(const std::string filePath, ProgressView *progr
     for (tinyobj::material_t &t_mat : materialsVec)
     {
         Material m;
-        m.Kd = float3(t_mat.diffuse[0], t_mat.diffuse[1], t_mat.diffuse[2]);
-        m.Ks = float3(t_mat.specular[0], t_mat.specular[1], t_mat.specular[2]);
-        m.Ke = float3(t_mat.emission[0], t_mat.emission[1], t_mat.emission[2]);
+        m.Kd = fr::float3(t_mat.diffuse[0], t_mat.diffuse[1], t_mat.diffuse[2]);
+        m.Ks = fr::float3(t_mat.specular[0], t_mat.specular[1], t_mat.specular[2]);
+        m.Ke = fr::float3(t_mat.emission[0], t_mat.emission[1], t_mat.emission[2]);
         m.Ns = t_mat.shininess;
         m.Ni = t_mat.ior;
         m.map_Kd = tryImportTexture(unixifyPath(folderPath + t_mat.diffuse_texname), unixifyPath(t_mat.diffuse_texname));
@@ -321,7 +321,7 @@ cl_int Scene::tryImportTexture(const std::string path, std::string name)
 
 void Scene::loadObjModel(const std::string filename)
 {
-    std::vector<float3> positions, normals;
+    std::vector<fr::float3> positions, normals;
     std::vector<std::array<unsigned, 6>> faces;
     
     int face_format = -1;
@@ -359,7 +359,7 @@ void Scene::loadObjModel(const std::string filename)
             float x = (float)atof(s1.c_str());
             float y = (float)atof(s2.c_str());
             float z = (float)atof(s3.c_str());
-            positions.push_back(float3(x, y, z));
+            positions.push_back(fr::float3(x, y, z));
         }
         else if (s == "vn")
         {
@@ -367,7 +367,7 @@ void Scene::loadObjModel(const std::string filename)
             float nx = (float)atof(s1.c_str());
             float ny = (float)atof(s2.c_str());
             float nz = (float)atof(s3.c_str());
-            normals.push_back(float3(nx, ny, nz));
+            normals.push_back(fr::float3(nx, ny, nz));
         }
         else if (s == "f")
         {
@@ -468,7 +468,7 @@ void Scene::loadPlyModel(const std::string filename)
 
     std::cout << "PLY headers processed" << std::endl;
 
-    std::vector<float3> positions, normals;
+    std::vector<fr::float3> positions, normals;
     std::vector<std::array<unsigned, 6>> faces;
 
     /* READ DATA */
@@ -492,9 +492,9 @@ void Scene::loadPlyModel(const std::string filename)
                     map[name] = (float)atof(bucket.c_str());
                 }
 
-                positions.push_back(float3(map["x"], map["y"], map["z"]));
+                positions.push_back(fr::float3(map["x"], map["y"], map["z"]));
                 if (map.find("nx") != map.end()) // contains normals
-                    normals.push_back(float3(map["nx"], map["ny"], map["nz"]));
+                    normals.push_back(fr::float3(map["nx"], map["ny"], map["nz"]));
             }
         }
         else if (e.name == "face")
@@ -591,7 +591,7 @@ void Scene::loadPBFModel(const std::string filename)
     if (fileNameStart == std::string::npos) fileNameStart = filename.find_last_of("/"); // Linux/MacOS
     std::string folderPath = filename.substr(0, fileNameStart + 1);
 
-    auto toFloat3 = [](pbrt::vec3f v) { return float3(v.x, v.y, v.z); };
+    auto toFloat3 = [](pbrt::vec3f v) { return fr::float3(v.x, v.y, v.z); };
 
     //std::set<pbrt::Object::SP> geometries;
     std::vector<pbrt::Material::SP> pbrtMaterials;
@@ -661,7 +661,7 @@ void Scene::loadPBFModel(const std::string filename)
 
                         V[v].p = toFloat3(P);
                         V[v].n = toFloat3(N);
-                        V[v].t = float3(T.x, T.y, 0.0f);
+                        V[v].t = fr::float3(T.x, T.y, 0.0f);
                     }
 
                     if (!hasNormals)
@@ -703,8 +703,8 @@ void Scene::loadPBFModel(const std::string filename)
 
     // Read xform active when camera was created
     pbrt::Camera::SP cam = scene->cameras[0];
-    float3 v = toFloat3(cam->frame.l.vy);
-    this->worldUp = (fabs(v.y) > fabs(v.z)) ? float3(0.0f, 1.0f, 0.0f) : float3(0.0f, 0.0f, 1.0f);
+    fr::float3 v = toFloat3(cam->frame.l.vy);
+    this->worldUp = (fabs(v.y) > fabs(v.z)) ? fr::float3(0.0f, 1.0f, 0.0f) : fr::float3(0.0f, 0.0f, 1.0f);
 
     auto loadTex = [&](pbrt::Texture::SP tmap)
     {
@@ -812,8 +812,8 @@ void Scene::loadPBFModel(const std::string filename)
     }
 }
 
-void Scene::unpackIndexedData(const std::vector<float3> &positions,
-                              const std::vector<float3>& normals,
+void Scene::unpackIndexedData(const std::vector<fr::float3> &positions,
+                              const std::vector<fr::float3>& normals,
                               const std::vector<std::array<unsigned, 6>>& faces,
                               bool type_ply)
 {

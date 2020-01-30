@@ -6,12 +6,14 @@ typedef int cl_int;
 typedef unsigned int cl_uint;
 typedef char cl_uchar;
 typedef bool cl_bool;
+typedef float2 vfloat2;
+typedef float3 vfloat3;
 #else
 #include "cl2.hpp"
 #include "math/float2.hpp"
 #include "math/float3.hpp"
-using FireRays::float2;
-using FireRays::float3;
+typedef FireRays::float3 vfloat3;
+typedef FireRays::float2 vfloat2;
 #endif
 
 #define PI (3.14159265358979323846f)
@@ -30,8 +32,8 @@ using FireRays::float3;
 #define WriteU32(member, ptr, value) ptr[gid].member = value
 #define ReadFloat2(member, ptr) ptr[gid].member
 #define ReadFloat3(member, ptr) ptr[gid].member
-#define WriteFloat2(member, ptr, value) ptr[gid].member = (float2)(value.x, value.y)
-#define WriteFloat3(member, ptr, value) ptr[gid].member = (float3)(value.x, value.y, value.z)
+#define WriteFloat2(member, ptr, value) ptr[gid].member = (vfloat2)(value.x, value.y)
+#define WriteFloat3(member, ptr, value) ptr[gid].member = (vfloat3)(value.x, value.y, value.z)
 #else
 #define OffsetOf(member) (uint)(&((GPUTaskState*)0)->member)
 #define ReadF32(member, ptr) ((global float*)ptr)[OffsetOf(member) / (uint)sizeof(float) * numTasks + gid]
@@ -41,29 +43,29 @@ using FireRays::float3;
 #define WriteI32(member, ptr, value) ReadI32(member, ptr) = value
 #define ReadU32(member, ptr) ((global uint*)ptr)[OffsetOf(member) / (uint)sizeof(uint) * numTasks + gid]
 #define WriteU32(member, ptr, value) ReadU32(member, ptr) = value
-#define ReadFloat2(member, ptr) (float2)(ReadF32Vec(member, 0, ptr), ReadF32Vec(member, 1, ptr))
-#define ReadFloat3(member, ptr) (float3)(ReadF32Vec(member, 0, ptr), ReadF32Vec(member, 1, ptr), ReadF32Vec(member, 2, ptr))
+#define ReadFloat2(member, ptr) (vfloat2)(ReadF32Vec(member, 0, ptr), ReadF32Vec(member, 1, ptr))
+#define ReadFloat3(member, ptr) (vfloat3)(ReadF32Vec(member, 0, ptr), ReadF32Vec(member, 1, ptr), ReadF32Vec(member, 2, ptr))
 #define WriteFloat2(member, ptr, value) ReadF32Vec(member, 0, ptr) = value.x; ReadF32Vec(member, 1, ptr) = value.y;
 #define WriteFloat3(member, ptr, value) ReadF32Vec(member, 0, ptr) = value.x; ReadF32Vec(member, 1, ptr) = value.y; ReadF32Vec(member, 2, ptr) = value.z;
 #endif
 
 typedef struct
 {
-    float3 orig;
-    float3 dir;
+    vfloat3 orig;
+    vfloat3 dir;
 } Ray;
 
 typedef struct
 {
-    float3 P;    // 16B
-    float3 Kd;   // 16B
+    vfloat3 P;    // 16B
+    vfloat3 Kd;   // 16B
     cl_float R;  // 4B (padded to 16B?)
 } Sphere;        // 48B
 
 typedef struct
 {
-    float3 min;
-    float3 max;
+    vfloat3 min;
+    vfloat3 max;
 } AABB;
 
 typedef struct
@@ -79,9 +81,9 @@ typedef struct
 
 typedef struct
 {
-    float3 p; // 16B
-    float3 n; // 16B
-    float3 t; // 16B
+    vfloat3 p; // 16B
+    vfloat3 n; // 16B
+    vfloat3 t; // 16B
 } Vertex; // >= 48B
 
 typedef struct
@@ -94,25 +96,25 @@ typedef struct
 
 typedef struct
 {
-    float3 E;   // Diffuse emission (W/m^2), ~'color * intensity'?
-    float3 pos;
+    vfloat3 E;   // Diffuse emission (W/m^2), ~'color * intensity'?
+    vfloat3 pos;
 } PointLight;
 
 typedef struct
 {
-    float3 right;
-    float3 up;
-    float3 N;
-    float3 pos;
-    float3 E;        // Diffuse emission (W/m^2)
-    float2 size;     // Half of the total width/height, measured from center
+    vfloat3 right;
+    vfloat3 up;
+    vfloat3 N;
+    vfloat3 pos;
+    vfloat3 E;        // Diffuse emission (W/m^2)
+    vfloat2 size;     // Half of the total width/height, measured from center
 } AreaLight;
 
 typedef struct
 {
-    float3 Kd;     // diffuse reflectivity
-    float3 Ks;     // specular reflectivity 
-    float3 Ke;     // emission
+    vfloat3 Kd;     // diffuse reflectivity
+    vfloat3 Ks;     // specular reflectivity 
+    vfloat3 Ke;     // emission
     cl_float Ns;   // specular exponent (shininess), normally in [0, 1000]
     cl_float Ni;   // index of refraction
     cl_int map_Kd; // diffuse texture descriptor idx
@@ -130,23 +132,23 @@ typedef struct
 
 typedef struct
 {
-    float3 P;
-    float3 N;
-    float2 uvTex;
+    vfloat3 P;
+    vfloat3 N;
+    vfloat2 uvTex;
     cl_float t;
     cl_int i; // index of hit triangle, -1 by default
     cl_int areaLightHit;
     cl_int matId; // index of hit material
 } Hit;
 
-#define EMPTY_HIT(tmax) { (float3)(0.0f), (float3)(0.0f), (float2)(0.0f), tmax, -1, 0, -1 }
+#define EMPTY_HIT(tmax) { (vfloat3)(0.0f), (vfloat3)(0.0f), (vfloat2)(0.0f), tmax, -1, 0, -1 }
 
 typedef struct
 {
-    float3 pos;     // 16B
-    float3 dir;     // 16B
-    float3 up;      // 16B
-    float3 right;   // 16B
+    vfloat3 pos;     // 16B
+    vfloat3 dir;     // 16B
+    vfloat3 up;      // 16B
+    vfloat3 right;   // 16B
     cl_float fov;   // 4B
     cl_float apertureSize; // DoF
     cl_float focalDist;    // DoF
@@ -197,19 +199,19 @@ typedef enum
 typedef struct
 {
     // Path state:
-    float3 orig;     // path segment origin
-    float3 dir;      // path segment direction
-    float3 shadowOrig;
-    float3 shadowDir;
-    float3 T;        // throughput * pdf (for numerical stability)
-    float3 Ei;       // irradiance
-    float3 lastBsdf; // added to Ei if shadow ray unblocked
-    float3 lastEmission;
-    float3 lastT;
+    vfloat3 orig;     // path segment origin
+    vfloat3 dir;      // path segment direction
+    vfloat3 shadowOrig;
+    vfloat3 shadowDir;
+    vfloat3 T;        // throughput * pdf (for numerical stability)
+    vfloat3 Ei;       // irradiance
+    vfloat3 lastBsdf; // added to Ei if shadow ray unblocked
+    vfloat3 lastEmission;
+    vfloat3 lastT;
     // Last hit:
-    float3 P;
-    float3 N;
-    float2 uvTex;
+    vfloat3 P;
+    vfloat3 N;
+    vfloat2 uvTex;
     // Path state:
     PathPhase phase;
 	cl_float lastPdfW; // prev. brdf pdf, for MIS (implicit light samples)

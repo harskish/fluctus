@@ -14,7 +14,8 @@
 #include "triangle.hpp"
 #include "geom.h"
 
-using FireRays::float3;
+namespace fr = FireRays;
+
 class ProgressView;
 
 class Scene {
@@ -34,8 +35,8 @@ public:
     std::string hashString();
     unsigned int getMaterialTypes() { return materialTypes; }
 
-    float3 getWorldRight() { return worldRight; }
-    float3 getWorldUp() { return worldUp; }
+    fr::float3 getWorldRight() { return worldRight; }
+    fr::float3 getWorldUp() { return worldUp; }
 
 private:
     void loadObjModel(const std::string filename);
@@ -50,8 +51,8 @@ private:
     cl_int tryImportTexture(const std::string path, const std::string name);
     cl_int parseShaderType(std::string type);
 
-    void unpackIndexedData(const std::vector<float3> &positions,
-                           const std::vector<float3>& normals,
+    void unpackIndexedData(const std::vector<fr::float3> &positions,
+                           const std::vector<fr::float3>& normals,
                            const std::vector<std::array<unsigned, 6>>& faces,
                            bool type_ply);
 
@@ -61,8 +62,8 @@ private:
     std::vector<Texture*> textures;
     size_t hash;
   
-    float3 worldRight = float3(1.0f, 0.0f, 0.0f);
-    float3 worldUp = float3(0.0f, 1.0f, 0.0f);
+    fr::float3 worldRight = fr::float3(1.0f, 0.0f, 0.0f);
+    fr::float3 worldUp = fr::float3(0.0f, 1.0f, 0.0f);
 
     unsigned int materialTypes = 0; // bits represent material types present in scene
 };

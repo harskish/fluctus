@@ -6,8 +6,7 @@
 #include <iostream>
 #include <cfloat>
 
-using FireRays::float3;
-using FireRays::float4;
+namespace fr = FireRays;
 
 // TODO: remove these!
 typedef cl_uint U32;
@@ -22,21 +21,21 @@ enum class SplitMode {
 };
 
 struct AABB_t {
-    float3 min, max;
+    fr::float3 min, max;
     inline AABB_t() : min(FLT_MAX), max(-FLT_MAX) {}
-    inline AABB_t(const float3& min, const float3& max) : min(min), max(max) {}
+    inline AABB_t(const fr::float3& min, const fr::float3& max) : min(min), max(max) {}
 	inline F32 area() const {
-        float3 d(max - min);
+        fr::float3 d(max - min);
         return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
     }
 	inline U32 maxDim() const {
 		U32 axis = 0; // index of longest axis, assume x
-		float3 d = max - min;
+        fr::float3 d = max - min;
 		if (d.y > d[axis]) axis = 1;
 		if (d.z > d[axis]) axis = 2;
 		return axis;
 	}
-	inline float3 centroid() {
+	inline fr::float3 centroid() {
 		return 0.5f * (min + max);
 	}
 	inline void expand(const RTTriangle &t) {
@@ -47,7 +46,7 @@ struct AABB_t {
 		min = vmin(min, box.min);
 		max = vmax(max, box.max);
 	}
-	inline void expand(const float3 &p) {
+	inline void expand(const fr::float3 &p) {
 		min = vmin(min, p);
 		max = vmax(max, p);
 	}
@@ -57,7 +56,7 @@ struct AABB_t {
 	}
 };
 
-inline std::ostream& operator<<(std::ostream& os, const float4& v) {
+inline std::ostream& operator<<(std::ostream& os, const fr::float4& v) {
     return os << "(" << v.x << ", " << v.y << ", " << v.z << ", " << v.w << ")";
 }
 

@@ -6,6 +6,8 @@
 #include "utils.h"
 #include "geom.h"
 
+namespace fr = FireRays;
+
 Tracer::Tracer(int width, int height) : useWavefront(false)
 {
     resetParams(width, height);
@@ -758,16 +760,16 @@ void Tracer::constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode sp
 void Tracer::initCamera()
 {
     Camera cam;
-    cam.pos = float3(0.0f, 1.0f, 3.5f);
-    cam.right = float3(1.0f, 0.0f, 0.0f);
-    cam.up = float3(0.0f, 1.0f, 0.0f);
-    cam.dir = float3(0.0f, 0.0f, -1.0f);
+    cam.pos = fr::float3(0.0f, 1.0f, 3.5f);
+    cam.right = fr::float3(1.0f, 0.0f, 0.0f);
+    cam.up = fr::float3(0.0f, 1.0f, 0.0f);
+    cam.dir = fr::float3(0.0f, 0.0f, -1.0f);
     cam.fov = 60.0f;
     cam.apertureSize = 0.0f;
     cam.focalDist = 0.5f;
 
     params.camera = cam;
-    cameraRotation = float2(0.0f);
+    cameraRotation = fr::float2(0.0f);
     cameraSpeed = 1.0f;
 
     paramsUpdatePending = true;
@@ -785,12 +787,12 @@ void Tracer::initPostProcessing()
 
 void Tracer::initAreaLight()
 {
-    params.areaLight.E = float3(1.0f, 1.0f, 1.0f) * 200.0f;
-    params.areaLight.right = float3(0.0f, 0.0f, -1.0f);
-    params.areaLight.up = float3(0.0f, 1.0f, 0.0f);
-    params.areaLight.N = float4(-1.0f, 0.0f, 0.0f, 0.0f);
-    params.areaLight.pos = float4(1.0f, 1.0f, 0.0f, 1.0f);
-    params.areaLight.size = float2(0.5f, 0.5f);
+    params.areaLight.E = fr::float3(1.0f, 1.0f, 1.0f) * 200.0f;
+    params.areaLight.right = fr::float3(0.0f, 0.0f, -1.0f);
+    params.areaLight.up = fr::float3(0.0f, 1.0f, 0.0f);
+    params.areaLight.N = fr::float4(-1.0f, 0.0f, 0.0f, 0.0f);
+    params.areaLight.pos = fr::float4(1.0f, 1.0f, 0.0f, 1.0f);
+    params.areaLight.size = fr::float2(0.5f, 0.5f);
     paramsUpdatePending = true;
 }
 
@@ -806,11 +808,11 @@ void Tracer::updateCamera()
     auto right = scene->getWorldRight();
     auto up = scene->getWorldUp();
 
-    matrix rot = rotation(right, toRad(cameraRotation.y)) * rotation(up, toRad(cameraRotation.x));
+    fr::matrix rot = rotation(right, toRad(cameraRotation.y)) * rotation(up, toRad(cameraRotation.x));
 
-    params.camera.right = float3(rot.m00, rot.m01, rot.m02);
-    params.camera.up =    float3(rot.m10, rot.m11, rot.m12);
-    params.camera.dir =  -float3(rot.m20, rot.m21, rot.m22); // camera points in the negative z-direction
+    params.camera.right = fr::float3(rot.m00, rot.m01, rot.m02);
+    params.camera.up =    fr::float3(rot.m10, rot.m11, rot.m12);
+    params.camera.dir =  -fr::float3(rot.m20, rot.m21, rot.m22); // camera points in the negative z-direction
 }
 
 void Tracer::updateAreaLight()
@@ -1042,8 +1044,8 @@ void Tracer::handleCursorPos(double x, double y)
 
     if(mouseButtonState[0])
     {
-        float2 newPos = float2((float)x, (float)y);
-        float2 delta =  newPos - lastCursorPos;
+        fr::float2 newPos = fr::float2((float)x, (float)y);
+        fr::float2 delta =  newPos - lastCursorPos;
 
         // std::cout << "Mouse delta: " << delta.x <<  ", " << delta.y << std::endl;
 

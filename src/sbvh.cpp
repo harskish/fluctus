@@ -242,9 +242,9 @@ void SBVH::partitionObject(NodeSpec& left, NodeSpec& right, const NodeSpec& spec
 // 2. Build area lookup (per bin boundary), calculate SAH, keep cheapest
 SBVH::SplitInfo SBVH::binSplit(const NodeSpec& spec, F32 nodeSAH)
 {
-	float3 origin = spec.box.min;
-	float3 binSize = (spec.box.max - origin) * (1.0f / (F32)NumSpatialBins);
-	float3 invBinSize = 1.0f / binSize;
+    fr::float3 origin = spec.box.min;
+    fr::float3 binSize = (spec.box.max - origin) * (1.0f / (F32)NumSpatialBins);
+    fr::float3 invBinSize = 1.0f / binSize;
 
 	// Init bins
 	for (int dim = 0; dim < 3; dim++)
@@ -264,8 +264,8 @@ SBVH::SplitInfo SBVH::binSplit(const NodeSpec& spec, F32 nodeSAH)
 		const TriRef& ref = m_refs[refIdx];
 
 		// Find bins that AABB overlaps
-		int3 firstBin = vclamp(int3((ref.box.min - origin) * invBinSize), 0, NumSpatialBins - 1);
-		int3 lastBin = vclamp(int3((ref.box.max - origin) * invBinSize), firstBin, NumSpatialBins - 1);
+        fr::int3 firstBin = vclamp(fr::int3((ref.box.min - origin) * invBinSize), 0, NumSpatialBins - 1);
+        fr::int3 lastBin = vclamp(fr::int3((ref.box.max - origin) * invBinSize), firstBin, NumSpatialBins - 1);
 
 		// Clip AABB against bins, expand their boxes
 		for (int dim = 0; dim < 3; dim++)
@@ -421,8 +421,8 @@ void SBVH::splitReference(TriRef& left, TriRef& right, const TriRef& ref, int di
 	{
 		const VertexPNT *v1v = verts + i;
 		const VertexPNT *v2v = verts + offsets[i];
-		float3 p1 = v2v->p;
-		float3 p2 = v1v->p;
+        fr::float3 p1 = v2v->p;
+        fr::float3 p2 = v1v->p;
 		F32 v0p = p1[dim];
 		F32 v1p = p2[dim];
 
@@ -435,7 +435,7 @@ void SBVH::splitReference(TriRef& left, TriRef& right, const TriRef& ref, int di
 		// Check if edge intersects plane (both box AABBs have to be expanded)
 		if ((v0p < coord && v1p > coord) || (v0p > coord && v1p < coord))
 		{
-			float3 t = lerp(p1, p2, std::max(0.0f, std::min(1.0f, (coord - v0p) / (v1p - v0p))));
+            fr::float3 t = lerp(p1, p2, std::max(0.0f, std::min(1.0f, (coord - v0p) / (v1p - v0p))));
 			left.box.expand(t);
 			right.box.expand(t);
 		}

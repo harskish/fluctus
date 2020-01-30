@@ -13,10 +13,10 @@
 #include "geom.h"
 
 #ifdef WITH_OPTIX
-#include "OptixDenoiser.hpp"
+#include "denoiser/OptixDenoiser.hpp"
 #endif
 
-using namespace FireRays;
+//using namespace FireRays;
 
 class CLContext;
 class PTWindow;
@@ -110,16 +110,15 @@ private:
     void initEnvMap();
 
 #ifdef WITH_OPTIX
-    OptixDenoiser denoiser;
-    optix::Buffer denoisedResult;
+    DenoiserOptix denoiser;
     float denoiserStrength = 1.0f;
 #endif
 
     PTWindow *window;
     CLContext *clctx;
     RenderParams params;    // copied into GPU memory
-    float2 cameraRotation;  // not passed to GPU but needed for camera basis vectors
-    float2 lastCursorPos;
+    FireRays::float2 cameraRotation;  // not passed to GPU but needed for camera basis vectors
+    FireRays::float2 lastCursorPos;
     double lastUpdate = 0.0f;
     float cameraSpeed = 1.0f;
     bool mouseButtonState[3] = { false, false, false };

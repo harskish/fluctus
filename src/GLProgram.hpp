@@ -11,10 +11,7 @@
 #define GL_SHADER_SOURCE(CODE) #CODE
 
 using std::string;
-using FireRays::float2;
-using FireRays::float3;
-using FireRays::float4;
-using FireRays::matrix;
+namespace fr = FireRays;
 
 typedef unsigned int GLenum;
 typedef unsigned int GLuint;
@@ -51,9 +48,9 @@ public:
 
 	void             setUniform(int loc, int v) { if (loc >= 0) glUniform1i(loc, v); }
 	void             setUniform(int loc, float v) { if (loc >= 0) glUniform1f(loc, v); }
-	void             setUniform(int loc, const float2& v) { if (loc >= 0) glUniform2f(loc, v.x, v.y); }
-	void             setUniform(int loc, const float3& v) { if (loc >= 0) glUniform3f(loc, v.x, v.y, v.z); }
-	void             setUniform(int loc, const matrix& v) { if (loc >= 0) glUniformMatrix4fv(loc, 1, false, &v.m00); }
+	void             setUniform(int loc, const fr::float2& v) { if (loc >= 0) glUniform2f(loc, v.x, v.y); }
+	void             setUniform(int loc, const fr::float3& v) { if (loc >= 0) glUniform3f(loc, v.x, v.y, v.z); }
+	void             setUniform(int loc, const fr::matrix& v) { if (loc >= 0) glUniformMatrix4fv(loc, 1, false, &v.m00); }
 
 	void			 setAttrib(int loc, int size, GLenum type, int stride, GLuint buffer, const void* pointer);
 	void             setAttrib(int loc, int size, GLenum type, int stride, const void* pointer) { setAttrib(loc, size, type, stride, (GLuint)NULL, pointer); }

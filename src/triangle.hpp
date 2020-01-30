@@ -2,17 +2,17 @@
 
 #include "math/float3.hpp"
 
-using FireRays::float3;
+namespace fr = FireRays;
 
 struct VertexPNT
 {
-    float3 p; // position
-    float3 n; // normal
-    float3 t; // texture coordinates
+    fr::float3 p; // position
+    fr::float3 n; // normal
+    fr::float3 t; // texture coordinates
     // float3 c; // color
 
     VertexPNT(void) {}
-    VertexPNT(const float3& pp, const float3& nn, const float3& tt) : p(pp), n(nn), t(tt) {}
+    VertexPNT(const fr::float3& pp, const fr::float3& nn, const fr::float3& tt) : p(pp), n(nn), t(tt) {}
 };
 
 struct RTTriangle {
@@ -27,15 +27,15 @@ struct RTTriangle {
         v2 = v2i;
     }
 
-    inline float3 min() const {
+    inline fr::float3 min() const {
         return vmin(v0.p, vmin(v1.p, v2.p));
     }
 
-    inline float3 max() const {
+    inline fr::float3 max() const {
         return vmax(v0.p, vmax(v1.p, v2.p));
     }
 
-    inline float3 centroid() const {
+    inline fr::float3 centroid() const {
         return (v0.p + v1.p + v2.p) * (1.0f / 3.0f);
     }
 
@@ -43,7 +43,7 @@ struct RTTriangle {
         return length(cross(v1.p - v0.p, v2.p - v0.p)) * .5f;
     }
 
-    float3 normal() const {
+    fr::float3 normal() const {
         return normalize(cross(v1.p - v0.p, v2.p - v0.p));
     }
 };

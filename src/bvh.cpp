@@ -125,7 +125,7 @@ std::vector<Node> importNodes(std::ifstream &in)
 	for (U32 i = 0; i < size; i++)
 	{
 		Node n;
-		float3 bmin, bmax;
+		fr::float3 bmin, bmax;
 		read(in, bmin.x);
 		read(in, bmin.y);
 		read(in, bmin.z);
@@ -155,8 +155,8 @@ void BVH::importFrom(const std::string filename)
 void exportNode(std::ofstream &out, const Node &n)
 {
 	// AABB
-	float3 bmin = n.box.min;
-	float3 bmax = n.box.max;
+    fr::float3 bmin = n.box.min;
+    fr::float3 bmax = n.box.max;
 	write(out, bmin.x);
 	write(out, bmin.y);
 	write(out, bmin.z);
