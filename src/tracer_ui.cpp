@@ -188,6 +188,13 @@ void Tracer::addRendererSettings(nanogui::Widget *parent)
         params.useRoulette = value;
         paramsUpdatePending = true;
     });
+    auto matQueueBox = new CheckBox(rendererPopup, "Separate material queues (WF)");
+    uiMapping["WF_QUEUE_TOGGLE"] = matQueueBox;
+    matQueueBox->setChecked(params.wfSeparateQueues);
+    matQueueBox->setCallback([&](bool value) {
+        params.wfSeparateQueues = value;
+        paramsUpdatePending = true;
+    });
 
     Widget *depthPanel = new Widget(rendererPopup);
     depthPanel->setLayout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
@@ -482,11 +489,13 @@ void Tracer::updateGUI()
     auto implSampleToggle = static_cast<CheckBox*>(uiMapping["IMPL_SAMPL_TOGGLE"]);
     auto areaLightToggle = static_cast<CheckBox*>(uiMapping["AREA_LIGHT_TOGGLE"]);
     auto rrToggle = static_cast<CheckBox*>(uiMapping["RR_TOGGLE"]);
+    auto matQueueToggle = static_cast<CheckBox*>(uiMapping["WF_QUEUE_TOGGLE"]);
     envMapToggle->setChecked(params.useEnvMap);
     explSampleToggle->setChecked(params.sampleExpl);
     implSampleToggle->setChecked(params.sampleImpl);
     areaLightToggle->setChecked(params.useAreaLight);
     rrToggle->setChecked(params.useRoulette);
+    matQueueToggle->setChecked(params.wfSeparateQueues);
 
 #ifdef WITH_OPTIX    
     auto denoiseToggle = static_cast<CheckBox*>(uiMapping["DENOISE_TOGGLE"]);

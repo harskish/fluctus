@@ -42,8 +42,7 @@ void Tracer::resetParams(int width, int height)
     params.useEnvMap = (cl_uint)false;
     params.useAreaLight = (cl_uint)true;
     params.envMapStrength = 1.0f;
-    params.flashlight = (cl_uint)false;
-    params.maxBounces = 6;
+    params.maxBounces = 10;
     params.sampleImpl = (cl_uint)true;
     params.sampleExpl = (cl_uint)true;
     params.useRoulette = (cl_uint)false;
