@@ -431,9 +431,9 @@ void Tracer::addAreaLightSettings(Widget *parent)
     colorPicker->setFixedWidth(145);
     colorPicker->setColor(nanogui::Color(Vector3f(1.0f, 1.0f, 1.0f), 1.0f));
     colorPicker->setFinalCallback([&](const nanogui::Color &c) {
-        float3 E = params.areaLight.E;
+        fr::float3 E = params.areaLight.E;
         float intensity = std::max(E.x, std::max(E.y, E.z));
-        params.areaLight.E = intensity * float3(c[0], c[1], c[2]);
+        params.areaLight.E = intensity * fr::float3(c[0], c[1], c[2]);
         paramsUpdatePending = true;
     });
 }

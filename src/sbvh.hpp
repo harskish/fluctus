@@ -5,9 +5,8 @@
 #include "bvh.hpp"
 #include "math/int3.hpp"
 
-using FireRays::int3;
 class ProgressView;
-class SBVHNode;
+struct SBVHNode;
 
 /*
 	Split BVH (SBVH), based on "Spatial Splits in Bounding Volume Hierarchies" by Stich et al.

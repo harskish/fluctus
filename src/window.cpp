@@ -483,11 +483,11 @@ double PTWindow::calcFPS(double interval, std::string theWindowTitle)
     return fps;
 }
 
-float2 PTWindow::getCursorPos()
+fr::float2 PTWindow::getCursorPos()
 {
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
-    return float2((float)xpos, (float)ypos);
+    return fr::float2((float)xpos, (float)ypos);
 }
 
 bool PTWindow::keyPressed(int key)

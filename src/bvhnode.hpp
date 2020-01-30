@@ -3,11 +3,13 @@
 #include "rtutil.hpp"
 #include "math/float3.hpp"
 
+namespace fr = FireRays;
+
 struct TriRef
 {
 	U32 ind;	// index of tri
 	AABB_t box;	// bounding box
-	float3 pos;	// triangle centroid
+    fr::float3 pos;	// triangle centroid
 
 	TriRef(void) {}
 	TriRef(const TriRef &other) : ind(other.ind), box(other.box), pos(other.pos) {}

@@ -9,8 +9,8 @@ add_definitions(-DNOMINMAX)
 add_subdirectory(ext ext_build)
 
 set(INCLUDE_DIRS
-	ext/nanogui/include
-	${CLT_INCLUDE_DIR}
+    ext/nanogui/include
+    ${CLT_INCLUDE_DIR}
     ${PBRT_PARSER_INCLUDE_DIR}
     ${GLEW_INCLUDE_DIR}
     ${NANOGUI_EXTRA_INCS}
@@ -22,8 +22,8 @@ set(INCLUDE_DIRS
 )
 
 set(LIBRARIES
-	nanogui
-	CLT
+    nanogui
+    CLT
     pbrtParser
     ${NANOGUI_EXTRA_LIBS}
     ${OPENGL_LIBRARIES}
@@ -41,7 +41,7 @@ set(SOURCE_FILES
     src/progressview.cpp
     src/progressview.hpp
     src/geom.h
-	src/bxdf_types.h
+    src/bxdf_types.h
     src/tracer.cpp
     src/tracer_ui.cpp
     src/tracer.hpp
@@ -75,30 +75,35 @@ set(SOURCE_FILES
 
 # Add configuration file if available
 if (EXISTS "${CMAKE_SOURCE_DIR}/settings.json")
-	file(GLOB PROJECT_CONFIGS settings.json)
+    file(GLOB PROJECT_CONFIGS settings.json)
 endif()
 
 # OptiX for AI denoiser, optional
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
-set(OptiX_INSTALL_DIR "$ENV{OptiX_INSTALL_DIR}" CACHE PATH "Path to OptiX installed location.")
-find_package(OptiX)
-if(NOT optix_LIBRARY OR NOT OptiX_INCLUDE)
-	message(WARNING "OptiX not found, disabling AI denoiser.")
+find_package(OptiX 7)
+if(NOT OptiX_INCLUDE)
+    message(WARNING "OptiX 7 not found, disabling AI denoiser.")
 else()
-	message(STATUS "OptiX found, building with AI denoiser.")
+    message(STATUS "OptiX 7 found, building with AI denoiser.")
+    find_package(CUDA REQUIRED)
+    
     add_definitions(-DWITH_OPTIX) 
-	set(LIBRARIES
-		${LIBRARIES}
-		${optix_LIBRARY}
-	)
-	set(INCLUDE_DIRS
-		${INCLUDE_DIRS}
-		${OptiX_INCLUDE}
-	)
+    set(INCLUDE_DIRS
+        ${INCLUDE_DIRS}
+        ${OptiX_INCLUDE}
+        ${CUDA_TOOLKIT_ROOT_DIR}/include
+    )
     set(SOURCE_FILES
         ${SOURCE_FILES}
-        src/OptixDenoiser.hpp
-        src/OptixDenoiser.cpp
+        src/denoiser/OptixDenoiser.hpp
+        src/denoiser/OptixDenoiser.cpp
+        src/denoiser/CUDABuffer.h
+    )
+    set(LIBRARIES
+        ${LIBRARIES}
+        ${CUDA_LIBRARIES}
+        ${CUDA_CUDA_LIBRARY}
+        ${optix_LIBRARY}
     )
 endif()
 
