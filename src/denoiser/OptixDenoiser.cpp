@@ -10,10 +10,7 @@
 // this include may only appear in a single source file:
 #include <optix_function_table_definition.h>
 
-static void context_log_cb(unsigned int level,
-    const char* tag,
-    const char* message,
-    void*)
+static void context_log_cb(unsigned int level, const char* tag, const char* message, void*)
 {
     fprintf(stderr, "[%2d][%12s]: %s\n", (int)level, tag, message);
 }
@@ -52,20 +49,18 @@ void DenoiserOptix::bindBuffers(PTWindow* window)
     unsigned int width = window->getTexWidth();
     unsigned int height = window->getTexHeight();
 
-    auto create = [&](GLuint pbo, cudaGraphicsResource_t &cudaResourceBuf)
+    auto create = [&](GLuint pbo, cudaGraphicsResource_t &cudaResourceBuf, cudaGraphicsRegisterFlags flags)
     {
         glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
 
-        if (cudaSuccess != cudaGraphicsGLRegisterBuffer(&cudaResourceBuf, pbo, cudaGraphicsRegisterFlagsNone)) // matches CL_MEM_READ_WRITE?
+        if (cudaSuccess != cudaGraphicsGLRegisterBuffer(&cudaResourceBuf, pbo, flags)) // matches CL_MEM_READ_WRITE?
             throw std::runtime_error("Could not create GL-CUDA shared PBO");
-
 
         // map OpenGL buffer object for writing from CUDA
         float4* dptr;
 
         if (cudaSuccess != cudaGraphicsMapResources(1, &cudaResourceBuf, 0))
             throw std::runtime_error("Could not map resource");
-
 
         size_t expected_bytes = width * height * 4 * sizeof(float);
         size_t num_bytes;
@@ -79,9 +74,9 @@ void DenoiserOptix::bindBuffers(PTWindow* window)
             throw std::runtime_error("Could not unmap resource");
     };
 
-    create(window->getPBO(), handleColor);
-    create(window->getNormalPBO(), handleNormal);
-    create(window->getAlbedoPBO(), handleAlbedo);
+    create(window->getPBO(), handleColor, cudaGraphicsRegisterFlagsNone); // read and write
+    create(window->getNormalPBO(), handleNormal, cudaGraphicsRegisterFlagsReadOnly);
+    create(window->getAlbedoPBO(), handleAlbedo, cudaGraphicsRegisterFlagsReadOnly);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
     setupDenoiser(width, height);
@@ -92,7 +87,7 @@ void DenoiserOptix::resizeBuffers(PTWindow* window)
 {
     fbWidth = window->getTexWidth();
     fbHeight = window->getTexHeight();
-    setupDenoiser(fbWidth, fbHeight);
+    bindBuffers(window);
 }
 
 // Perform denoising, write results to GL buffer
@@ -111,7 +106,7 @@ void DenoiserOptix::denoise(void)
             throw std::runtime_error("Could not map resource");
 
         size_t num_bytes;
-        if (cudaSuccess != cudaGraphicsResourceGetMappedPointer((void**)& dptr, &num_bytes, cudaResourceBuf))
+        if (cudaSuccess != cudaGraphicsResourceGetMappedPointer((void**)&dptr, &num_bytes, cudaResourceBuf))
             throw std::runtime_error("Could not get mapped ptr");
 
         return (CUdeviceptr)dptr;
@@ -123,38 +118,23 @@ void DenoiserOptix::denoise(void)
             throw std::runtime_error("Could not unmap resource");
     };
 
-
     // MAP GL BUFFERS
     CUdeviceptr color = mapBuffer(handleColor);
     CUdeviceptr albedo = mapBuffer(handleAlbedo);
     CUdeviceptr normal = mapBuffer(handleNormal);
 
-    // -------------------------------------------------------
     OptixImage2D inputLayer[3];
-    inputLayer[0].data = color;
-    inputLayer[0].width = fbWidth;
-    inputLayer[0].height = fbHeight;
-    inputLayer[0].rowStrideInBytes = fbWidth * sizeof(float4);
-    inputLayer[0].pixelStrideInBytes = sizeof(float4);
-    inputLayer[0].format = OPTIX_PIXEL_FORMAT_FLOAT4;
+    CUdeviceptr ptrs[3] { color, albedo, normal };
+    for (int i = 0; i < 3; i++)
+    {
+        inputLayer[i].data = ptrs[i];
+        inputLayer[i].width = fbWidth;
+        inputLayer[i].height = fbHeight;
+        inputLayer[i].rowStrideInBytes = fbWidth * sizeof(float4);
+        inputLayer[i].pixelStrideInBytes = sizeof(float4);
+        inputLayer[i].format = OPTIX_PIXEL_FORMAT_FLOAT4;
+    }
 
-    // ..................................................................
-    inputLayer[2].data = normal;
-    inputLayer[2].width = fbWidth;
-    inputLayer[2].height = fbHeight;
-    inputLayer[2].rowStrideInBytes = fbWidth * sizeof(float4);
-    inputLayer[2].pixelStrideInBytes = sizeof(float4);
-    inputLayer[2].format = OPTIX_PIXEL_FORMAT_FLOAT4;
-
-    // ..................................................................
-    inputLayer[1].data = albedo;
-    inputLayer[1].width = fbWidth;
-    inputLayer[1].height = fbHeight;
-    inputLayer[1].rowStrideInBytes = fbWidth * sizeof(float4);
-    inputLayer[1].pixelStrideInBytes = sizeof(float4);
-    inputLayer[1].format = OPTIX_PIXEL_FORMAT_FLOAT4;
-
-    // -------------------------------------------------------
     OptixImage2D outputLayer;
     outputLayer.data = color; // Overwrite!
     outputLayer.width = fbWidth;
@@ -163,42 +143,30 @@ void DenoiserOptix::denoise(void)
     outputLayer.pixelStrideInBytes = sizeof(float4);
     outputLayer.format = OPTIX_PIXEL_FORMAT_FLOAT4;
 
-    // -------------------------------------------------------
-    if (true) { //denoiserOn
-        OPTIX_CHECK(optixDenoiserComputeIntensity(denoiser,
-            /*stream*/0,
-            &inputLayer[0],
-            (CUdeviceptr)denoiserIntensity.d_pointer(),
-            (CUdeviceptr)denoiserScratch.d_pointer(),
-            denoiserScratch.size()));
+    OPTIX_CHECK(optixDenoiserComputeIntensity(denoiser,
+        /*stream*/0,
+        &inputLayer[0],
+        (CUdeviceptr)denoiserIntensity.d_pointer(),
+        (CUdeviceptr)denoiserScratch.d_pointer(),
+        denoiserScratch.size()));
 
-        OPTIX_CHECK(optixDenoiserInvoke(denoiser,
-            /*stream*/0,
-            &denoiserParams,
-            denoiserState.d_pointer(),
-            denoiserState.size(),
-            &inputLayer[0], 2,
-            /*inputOffsetX*/0,
-            /*inputOffsetY*/0,
-            &outputLayer,
-            denoiserScratch.d_pointer(),
-            denoiserScratch.size()));
-    }
-    else {
-        cudaMemcpy((void*)outputLayer.data, (void*)inputLayer[0].data,
-            outputLayer.width * outputLayer.height * sizeof(float4),
-            cudaMemcpyDeviceToDevice);
-    }
+    OPTIX_CHECK(optixDenoiserInvoke(denoiser,
+        /*stream*/0,
+        &denoiserParams,
+        denoiserState.d_pointer(),
+        denoiserState.size(),
+        &inputLayer[0], 2,
+        /*inputOffsetX*/0,
+        /*inputOffsetY*/0,
+        &outputLayer,
+        denoiserScratch.d_pointer(),
+        denoiserScratch.size()));
 
     // UNMAP GL BUFFERS
     unmapBuffer(handleColor);
     unmapBuffer(handleAlbedo);
     unmapBuffer(handleNormal);
 
-    // sync - make sure the frame is rendered before we download and
-    // display (obviously, for a high-performance application you
-    // want to use streams and double-buffering, but for this simple
-    // example, this will have to do)
     CUDA_SYNC_CHECK();
 }
 

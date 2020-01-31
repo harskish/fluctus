@@ -111,7 +111,6 @@ private:
 
 #ifdef WITH_OPTIX
     DenoiserOptix denoiser;
-    //optix::Buffer denoisedResult;
     float denoiserStrength = 1.0f;
 #endif
 
