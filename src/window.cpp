@@ -31,7 +31,9 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     void *ptr = glfwGetWindowUserPointer(window);
     Tracer *instance = reinterpret_cast<Tracer*>(ptr);
     
-    instance->resizeBuffers(width, height);
+    // Don't resize when minimized
+    if (width > 0 && height > 0)
+        instance->resizeBuffers(width, height);
 }
 
 void windowCloseCallback(GLFWwindow *window)
