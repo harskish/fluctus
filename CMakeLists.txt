@@ -19,6 +19,7 @@ set(INCLUDE_DIRS
     ${OpenCL_INCLUDE_DIR}
     ${OPENGL_INCLUDE_DIR}
     include
+    src
 )
 
 set(LIBRARIES

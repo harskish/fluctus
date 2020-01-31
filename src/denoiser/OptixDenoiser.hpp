@@ -1,8 +1,5 @@
 #pragma once
 
-//#include <optixu/optixpp_namespace.h>
-
-
 #include "CUDABuffer.h"
 
 using osc::CUDABuffer;

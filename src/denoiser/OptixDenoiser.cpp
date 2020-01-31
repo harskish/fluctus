@@ -1,11 +1,11 @@
 #define NOMINMAX
 
-#include "../window.hpp"
-#include "../utils.h"
+#include "OptixDenoiser.hpp"
+#include "window.hpp"
+#include "utils.h"
 #include <algorithm>
 #include <iostream>
 #include <cuda_gl_interop.h>
-#include "OptixDenoiser.hpp"
 
 // this include may only appear in a single source file:
 #include <optix_function_table_definition.h>
@@ -25,7 +25,6 @@ DenoiserOptix::DenoiserOptix(void)
     std::cout << "OptixDenoiser: found " << numDevices << " CUDA devices" << std::endl;
 
     OPTIX_CHECK(optixInit());
-    std::cout << "OptixDenoiser: successfully initialized optix... yay!" << std::endl;
 
     const int deviceID = 0;
     CUDA_CHECK(SetDevice(deviceID));
@@ -34,44 +33,37 @@ DenoiserOptix::DenoiserOptix(void)
     cudaGetDeviceProperties(&deviceProps, deviceID);
     std::cout << "OptixDenoiser: running on device: " << deviceProps.name << std::endl;
 
-    CUresult  cuRes = cuCtxGetCurrent(&cudaContext);
+    CUresult cuRes = cuCtxGetCurrent(&cudaContext);
     if (cuRes != CUDA_SUCCESS)
-        fprintf(stderr, "Error querying current context: error code %d\n", cuRes);
+        throw std::runtime_error("Cannot get current CUDA context: error code" + std::to_string(cuRes));
 
     OPTIX_CHECK(optixDeviceContextCreate(cudaContext, 0, &optixContext));
     OPTIX_CHECK(optixDeviceContextSetLogCallback(optixContext, context_log_cb, nullptr, 4));
 }
 
-// Create RTBuffers using CUDA-GL sharing
+// Create buffers using CUDA-GL sharing
 // The buffers are now doubly shared (CUDA-GL and CL-GL)
 void DenoiserOptix::bindBuffers(PTWindow* window)
 {
     unsigned int width = window->getTexWidth();
     unsigned int height = window->getTexHeight();
 
-    auto create = [&](GLuint pbo, cudaGraphicsResource_t &cudaResourceBuf, cudaGraphicsRegisterFlags flags)
+    auto create = [width, height](GLuint pbo, cudaGraphicsResource_t &cudaResourceBuf, cudaGraphicsRegisterFlags flags)
     {
         glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
 
-        if (cudaSuccess != cudaGraphicsGLRegisterBuffer(&cudaResourceBuf, pbo, flags)) // matches CL_MEM_READ_WRITE?
-            throw std::runtime_error("Could not create GL-CUDA shared PBO");
+        CUDA_CHECK(GraphicsGLRegisterBuffer(&cudaResourceBuf, pbo, flags)); // matches CL_MEM_READ_WRITE?
+        CUDA_CHECK(GraphicsMapResources(1, &cudaResourceBuf, 0));
 
-        // map OpenGL buffer object for writing from CUDA
         float4* dptr;
+        size_t numBytes;
+        CUDA_CHECK(GraphicsResourceGetMappedPointer((void**)&dptr, &numBytes, cudaResourceBuf));
+        
+        size_t expectedBytes = (size_t)width * (size_t)height * sizeof(float4);
+        if (numBytes != expectedBytes)
+            std::cerr << "CUDA mapped VBO size mismatch: " << numBytes << " does not match expected (" << expectedBytes << ")" << std::endl;
 
-        if (cudaSuccess != cudaGraphicsMapResources(1, &cudaResourceBuf, 0))
-            throw std::runtime_error("Could not map resource");
-
-        size_t expected_bytes = width * height * 4 * sizeof(float);
-        size_t num_bytes;
-        if (cudaSuccess != cudaGraphicsResourceGetMappedPointer((void**)&dptr, &num_bytes, cudaResourceBuf))
-            throw std::runtime_error("Could not get mapped ptr");
-
-        printf("CUDA mapped VBO: May access %ld bytes (expected: %ld)\n", num_bytes, expected_bytes);
-
-        // unmap buffer object
-        if (cudaSuccess != cudaGraphicsUnmapResources(1, &cudaResourceBuf, 0))
-            throw std::runtime_error("Could not unmap resource");
+        CUDA_CHECK(GraphicsUnmapResources(1, &cudaResourceBuf, 0));
     };
 
     create(window->getPBO(), handleColor, cudaGraphicsRegisterFlagsNone); // read and write
@@ -94,28 +86,24 @@ void DenoiserOptix::resizeBuffers(PTWindow* window)
 void DenoiserOptix::denoise(void)
 {
     OptixDenoiserParams denoiserParams;
-    denoiserParams.denoiseAlpha = 1;
+    denoiserParams.denoiseAlpha = 0;
     denoiserParams.hdrIntensity = denoiserIntensity.d_pointer();
-    denoiserParams.blendFactor = 1.0f - denoiseBlend;
+    denoiserParams.blendFactor = denoiseBlend;
 
-    auto mapBuffer = [&](cudaGraphicsResource_t& cudaResourceBuf)
+    auto mapBuffer = [](cudaGraphicsResource_t& cudaResourceBuf)
     {
         float4* dptr;
-
-        if (cudaSuccess != cudaGraphicsMapResources(1, &cudaResourceBuf, 0))
-            throw std::runtime_error("Could not map resource");
-
         size_t num_bytes;
-        if (cudaSuccess != cudaGraphicsResourceGetMappedPointer((void**)&dptr, &num_bytes, cudaResourceBuf))
-            throw std::runtime_error("Could not get mapped ptr");
+
+        CUDA_CHECK(GraphicsMapResources(1, &cudaResourceBuf, 0));
+        CUDA_CHECK(GraphicsResourceGetMappedPointer((void**)&dptr, &num_bytes, cudaResourceBuf));
 
         return (CUdeviceptr)dptr;
     };
 
-    auto unmapBuffer = [&](cudaGraphicsResource_t& cudaResourceBuf)
+    auto unmapBuffer = [](cudaGraphicsResource_t& cudaResourceBuf)
     {
-        if (cudaSuccess != cudaGraphicsUnmapResources(1, &cudaResourceBuf, 0))
-            throw std::runtime_error("Could not unmap resource");
+        CUDA_CHECK(GraphicsUnmapResources(1, &cudaResourceBuf, 0));
     };
 
     // MAP GL BUFFERS
@@ -188,8 +176,7 @@ void DenoiserOptix::setupDenoiser(unsigned int width, unsigned int height)
     OPTIX_CHECK(optixDenoiserSetModel(denoiser, OPTIX_DENOISER_MODEL_KIND_HDR, NULL, 0));
 
     OptixDenoiserSizes denoiserReturnSizes;
-    OPTIX_CHECK(optixDenoiserComputeMemoryResources(denoiser, width, height,
-        &denoiserReturnSizes));
+    OPTIX_CHECK(optixDenoiserComputeMemoryResources(denoiser, width, height, &denoiserReturnSizes));
 
     denoiserIntensity.resize(sizeof(float));
     denoiserScratch.resize(denoiserReturnSizes.recommendedScratchSizeInBytes);
