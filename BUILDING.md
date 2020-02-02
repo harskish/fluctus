@@ -25,7 +25,6 @@ Prebuilt DevIL binaries for Windows included.
 	cmake .. -G "Visual Studio 15 2017 Win64"
     ```
 - Build using Visual Studio solution (set Fluctus as StartUp project)
-- Copy DevIL.dll and ILU.dll (non-unicode) from ext/windows/DevIL to binary output folder
 - Run in debug mode for CPU kernel debugging, release mode for performance
 
 ## Mac

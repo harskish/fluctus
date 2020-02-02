@@ -120,3 +120,21 @@ set_target_properties(Fluctus PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
 endif()
+
+# Automatically copy DLLs on Windows
+if (WIN32)
+  if (CMAKE_SIZEOF_VOID_P EQUAL 4)
+    set(PLATFORM "Win32")
+  else()
+    set(PLATFORM "x64")
+  endif()
+
+  function(copydll LIBROOT LIBNAME)
+    add_custom_command(TARGET Fluctus POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ext/windows/${LIBROOT}/${PLATFORM}/lib/${LIBNAME}
+        $<TARGET_FILE_DIR:Fluctus>/${LIBNAME})
+  endfunction()
+
+  copydll(DevIL DevIL.dll)
+  copydll(DevIL ILU.dll)
+endif()
