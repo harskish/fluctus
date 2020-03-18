@@ -55,13 +55,10 @@ Prebuilt DevIL binaries for Windows included.
 
 ## Linux (Debian / Ubuntu)
 
-**Not thoroughly tested (but confirmed working on Ubuntu 16.04)**
-
 - Install OpenCL SDK (CUDA Toolkit / Intel OpenCL SDK / AMD APP SDK)
-	- For CUDA Toolkit (cuda_8.0.27_linux.run), driver part can be skipped
 - Install dependencies:
 	```
-    sudo apt-get install build-essential opencl-headers libdevil-dev libglfw3-dev
+    sudo apt-get install build-essential opencl-headers libdevil-dev libglfw3-dev xorg-dev
     ```
 - Setup submodules:
     ```
