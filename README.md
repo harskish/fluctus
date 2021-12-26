@@ -61,6 +61,18 @@ Rename settings_default.json to settings.json. Modify to set default OpenCL devi
 
 See the [build instructions](./BUILDING.md).
 
+Gallery
+--------
+![Dining Room](gallery/dining_room.png)
+--------
+![San Miguel](gallery/san_miguel.png)
+--------
+![Classroom](gallery/ChristopheSeuxClassRoom.png)
+--------
+![Spaceship](gallery/spaceship.png)
+--------
+![DOF](gallery/dof.png)
+
 ## License
 
 Source code and resources provided under the [MIT LICENSE](./LICENSE.md), unless otherwise specified.
