@@ -57,6 +57,7 @@ public:
     cl_uint getNumTasks() const;
 
     Hit pickSingle(float NDCx, float NDCy);
+    cl::Device &getDevice();
 
     void setup(PTWindow *window);
     void setupParams();

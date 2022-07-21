@@ -922,6 +922,11 @@ Hit CLContext::pickSingle(float NDCx, float NDCy)
     return hit;
 }
 
+cl::Device &CLContext::getDevice()
+{
+    return device;
+}
+
 // Check error, second optional parameter acts as boolean predicate
 void CLContext::verify(std::string msg, int pred)
 {

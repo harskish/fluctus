@@ -373,6 +373,7 @@ inline void addToMaterialQueueNaive(
 
 // Minimize global atomics
 // No real performance gain on GTX 1060 3GB
+#ifndef APPLE_SILICON
 kernel void addToMaterialQueueLocalAtomics(
     const uint gid,
     const Material mat,
@@ -448,6 +449,7 @@ kernel void addToMaterialQueueLocalAtomics(
     uint idx = *queueLenLocal + posLocal;
     queue[idx] = gid;
 }
+#endif
 
 
 #ifdef NVIDIA

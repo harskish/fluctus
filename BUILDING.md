@@ -12,8 +12,8 @@ Prebuilt DevIL binaries for Windows included.
 ## Windows
 
 - Install an OpenCL SDK for libs and headers
-	- Intel OpenCL SDK recommended for kernel debugging support on Intel CPUs
-	- Alternatives include NVIDIA CUDA Toolkit, AMD APP SDK
+    - Intel OpenCL SDK recommended for kernel debugging support on Intel CPUs
+    - Alternatives include NVIDIA CUDA Toolkit, AMD APP SDK
 - Setup submodules:
     ```
     git submodule update --init --recursive
@@ -21,8 +21,8 @@ Prebuilt DevIL binaries for Windows included.
 - Generate build files:
     ```
     mkdir build
-	cd build
-	cmake .. -G "Visual Studio 15 2017 Win64"
+    cd build
+    cmake .. -G "Visual Studio 15 2017 Win64"
     ```
 - Build using Visual Studio solution (set Fluctus as StartUp project)
 - Run in debug mode for CPU kernel debugging, release mode for performance
@@ -30,14 +30,18 @@ Prebuilt DevIL binaries for Windows included.
 ## Mac
 
 - Install Xcode Command Line Tools (for clang)
-- Apple OpenCL framework used for OpenCL support
-- Install dependencies with [Homebrew][homebrew]:
-	```
-    brew install glfw3 devil
-    ```
+- Apple OpenCL framework will be used for OpenCL support
 - Setup submodules:
     ```
     git submodule update --init --recursive
+    ```
+- Setup dependencies:
+    ```
+    # Option 1: Nix (tested July 2022 on Apple M2):
+    nix-shell ./shell.nix
+    
+    # Option 2: Homebrew:
+    brew install glfw3 devil
     ```
 - Compile:
     ```
@@ -57,7 +61,7 @@ Prebuilt DevIL binaries for Windows included.
 
 - Install OpenCL SDK (CUDA Toolkit / Intel OpenCL SDK / AMD APP SDK)
 - Install dependencies:
-	```
+    ```
     sudo apt-get install build-essential opencl-headers libdevil-dev libglfw3-dev xorg-dev
     ```
 - Setup submodules:
@@ -78,3 +82,4 @@ Prebuilt DevIL binaries for Windows included.
 
 
 [homebrew]: https://brew.sh/
+[nix]: https://nix.dev/

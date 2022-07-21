@@ -56,6 +56,13 @@ public:
         if (params.sampleExpl) opts.append(" -DSAMPLE_EXPLICIT");
         if (params.sampleImpl) opts.append(" -DSAMPLE_IMPLICIT");
         if (!params.wfSeparateQueues) opts.append(" -DWF_SINGLE_MAT_QUEUE");
+
+        // Apple's CL-to-Metal translation fails for kernel functions
+        cl::Device device = tracer->getClContext()->getDevice();
+        std::string name = device.getInfo<CL_DEVICE_NAME>();
+        if (name.find("Apple M") != std::string::npos)
+            opts.append(" -DAPPLE_SILICON");
+
         return opts;
     }
 };
