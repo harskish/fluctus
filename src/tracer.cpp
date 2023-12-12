@@ -796,8 +796,10 @@ void Tracer::initAreaLight()
     paramsUpdatePending = true;
 }
 
-// "The rows of R represent the coordinates in the original space of unit vectors along the
-//  coordinate axes of the rotated space." (https://www.fastgraph.com/makegames/3drotation/)
+// "The rows of R represent the coordinates in the original space of
+//  unit vectors along the coordinate axes of the rotated space."
+// - Rotation Tools (Michael E. Pique), Graphics Gems (1990), p.465,
+//   https://books.google.fi/books?id=Mqn8BAAAQBAJ&lpg=PP1&pg=PA465
 void Tracer::updateCamera()
 {
     if(cameraRotation.x < 0) cameraRotation.x += 360.0f;
